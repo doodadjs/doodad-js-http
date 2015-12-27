@@ -47,9 +47,9 @@
 }
 
 .content .item.folder .icon {
-	background-image: url('?res=img/folder.png');
+	background-image: url('/nodejs/static/doodad-js-http/res/img/folder.png');
 }
 
 .content .item.file .icon {
-	background-image: url('?res=img/file.png');
+	background-image: url('/nodejs/static/doodad-js-http/res/img/file.png');
 }
