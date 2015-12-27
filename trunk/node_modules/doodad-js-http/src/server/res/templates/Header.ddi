@@ -9,7 +9,7 @@
 		"http://www.doodad-js.local/schemas/ddi ../../../../common/res/schemas/ddt/ddi.xsd"
 >
 <!--
-	 dOOdad - Class library for Javascript (BETA) with some extras (ALPHA)
+	 dOOdad - Object-oriented programming framework with some extras
 	 File: Header.ddi - Footer page template include file
 	 Project home: https://sourceforge.net/projects/doodad-js/
 	 Trunk: svn checkout svn://svn.code.sf.net/p/doodad-js/code/trunk doodad-js-code
