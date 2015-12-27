@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE ddt SYSTEM "../../../../common/res/schemas/ddt/html5_ddt.dtd">
+<t:ddt 
+	xmlns="http://www.doodad-js.local/schemas/html5" 
+	xmlns:t="http://www.doodad-js.local/schemas/ddt" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation=
+		"http://www.doodad-js.local/schemas/ddt ../../../../common/res/schemas/ddt/ddt.xsd"
+
+	type="Doodad.NodeJs.Server.Http.FolderPageTemplate"
+>
+<!--
+	 dOOdad - Class library for Javascript (BETA) with some extras (ALPHA)
+	 File: Folder.ddt - Folder page template
+	 Project home: https://sourceforge.net/projects/doodad-js/
+	 Trunk: svn checkout svn://svn.code.sf.net/p/doodad-js/code/trunk doodad-js-code
+	 Author: Claude Petit, Quebec city
+	 Contact: doodadjs [at] gmail.com
+	 Note: I'm still in alpha-beta stage, so expect to find some bugs or incomplete parts !
+	 License: Apache V2
+	
+		Copyright 2015 Claude Petit
+	
+		Licensed under the Apache License, Version 2.0 (the "License");
+		you may not use this file except in compliance with the License.
+		You may obtain a copy of the License at
+	
+			http://www.apache.org/licenses/LICENSE-2.0
+	
+		Unless required by applicable law or agreed to in writing, software
+		distributed under the License is distributed on an "AS IS" BASIS,
+		WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+		See the License for the specific language governing permissions and
+		limitations under the License.
+-->
+
+	<!--<t:script vars="url"><![CDATA[
+		url = page.request.url;
+	]]></t:script>
+-->
+	
+	<html>
+		<head>
+			<link rel="stylesheet" type="text/css" t:href="page.request.url.setArgs('res', 'css/Folder.css')" />
+		</head>
+		
+		<header>
+			<t:include src="Header.ddi" />
+			<!--<t:script>
+				page.asyncWrite('ALLO');
+			</t:script>-->
+
+			<h3 class="current"><span>Content of <a href="./"><t:eval>page.request.url</t:eval></a></span></h3>
+		</header>
+		
+		<body>
+			<span class="parent">Jump to <a t:href="page.request.url.moveUp()">parent</a></span>
+			<ul class="content">
+				<t:for-each items="page.files" item="file">
+					<li t:class="'item ' + (file.isFolder ? 'folder' : 'file')">
+						<div class="cell icon"/>
+						<div class="cell space"/>
+						<div class="cell name">
+							<div  class="flex">
+								<a class="value" t:href="file.name + (file.isFolder ? '/' : '')">
+                    				<t:eval>file.name</t:eval>
+								</a>
+								<div class="cell space"/>
+								<div class="filler">&nbsp;</div>
+							</div>
+						</div>
+						<div class="cell space"/>
+						<div class="cell size">
+							<div class="value"><t:eval>file.size</t:eval></div>
+						</div>
+					</li>
+				</t:for-each>
+			</ul>
+		</body>
+		
+		<footer>
+			<t:include src="Footer.ddi" />
+		</footer>
+	</html>
+</t:ddt>
