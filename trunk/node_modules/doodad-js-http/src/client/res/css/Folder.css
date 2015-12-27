@@ -1,0 +1,55 @@
+.current {
+	text-decoration: underline;
+}
+
+.content {
+	display: table;
+}
+
+.content .item {
+	display: table-row;
+}
+
+.content .item .cell {
+	display: table-cell;
+	vertical-align: middle;
+}
+
+.content .item .icon {
+	width: 32px;
+	height: 32px;
+	background-repeat: no-repeat;
+}
+
+.content .item .space {
+	width: 5px;
+}
+
+.content .item .name {
+	width: 500px;
+	max-width: 500px;
+	overflow: hidden;
+}
+
+.content .item .name .flex {
+	display: flex;
+    align-items: center;
+}
+
+.content .item .flex .filler {
+    display: inline-flex;
+    flex-grow: 1;
+	border-bottom: dotted 1px gray;
+}
+
+.content .item .size .value {
+	float: right;
+}
+
+.content .item.folder .icon {
+	background-image: url('?res=img/folder.png');
+}
+
+.content .item.file .icon {
+	background-image: url('?res=img/file.png');
+}
