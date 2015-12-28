@@ -715,12 +715,18 @@
 						if (path.file) {
 							request.redirectClient(request.url.pushFile());
 						};
-						/*
 						if (request.url.args.has('res')) {
 							request.clearHeaders();
 							path = request.mapping.folderTemplate.combine('./public/' + request.url.args.get('res'), {isRelative: true, os: 'linux'});
 							this.addHeaders(request, path, function statCallback(err, stats) {
-								if (stats.isFile()) {
+								if (err) {
+									//console.log(err);
+									if (err.code === 'ENOENT') {
+										request.respondWithStatus(http.StatusCodes.NotFound);
+									} else {
+										request.respondWithError(err);
+									};
+								} else if (stats.isFile()) {
 									this.sendFile(request, path, stats);
 								} else {
 									request.reject(stats);
@@ -728,7 +734,6 @@
 							});
 							return;
 						};
-						*/
 						request.sendHeaders();
 						files.readdir(path, {async: true})
 							.then(new tools.PromiseCallback(this, function(files) {

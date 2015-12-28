@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE ddt SYSTEM "../../../../common/res/schemas/ddt/html5_ddt.dtd">
+<!DOCTYPE ddt SYSTEM "../../../../../doodad-js-templates/src/common/res/schemas/ddt/html5_ddt.dtd">
 <t:ddt 
 	xmlns="http://www.doodad-js.local/schemas/html5" 
 	xmlns:t="http://www.doodad-js.local/schemas/ddt" 
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation=
-		"http://www.doodad-js.local/schemas/ddt ../../../../common/res/schemas/ddt/ddt.xsd"
+		"http://www.doodad-js.local/schemas/ddt ../../../../../doodad-js-templates/src/common/res/schemas/ddt/ddt.xsd"
 
 	type="Doodad.NodeJs.Server.Http.FolderPageTemplate"
 >
