@@ -928,7 +928,7 @@
 
 
 				return function init(/*optional*/options) {
-					locale.loadLocale('en_US').then(function(locale) {
+					return locale.loadLocale('en_US').then(function(locale) {
 						__Internal__.enUSLocale = locale;
 					});
 				};
