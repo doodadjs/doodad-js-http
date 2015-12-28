@@ -620,6 +620,7 @@
 									map.page = namespaces.getNamespace(map.page);
 								};
 								if (!types._implements(map.page, httpMixIns.Page)) {
+									console.log(url);
 									throw new types.TypeError(tools.format("Invalid page type : '~0~'.", [types.getTypeName(map.page)]));
 								};
 								types.getType(map.page).$prepare(urlMappings, map, key);
