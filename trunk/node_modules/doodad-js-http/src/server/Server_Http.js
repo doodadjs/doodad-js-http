@@ -1,5 +1,5 @@
-//! REPLACE_BY("// Copyright 2015 Claude Petit, licensed under Apache License version 2.0\n")
-// dOOdad - Object-oriented programming framework with some extras
+//! REPLACE_BY("// Copyright 2016 Claude Petit, licensed under Apache License version 2.0\n")
+// dOOdad - Object-oriented programming framework
 // File: Server_Http.js - Server tools
 // Project home: https://sourceforge.net/projects/doodad-js/
 // Trunk: svn checkout svn://svn.code.sf.net/p/doodad-js/code/trunk doodad-js-code
@@ -8,7 +8,7 @@
 // Note: I'm still in alpha-beta stage, so expect to find some bugs or incomplete parts !
 // License: Apache V2
 //
-//	Copyright 2015 Claude Petit
+//	Copyright 2016 Claude Petit
 //
 //	Licensed under the Apache License, Version 2.0 (the "License");
 //	you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@
 (function() {
 	const global = this;
 
-	var exports = {};
-	if (global.process) {
+	const exports = {};
+	if (typeof process === 'object') {
 		module.exports = exports;
 	};
 	
@@ -35,9 +35,26 @@
 		DD_MODULES = (DD_MODULES || {});
 		DD_MODULES['Doodad.Server.Http'] = {
 			type: null,
-			version: '0d',
+			version: '0.2d',
 			namespaces: ['Interfaces', 'MixIns'],
-			dependencies: ['Doodad.Types', 'Doodad.Tools', 'Doodad.Tools.Mime', 'Doodad', 'Doodad.IO', 'Doodad.Server', 'Doodad.Widgets'],
+			dependencies: [
+				{
+					name: 'Doodad.Types', 
+					version: '1.1r',
+				},
+				'Doodad.Tools', 
+				'Doodad.Tools.Mime', 
+				'Doodad', 
+				{
+					name: 'Doodad.IO',
+					version: '0.2',
+				}, 
+				{
+					name: 'Doodad.Server',
+					version: '0.2',
+				}, 
+				'Doodad.Widgets'
+			],
 
 			create: function create(root, /*optional*/_options) {
 				"use strict";
@@ -299,57 +316,7 @@
 					});
 				};
 				
-				http.StatusCodes = {
-					// Information
-					Continue: 100,
-					SwitchingProtocol: 101,
-					
-					// Success
-					OK: 200,
-					Created: 201,
-					Accepted: 202,
-					NonAuthoritativeInformation: 203,
-					NoContent: 204,
-					ResetContent: 205,
-					PartialContent: 206,
 
-					// Redirect
-					MultipleChoices: 300,
-					MovedPermanently: 301,
-					Found: 302,
-					SeeOther : 303,
-					NotModified: 304,
-					UseProxy: 305,
-					TemporaryRedirect: 307,
-					
-					// Client errors
-					BadRequest: 400,
-					Unauthorized: 401,
-					Forbidden: 403,
-					NotFound: 404,
-					MethodNotAllowed: 405,
-					NotAcceptable: 406,
-					ProxyAuthenticationRequired: 407,
-					RequestTimeout: 408,
-					Conflict: 409,
-					Gone: 410,
-					LengthRequired: 411,
-					PreconditionFailed: 412,
-					EntityTooLarge: 413,
-					UrlTooLong: 414,
-					UnsupportedMediaType: 415,
-					RangeNotSatisfiable: 416,
-					ExpectationFailed: 417,
-
-					// Server errors
-					InternalError: 500,
-					NotImplemented: 501,
-					BadGateway: 502,
-					ServiceUnavailable: 503,
-					GatewayTimeout: 504,
-					VersionNotSupported: 505,
-				};
-				
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
 									serverMixIns.Request,
 				{
@@ -360,21 +327,26 @@
 					mapping: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					verb: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					url: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					fileExtension: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					fileMimeTypes: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					requestHeaders: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					
 					startBodyTransfer: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function()
 					
-					responseStatus: doodad.PUBLIC(null),
-					responseMessage: doodad.PUBLIC(null),
-					responseHeaders: doodad.PUBLIC(null),
-					responseTrailers: doodad.PUBLIC(null),
-
-					headersSent: doodad.PUBLIC(doodad.READ_ONLY(false)),
-					trailersSent: doodad.PUBLIC(doodad.READ_ONLY(false)),
+					__requestStream: doodad.PROTECTED(null),
+					__responseStream: doodad.PROTECTED(null),
 					
+					getRequestStream: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function()
+					getResponseStream: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function()
+					
+					responseStatus: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					responseMessage: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					responseHeaders: doodad.PUBLIC(doodad.READ_ONLY(null)),  // TODO: Property that returns a copy
+					responseTrailers: doodad.PUBLIC(doodad.READ_ONLY(null)), // TODO: Property that returns a copy
+
 					addHeaders: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(headers)
 					addTrailers: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(trailers)
-					clearHeaders: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function()
+					clearHeaders: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(/*optional*/names)
 					
 					sendHeaders: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function()
 					sendTrailers: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function()
@@ -387,12 +359,99 @@
 					redirectServer: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function redirectServer(url)
 					reject: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function reject()
 
-					create: doodad.OVERRIDE(function create() {
-						this._super();
+					parseAccept: doodad.PUBLIC(function parseAccept(mimeTypes) {
+						let accept = this.requestHeaders['accept'];
+						if (accept) {
+							accept = http.parseAcceptHeader(accept);
+						};
 						
-						this.customData = {};
-						this.responseHeaders = {};
-						this.responseTrailers = {};
+						let fileMimeTypes = [];
+						
+						for (let i = 0; i < mimeTypes.length; i++) {
+							let type = mimeTypes[i].split('/', 2);
+							const subtype = type[1];
+							type = type[0];
+							
+							let ok = false,
+								weight = 1.0;
+								
+							if (accept) {
+								for (let j = 0; j < accept.length; j++) {
+									const entry = accept[j];
+									if ((entry.type === '*') || (entry.type === type)) {
+										if ((entry.subtype === '*') || (entry.subtype === subtype)) {
+											ok = true;
+											weight = entry.weight;
+											break;
+										};
+									};
+								};
+							} else {
+								ok = true;
+							};
+							
+							if (ok) {
+								fileMimeTypes.push({
+									name: type + (subtype ? '/' + subtype : ''),
+									type: type,
+									subtype: subtype,
+									weight: weight,
+								});
+							};
+						};
+						
+						fileMimeTypes = fileMimeTypes.sort(function(type1, type2) {
+							if (type1.weight > type2.weight) {
+								return -1;
+							} else if (type1.weight < type2.weight) {
+								return 1;
+							} else {
+								return 0;
+							};
+						});
+						
+						return fileMimeTypes;
+					}),
+					
+					create: doodad.OVERRIDE(function create(server, verb, url, headers) {
+						if (types.isString(url)) {
+							url = tools.Url.parse(url);
+						};
+					
+						if (root.DD_ASSERT) {
+							root.DD_ASSERT && root.DD_ASSERT(types._implements(server, http.Server), "Invalid server.");
+							root.DD_ASSERT(types.isString(verb), "Invalid verb.");
+							root.DD_ASSERT((url instanceof tools.Url), "Invalid URL.");
+							root.DD_ASSERT(types.isObject(headers), "Invalid headers.");
+						};
+						
+						this.setAttributes({
+							server: server,
+							verb: verb.toLowerCase(),
+							url: url,
+							requestHeaders: headers,
+							customData: {},
+							responseHeaders: {},
+							responseTrailers: {},
+						});
+						
+						const requestFile = url.file;
+						
+						let fileExtension = null,
+							fileMimeTypes = null;
+							
+						if (requestFile) {
+							let pos = requestFile.lastIndexOf('.');
+							if (pos >= 0) {
+								fileExtension = requestFile.slice(pos + 1);
+							};
+							fileMimeTypes = this.parseAccept(mime.getTypes(requestFile));
+						};
+
+						this.setAttributes({
+							fileExtension: fileExtension,
+							fileMimeTypes: fileMimeTypes || [],
+						});
 					}),
 				})));
 				
@@ -429,7 +488,7 @@
 						if (types.isImplemented(this, method)) {
 							result = this[method](request);
 						} else {
-							result = request.respondWithStatus(http.StatusCodes.NotImplemented);
+							result = request.respondWithStatus(types.HttpStatus.NotImplemented);
 						};
 						return result;
 					}),
@@ -448,8 +507,7 @@
 							allowed = tools.filter(this.knownVerbs, this.isAllowed, this);
 							this.setAttribute('__allowedVerbs', allowed);
 						};
-						request.responseStatus = http.StatusCodes.OK;
-						request.responseHeaders['Allow'] = allowed.join(',');
+						request.addHeaders({Allow: allowed.join(',')});
 						request.end();
 					}),
 					
@@ -493,8 +551,6 @@
 
 					execute_HEAD: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
 					execute_GET: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
-					//execute_PUT: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
-					//execute_DELETE: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
 				})));
 
 				http.REGISTER(doodad.BASE(widgets.Widget.$extend(
@@ -506,7 +562,7 @@
 						const result = this.show(request);
 						if (result !== false) {
 							request.writeHeader();
-							this.render(request.responseStream);
+							this.render(request.getResponseStream());
 							request.writeFooter();
 						};
 						return result;
@@ -515,7 +571,7 @@
 						const result = this.load(request);
 						if (result !== false) {
 							request.writeHeader();
-							this.render(request.responseStream);
+							this.render(request.getResponseStream());
 							request.writeFooter();
 						};
 						return result;
@@ -555,6 +611,179 @@
 						this.setAttributes({pageFactory: pageFactory, options: options});
 					}),
 				})));
+
+
+				http.REGISTER(doodad.BASE(doodad.Object.$extend(
+				{
+					$TYPE_NAME: 'RequestMatcher',
+					
+					match: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, map)
+				})));
+				
+				
+				http.REGISTER(http.RequestMatcher.$extend(
+				{
+					$TYPE_NAME: 'UrlMatcher',
+					
+					url: doodad.PUBLIC( null ),
+					
+					create: doodad.OVERRIDE(function(url) {
+						this._super();
+						if (types.isString(url)) {
+							url = tools.Url.parse(url);
+						};
+						root.DD_ASSERT && root.DD_ASSERT((url instanceof tools.Url), "Invalid url.");
+						this.url = url;
+					}),
+					
+					match: doodad.OVERRIDE(function(request, map) {
+						this._super(request, map);
+						
+						const requestUrl = request.url,
+							requestUrlPath = requestUrl.path,
+							requestUrlPathLen = (requestUrlPath && requestUrlPath.length || 0);
+
+						const path = this.url.path,
+							pathLen = (path && path.length || 0);
+							
+						let level = 0,     // path level (used later to remove the beginning of the path)
+							weight = 0,    // weight
+							full = false,  // full match
+							depth = 0,
+							starStar = false;
+							
+						if (pathLen <= requestUrlPathLen) {
+							weight++;
+							let i = 0,
+								j = 0;
+							while ((i < pathLen) && (j < requestUrlPathLen)) {
+								let name1 = path[i],
+									name2 = requestUrlPath[j];
+								if (!map.caseSensitive) {
+									name1 = name1.toUpperCase();
+									name2 = name2.toUpperCase();
+								};
+								if (name1 === '**') {
+									starStar = true;
+									i++;
+									level++;
+								} else if (starStar) {
+									if (name1 === name2) {
+										i++;
+										level++;
+										starStar = false;
+									};
+								} else {
+									if ((name1 !== '*') && (name1 !== name2)) {
+										break;
+									};
+									i++;
+									level++;
+								};
+								j++;
+								weight++;
+							};
+							
+							if (level >= pathLen) {
+								let ok = true;
+								if (!types.isNothing(map.depth)) {
+									if (this.url.file) {
+										pathLen++;
+									};
+									if ((pathLen + map.depth) < (requestUrlPathLen + (requestUrl.file ? 1 : 0))) {
+										ok = false;
+									};
+								};
+								
+								if (ok) {
+									if (this.url.file) {
+										if (requestUrl.file) {
+											let name1 = this.url.file,
+												name2 = requestUrl.file;
+											if (!map.caseSensitive) {
+												name1 = name1.toUpperCase();
+												name2 = name2.toUpperCase();
+											};
+											if (name1 === name2) {
+												weight++;
+												full = true;
+											};
+										};
+									} else {
+										full = true;
+									};
+								};
+							};
+						};
+						
+						types.extend(map, {
+							level: level,
+							weight: weight,
+							full: full,
+						});
+					}),
+					
+					toString: doodad.OVERRIDE(function toString() {
+						if (types.isType(this)) {
+							return this._super();
+						} else {
+							this.overrideSuper();
+							return this.url.toString();
+						};
+					}),
+				}));
+				
+				
+				http.REGISTER(http.RequestMatcher.$extend(
+				{
+					$TYPE_NAME: 'RegExpUrlMatcher',
+					
+					regex: doodad.PUBLIC( null ),
+					
+					create: doodad.OVERRIDE(function(regex) {
+						this._super();
+						if (types.isString(regex)) {
+							regex = new global.RegExp(regex);
+						};
+						root.DD_ASSERT && root.DD_ASSERT((regex instanceof global.RegExp), "Invalid regular expression.");
+						this.regex = regex;
+					}),
+					
+					match: doodad.OVERRIDE(function(request, map) {
+						this._super(request, map);
+
+						// TODO: Test
+						const url = request.url.toString();
+						map.matches = this.regex.exec(url);
+						if (!map.matches) {
+							return false;
+						};
+						map.level = url.slice(0, map.matches.index).split('/').length - 1;
+						map.weight = -1; // -1 because first item is the whole string
+						let ok = true;
+						map.full = tools.every(map.matches, function(match) {
+							if (match) {
+								if (ok) {
+									map.weight++;
+								};
+								return true;
+							} else {
+								ok = false;
+								return false;
+							};
+						});
+					}),
+
+					toString: doodad.OVERRIDE(function toString() {
+						if (types.isType(this)) {
+							return this._super();
+						} else {
+							this.overrideSuper();
+							return this.regex.source;
+						};
+					}),
+				}));
+				
 				
 				http.REGISTER(doodad.Object.$extend(
 									httpInterfaces.PageFactory,
@@ -599,205 +828,110 @@
 					options: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					
 					create: doodad.OVERRIDE(function create(urlMappings, /*optional*/options) {
-						root.DD_ASSERT && root.DD_ASSERT(types.isObject(urlMappings) || (urlMappings instanceof types.Map), "Invalid url mappings.");
+						root.DD_ASSERT && root.DD_ASSERT((urlMappings instanceof types.Map) || types.isObject(urlMappings), "Invalid url mappings.");
 
-						// Do it once to save CPU time
-						urlMappings = tools.filter(urlMappings, function(maps) {
-							return !!maps;
-						});
-						tools.forEach(urlMappings, function(maps, key) {
-							// TODO: Dynamic URLs (like "/**/index.html"). Use a Map object with functions as keys as custom URL matching resolvers
-							const url = tools.Url.parse(key);
-							if (!types.isArray(maps)) {
-								maps = [maps];
+						const parsedMappings = new types.Map();
+						tools.forEach(urlMappings, function(maps, matcher) {
+							if (matcher && maps) {
+								if (types.isString(matcher)) {
+									matcher = new http.UrlMatcher(matcher);
+								};
+								root.DD_ASSERT && root.DD_ASSERT((matcher instanceof http.RequestMatcher), "Invalid request matcher.");
+								
+								if (!types.isArray(maps)) {
+									maps = [maps];
+								};
+								
+								const parsedMaps = [];
+								tools.forEach(maps, function(map) {
+									if (map) {
+										const newMap = types.extend({}, map);
+										
+										newMap.matcher = matcher;
+										
+										if (types.isString(newMap.page)) {
+											newMap.page = namespaces.getNamespace(newMap.page);
+										};
+										
+										if (!types._implements(newMap.page, httpMixIns.Page)) {
+											throw new types.TypeError(tools.format("Invalid page type '~0~' for Url matcher '~1~'.", [types.getTypeName(map.page), matcher.toString()]));
+										};
+										
+										types.getType(newMap.page).$prepare(urlMappings, newMap, matcher);
+										
+										parsedMaps.push(newMap);
+									};
+								});
+								
+								parsedMappings.set(matcher, parsedMaps);
 							};
-							urlMappings[key] = maps = tools.filter(maps, function(map) {
-								return !!map;
-							});
-							tools.forEach(maps, function(map) {
-								map.url = url;
-								if (types.isString(map.page)) {
-									map.page = namespaces.getNamespace(map.page);
-								};
-								if (!types._implements(map.page, httpMixIns.Page)) {
-									console.log(url);
-									throw new types.TypeError(tools.format("Invalid page type : '~0~'.", [types.getTypeName(map.page)]));
-								};
-								types.getType(map.page).$prepare(urlMappings, map, key);
-							});
 						});
 						
-						this.setAttributes({server: server, urlMappings: urlMappings, options: options});
+						this.setAttributes({server: server, urlMappings: parsedMappings, options: options});
 					}),
 					
 					createPage: doodad.OVERRIDE(function createPage(request) {
-						const requestUrl = request.url,
-							requestUrlPath = requestUrl.path;
-							
-						let requestUrlPathLen = (requestUrlPath && requestUrlPath.length || 0);
-							
-						const requestFile = requestUrl.file;
-						let requestFileExtension,
-							requestFileMimeTypes;
-						if (requestFile) {
-							let pos = requestFile.lastIndexOf('.');
-							if (pos >= 0) {
-								requestFileExtension = requestFile.slice(pos + 1);
-							};
-							const fileMimeTypes = mime.getTypes(requestFile);
-							let accept = request.headers['accept'];
-							if (accept) {
-								accept = http.parseAcceptHeader(accept);
-							};
-							requestFileMimeTypes = [];
-							for (let i = 0; i < fileMimeTypes.length; i++) {
-								let type = fileMimeTypes[i].split('/', 2);
-								const subtype = type[1];
-								type = type[0];
-								let ok = false,
-									weight = 1.0;
-								if (accept) {
-									for (let j = 0; j < accept.length; j++) {
-										const entry = accept[j];
-										if ((entry.type === '*') || (entry.type === type)) {
-											if ((entry.subtype === '*') || (entry.subtype === subtype)) {
-												ok = true;
-												weight = entry.weight;
-												break;
-											};
-										};
-									};
-								} else {
-									ok = true;
-								};
-								if (ok) {
-									requestFileMimeTypes.push({
-										type: type,
-										subtype: subtype,
-										weight: weight,
-									})
-								};
-							};
-							requestFileMimeTypes = requestFileMimeTypes.sort(function(type1, type2) {
-								if (type1.weight > type2.weight) {
-									return -1;
-								} else if (type1.weight < type2.weight) {
-									return 1;
-								} else {
-									return 0;
-								};
-							});
-						};
-						
 						let mappings = tools.reduce(this.urlMappings, function(mappings, maps, name) {
-							const mapsLen = maps.length;
-							nextMap: for (let h = 0; h < mapsLen; h++) {
+							nextMap: for (let h = 0; h < maps.length; h++) {
 								const map = maps[h],
-									url = map.url,
-									path = url.path,
-									pathLen = (path && path.length || 0);
+									matcher = map.matcher;
+									
 								if (map.verbs && (tools.indexOf(map.verbs, request.verb.toLowerCase()) === -1)) {
 									continue nextMap;
 								};
+								
 								if (map.extensions && requestFile) {
-									if (tools.indexOf(mapping.extensions, requestFileExtension) === -1) {
+									if (tools.indexOf(mapping.extensions, request.fileExtension) === -1) {
 										continue nextMap;
 									};
 								};
-								let level = 0,     // path level (used later to remove the beginning of the path)
-									weight = 0,    // weight
-									mimeWeight = 0.0, // mime file weight
-									full = false,  // full match
-									depth = 0;
-								let mimeTypes = []; // accepted mime types
-								if (pathLen <= requestUrlPathLen) {
-									weight++;
-									for (let i = 0; (i < pathLen); i++) {
-										let name1 = path[i],
-											name2 = requestUrlPath[i];
-										if (!map.caseSensitive) {
-											name1 = name1.toUpperCase();
-											name2 = name2.toUpperCase();
-										};
-										if (name1 !== name2) {
-											break;
-										};
-										level++;
-										weight++;
-									};
-									if (level >= pathLen) {
-										let ok = true;
-										if (!types.isNothing(map.depth)) {
-											if (url.file) {
-												pathLen++;
-											};
-											if (requestUrl.file) {
-												requestUrlPathLen++;
-											};
-											if ((pathLen + map.depth) < requestUrlPathLen) {
-												ok = false;
-											};
-										};
-										if (ok) {
-											if (url.file) {
-												if (requestUrl.file) {
-													let name1 = url.file,
-														name2 = requestUrl.file;
-													if (!map.caseSensitive) {
-														name1 = name1.toUpperCase();
-														name2 = name2.toUpperCase();
-													};
-													if (name1 === name2) {
-														weight++;
-														full = true;
-													};
-												};
-											} else {
-												full = true;
-											};
-										};
-										const typesLen = map.mimeTypes && map.mimeTypes.length || 0;
-										for (let j = 0; j < typesLen; j++) {
-											let mimeType = map.mimeTypes[j];
-											mimeType = mimeType.trim().toLowerCase().split('/', 2);
-											const type = mimeType[0] || '*',
-												subtype = (mimeType.length > 1) && mimeType[1] || '*';
-											let pos = tools.findItem(requestFileMimeTypes, function(item) {
-												return ((type === '*') || (type === item.type)) && ((subtype === '*') || (subtype === item.subtype));
-											});
-											if (pos === null) {
-												// Not accepted by client
-												continue nextMap;
-											} else {
-												mimeType = requestFileMimeTypes[pos];
-												mimeTypes.push(mimeType);
-												if ((mimeWeight === null) || (mimeType.weight > mimeWeight)) {
-													mimeWeight = mimeType.weight;
-												};
-											};
-										};
-										if (weight > 0) {
-											mimeTypes = mimeTypes.sort(function(type1, type2) {
-												if (type1.weight > type2.weight) {
-													return -1;
-												} else if (type1.weight < type2.weight) {
-													return 1;
-												} else {
-													return 0;
-												};
-											});
-											mappings.push(types.extend({}, map, {
-												name: name,
-												level: level,
-												weight: weight,
-												mimeTypes: mimeTypes,
-												mimeWeight: mimeWeight,
-												full: full,
-											}));
+								
+								const typesLen = map.mimeTypes && map.mimeTypes.length || 0,
+									mimeTypes = []; // accepted mime types
+									
+								let mimeWeight = 0.0; // mime file weight
+								
+								for (let j = 0; j < typesLen; j++) {
+									let mimeType = map.mimeTypes[j];
+									mimeType = mimeType.trim().toLowerCase().split('/', 2);
+									const type = mimeType[0] || '*',
+										subtype = (mimeType.length > 1) && mimeType[1] || '*';
+									const pos = tools.findItem(request.fileMimeTypes, function(item) {
+										return ((type === '*') || (type === item.type)) && ((subtype === '*') || (subtype === item.subtype));
+									});
+									if (pos === null) {
+										// Not accepted by client
+										continue nextMap;
+									} else {
+										mimeType = request.fileMimeTypes[pos];
+										mimeTypes.push(mimeType);
+										if (mimeType.weight > mimeWeight) {
+											mimeWeight = mimeType.weight;
 										};
 									};
 								};
+
+								const newMap = types.extend({}, map);
+
+								newMap.name = name;
+								newMap.mimeTypes = mimeTypes.sort(function(type1, type2) {
+									if (type1.weight > type2.weight) {
+										return -1;
+									} else if (type1.weight < type2.weight) {
+										return 1;
+									} else {
+										return 0;
+									};
+								});
+								newMap.mimeWeight = mimeWeight;
+								
+								matcher.match(request, newMap);
+								
+								if ((newMap.weight > 0) || newMap.full) {
+									mappings.push(newMap);
+								};
 							};
+							
 							return mappings;
 						}, []);
 
@@ -820,11 +954,10 @@
 							};
 						});
 
-						const self = this,
-							mappingsLen = mappings.length;
+						const self = this;
 						
 						const getSibling = function getSibling(direction, index) {
-							for (let i = index + direction; (i >= 0) && (i < mappingsLen); i += direction) {
+							for (let i = index + direction; (i >= 0) && (i < mappings.length); i += direction) {
 								const mapping = mappings[i];
 
 								mapping.index = i;
@@ -846,6 +979,7 @@
 								if (types.isType(mapping.page)) {
 									mapping.page = new mapping.page();
 								};
+								
 								return mapping.page;
 							};
 
@@ -891,7 +1025,7 @@
 									if (types._instanceof(ex, server.EndOfRequest)) {
 										// Do nothing
 									} else if (types._instanceof(ex, server.RequestClosed)) {
-										request.destroy();
+										request.destroy()
 									} else if (types._instanceof(ex, http.RequestRejected)) {
 										request.reject();
 									} else if (types._instanceof(ex, http.ClientRedirect)) {
@@ -936,8 +1070,8 @@
 		return DD_MODULES;
 	};
 	
-	if (!global.process) {
+	if (typeof process !== 'object') {
 		// <PRB> export/import are not yet supported in browsers
 		global.DD_MODULES = exports.add(global.DD_MODULES);
 	};
-})();
+}).call((typeof global !== 'undefined') ? global : ((typeof window !== 'undefined') ? window : this));

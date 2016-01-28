@@ -1,5 +1,5 @@
-//! REPLACE_BY("// Copyright 2015 Claude Petit, licensed under Apache License version 2.0\n")
-// dOOdad - Object-oriented programming framework with some extras
+//! REPLACE_BY("// Copyright 2016 Claude Petit, licensed under Apache License version 2.0\n")
+// dOOdad - Object-oriented programming framework
 // File: NodeJs_Server.js - Server tools extension for NodeJs
 // Project home: https://sourceforge.net/projects/doodad-js/
 // Trunk: svn checkout svn://svn.code.sf.net/p/doodad-js/code/trunk doodad-js-code
@@ -8,7 +8,7 @@
 // Note: I'm still in alpha-beta stage, so expect to find some bugs or incomplete parts !
 // License: Apache V2
 //
-//	Copyright 2015 Claude Petit
+//	Copyright 2016 Claude Petit
 //
 //	Licensed under the Apache License, Version 2.0 (the "License");
 //	you may not use this file except in compliance with the License.
@@ -24,10 +24,10 @@
 //! END_REPLACE()
 
 (function() {
-	var global = this;
+	const global = this;
 
-	var exports = {};
-	if (global.process) {
+	const exports = {};
+	if (typeof process === 'object') {
 		module.exports = exports;
 	};
 	
@@ -35,11 +35,45 @@
 		DD_MODULES = (DD_MODULES || {});
 		DD_MODULES['Doodad.NodeJs.Server.Http'] = {
 			type: null,
-			version: '0d',
+			version: '0.2d',
 			namespaces: null,
 			dependencies: [
-				'Doodad', 'Doodad.IO', 'Doodad.Tools.Mime', 'Doodad.Tools.Locale', 'Doodad.Tools.Dates', 'Doodad.Server', 
-				'Doodad.Server.Http', 'Doodad.NodeJs', 'Doodad.NodeJs.IO', 'Doodad.IO.Minifiers', 'Doodad.Templates.Html'
+				{
+					name: 'Doodad.Types', 
+					version: '1.1r',
+				},
+				'Doodad', 
+				{
+					name: 'Doodad.IO',
+					version: '0.2',
+				}, 
+				'Doodad.Tools.Mime', 
+				{
+					name: 'Doodad.Tools.Locale',
+					version: '1.2',
+				}, 
+				{
+					name: 'Doodad.Tools.Dates',
+					version: '1.1',
+				}, 
+				{
+					name: 'Doodad.Server',
+					version: '0.2',
+				}, 
+				{
+					name: 'Doodad.Server.Http',
+					version: '0.2',
+				},
+				'Doodad.NodeJs', 
+				{
+					name: 'Doodad.NodeJs.IO',
+					version: '0.2',
+				}, 
+				{
+					name: 'Doodad.IO.Minifiers', 
+					version: '0.2',
+				},
+				'Doodad.Templates.Html',
 			],
 
 			create: function create(root, /*optional*/_options) {
@@ -91,6 +125,9 @@
 				{
 					$TYPE_NAME: 'Request',
 					
+					__headersWritten: doodad.PROTECTED(false),
+					__trailersSent: doodad.PROTECTED(false),
+					
 					currentPage: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					rejected: doodad.PUBLIC(doodad.READ_ONLY(true)),
 					rejectPage: doodad.PUBLIC(doodad.READ_ONLY(null)),
@@ -104,33 +141,93 @@
 					__redirectsCount: doodad.PROTECTED(0),
 					
 					$__actives: doodad.PROTECTED(doodad.TYPE(0)),
+					$__total: doodad.PROTECTED(doodad.TYPE(0)),
+					$__timeStartSecond: doodad.PROTECTED(doodad.TYPE(null)),
+					$__timeStartMinute: doodad.PROTECTED(doodad.TYPE(null)),
+					$__timeStartHour: doodad.PROTECTED(doodad.TYPE(null)),
+					$__lastSecond: doodad.PROTECTED(doodad.TYPE(0)),
+					$__lastMinute: doodad.PROTECTED(doodad.TYPE(0)),
+					$__lastHour: doodad.PROTECTED(doodad.TYPE(0)),
+					$__perSecond: doodad.PROTECTED(doodad.TYPE(0)),
+					$__perMinute: doodad.PROTECTED(doodad.TYPE(0)),
+					$__perHour: doodad.PROTECTED(doodad.TYPE(0)),
+					$__successful: doodad.PROTECTED(doodad.TYPE(0)),
+					$__redirected: doodad.PROTECTED(doodad.TYPE(0)),
+					$__failed: doodad.PROTECTED(doodad.TYPE(null)),
 					
 					$getStats: doodad.PUBLIC(doodad.TYPE(function() {
-						// TODO: More stats (like "requests per second")
 						return {
 							actives: this.$__actives,
+							total: this.$__total,
+							successful: this.$__successful,
+							redirected: this.$__redirected,
+							failed: this.$__failed,
+							perSecond: this.$__perSecond,
+							perMinute: this.$__perMinute,
+							perHour: this.$__perHour,
 						};
 					})),
 					
-					create: doodad.OVERRIDE(function create(server, nodeJsRequest, nodeJsResponse) {
-						this.startTime = process.hrtime();
-						
+					$create: doodad.OVERRIDE(function create() {
 						this._super();
-						
-						types.getType(this).$__actives++;
-						
+						this.$__failed = {};
+					}),
+					
+					create: doodad.OVERRIDE(function create(server, nodeJsRequest, nodeJsResponse) {
 						this.setAttributes({
-							server: server,
+							startTime: process.hrtime(),
 							nodeJsRequest: nodeJsRequest,
 							nodeJsResponse: nodeJsResponse,
-							verb: nodeJsRequest.method.toLowerCase(),
-							url: tools.Url.parse(nodeJsRequest.url),
-							headers: nodeJsRequest.headers,
 						});
+
+						this._super(server, nodeJsRequest.method, nodeJsRequest.url, nodeJsRequest.headers);
 						
 						this.__redirectsCount = parseInt(this.url.args.get('redirects', true));
 						if (!types.isFinite(this.__redirectsCount) || (this.__redirectsCount < 0)) {
 							this.__redirectsCount = 0;
+						};
+						
+						const type = types.getType(this);
+						type.$__total++;
+						type.$__actives++;
+						
+						type.$__lastSecond++;
+						if (!type.$__timeStartSecond) {
+							type.$__timeStartSecond = process.hrtime();
+						} else {
+							let time = process.hrtime(type.$__timeStartSecond);
+							time = time[0] + (time[1] / 1e9);
+							if (time >= 1) {
+								type.$__perSecond = Math.max(0, type.$__lastSecond / time);
+								type.$__lastSecond = 0;
+								type.$__timeStartSecond = process.hrtime();
+							};
+						};
+						
+						type.$__lastMinute++;
+						if (!type.$__timeStartMinute) {
+							type.$__timeStartMinute = process.hrtime();
+						} else {
+							let time = process.hrtime(type.$__timeStartMinute);
+							time = (time[0] + (time[1] / 1e9));
+							if (time >= 60) {
+								type.$__perMinute = Math.max(0, type.$__lastMinute / time);
+								type.$__lastMinute = 0;
+								type.$__timeStartMinute = process.hrtime();
+							};
+						};
+						
+						type.$__lastHour++;
+						if (!type.$__timeStartHour) {
+							type.$__timeStartHour = process.hrtime();
+						} else {
+							let time = process.hrtime(type.$__timeStartHour);
+							time = (time[0] + (time[1] / 1e9));
+							if (time >= (60 * 60)) {
+								type.$__perHour = Math.max(0, type.$__lastHour / time);
+								type.$__lastHour = 0;
+								type.$__timeStartHour = process.hrtime();
+							};
 						};
 					}),
 					
@@ -140,22 +237,33 @@
 						} catch(ex) {
 						};
 
-						types.getType(this).$__actives--;
-						
 						this._super();
 					}),
 					
-					startBodyTransfer: doodad.OVERRIDE(function startBodyTransfer(callback) {
-						root.DD_ASSERT && root.DD_ASSERT(!this.requestStream, "Transfer already started.");
+					getRequestStream: doodad.OVERRIDE(function getRequestStream() {
+						if (!this.__requestStream) {
+							let requestStream = null;
+							
+							if (types.isImplemented(this.currentPage, 'createRequestStream')) {
+								requestStream = this.currentPage.createRequestStream(this);
+							};
+							
+							if (!requestStream) {
+								requestStream = new nodejsIO.BinaryInputStream(this.nodeJsRequest);
+							};
+							
+							this.__requestStream = requestStream;
+						};
 						
-						let requestStream = null;
-						if (types.isImplemented(this.currentPage, 'createRequestStream')) {
-							requestStream = this.currentPage.createRequestStream(this);
+						return this.__requestStream;
+					}),
+					
+					startBodyTransfer: doodad.OVERRIDE(function startBodyTransfer(callback) {
+						const requestStream = this.getRequestStream();
+
+						if (requestStream.isListening()) {
+							throw new types.Error("Transfer already started.");
 						};
-						if (!requestStream) {
-							requestStream = new nodejsIO.BinaryInputStream(this.nodeJsRequest);
-						};
-						this.setAttribute('requestStream', requestStream);
 						
 						requestStream.onReady.attach(this.currentPage, callback);
 						requestStream.listen();
@@ -171,12 +279,10 @@
 					}),
 					
 					end: doodad.OVERRIDE(function end() {
-						this.sendHeaders();
-						if (this.responseStream) {
-							// Will write headers, flush content, end request and close
+						if (!this.__trailersSent) {
 							this.sendTrailers();
 						} else {
-							this.close(true);
+							this.close();
 						};
 						
 						throw new server.EndOfRequest();
@@ -184,6 +290,25 @@
 
 					close: doodad.OVERRIDE(function close(/*optional*/forceDisconnect) {
 						if (this.nodeJsResponse) {
+							try {
+								const type = types.getType(this);
+								type.$__actives--;
+								if (types.HttpStatus.isInformative(this.responseStatus) || types.HttpStatus.isSuccessful(this.responseStatus)) {
+									type.$__successful++;
+								} else if (types.HttpStatus.isRedirect(this.responseStatus)) {
+									type.$__redirected++;
+								} else if (types.HttpStatus.isError(this.responseStatus)) {
+									var failed = type.$__failed;
+									if (types.hasKey(failed, this.responseStatus)) {
+										failed[this.responseStatus]++;
+									} else {
+										failed[this.responseStatus] = 1;
+									};
+								};
+							} catch(ex) {
+								// Do nothing
+							};
+
 							this.sanitize();
 
 							this.onEnd(new doodad.Event());
@@ -192,9 +317,11 @@
 								this.nodeJsResponse.destroy();
 								this.nodeJsRequest.destroy();
 							} else {
-								if (this.responseStream) {
-									this.responseStream.write(io.EOF);
-									this.responseStream.flush();
+								if (this.__responseStream) {
+									this.__responseStream.write(io.EOF);
+									this.__responseStream.flush();
+								} else {
+									this.nodeJsResponse.end();
 								};
 							};
 
@@ -202,29 +329,37 @@
 								this.currentPage.destroy();
 							};
 							
-							this.responseStream && this.responseStream.destroy();
-							this.requestStream && this.requestStream.destroy();
+							this.__responseStream && this.__responseStream.destroy();
+							this.__requestStream && this.__requestStream.destroy();
 							
 							this.setAttributes({
 								nodeJsRequest: null,
 								nodeJsResponse: null,
 								currentPage: null,
-								requestStream: null,
-								responseStream: null,
 							});
+							
+							this.__requestStream = null;
+							this.__responseStream = null;
 						};
 						
 						throw new server.RequestClosed();
 					}),
 
 					addHeaders: doodad.OVERRIDE(function addHeaders(headers) {
+						if (this.nodeJsResponse.headersSent) {
+							throw new types.Error("Can't add new headers because headers have been sent to the client.");
+						};
 						const responseHeaders = this.responseHeaders;
 						tools.forEach(headers, function(value, name) {
 							responseHeaders[tools.title(name, '-')] = value;
 						});
+						this.__headersWritten = false;
 					}),
 					
 					addTrailers: doodad.OVERRIDE(function addTrailers(trailers) {
+						if (this.__trailersSent) {
+							throw new types.Error("Can't add new trailers because trailers have been sent and the request has ended.");
+						};
 						const responseTrailers = this.responseTrailers;
 						tools.forEach(trailers, function(value, name) {
 							responseTrailers[tools.title(name, '-')] = value;
@@ -232,135 +367,171 @@
 					}),
 
 					clearHeaders: doodad.OVERRIDE(function clearHeaders(/*optional*/names) {
-						if (!this.headersSent) {
-							const stream = this.nodeJsResponse;
-							if (names) {
-								if (!types.isArray(names)) {
-									names = [names];
-								};
-								for (let i = 0; i < names.length; i++) {
-									let name = tools.title(names[i], '-');
-									stream.removeHeader(name);
-									delete this.responseHeaders[name];
-									delete this.responseTrailers[name];
-								};
-							} else {
-								tools.forEach(this.responseHeaders, function(value, name) {
-									stream.removeHeader(name);
-								});
-								this.setAttributes({
-									responseHeaders: {},
-									responseTrailers: {},
-								});
+						if (this.nodeJsResponse.headersSent) {
+							throw new types.Error("Can't clear headers because they are been sent to the client.");
+						};
+						const response = this.nodeJsResponse;
+						if (names) {
+							if (!types.isArray(names)) {
+								names = [names];
 							};
+							for (let i = 0; i < names.length; i++) {
+								let name = tools.title(names[i], '-');
+								delete this.responseHeaders[name];
+								delete this.responseTrailers[name];
+								response.removeHeader(name);
+							};
+						} else {
+							tools.forEach(this.responseHeaders, function(value, name) {
+								response.removeHeader(name);
+							});
+							this.setAttributes({
+								responseHeaders: {},
+								responseTrailers: {},
+							});
 						};
 					}),
 					
 					sendHeaders: doodad.OVERRIDE(function sendHeaders(/*<<< [optional]message, [optional]status, [optional]headers*/) {
-						if (!this.headersSent) {
-							this.setAttribute('headersSent', true);
-
+						if (!this.__headersWritten) {
 							const argsLen = arguments.length;
 								
 							this.addHeaders(arguments[argsLen - 1]);
 								
-							let headers = this.responseHeaders; // ??? 'const' doesn't work
-							const message = arguments[argsLen - 3] || this.responseMessage;
+							const status = arguments[argsLen - 2] || this.responseStatus,
+								message = arguments[argsLen - 3] || this.responseMessage,
+								headers = this.responseHeaders,
+								response = this.nodeJsResponse;
 								
-							let status = arguments[argsLen - 2] || this.responseStatus;
+							response.statusCode = status || types.HttpStatus.OK;
+							response.statusMessage = message;
+							tools.forEach(headers, function(value, name) {
+								response.setHeader(name, value);
+							});
 							
-							if (status || !types.isEmpty(headers)) {
-								status = status || http.StatusCodes.OK;
-								if (message) {
-									this.nodeJsResponse.writeHead(status, message, headers);
-								} else {
-									this.nodeJsResponse.writeHead(status, headers);
-								};
-							};
+							this.setAttributes({
+								responseStatus: response.statusCode,
+								responseMessage: response.statusMessage,
+							});
 							
-							this.responseStatus = status;
-							this.responseMessage = message;
-
-							let responseStream = null;
-							if (types.isImplemented(this.currentPage, 'createResponseStream')) {
-								responseStream = this.currentPage.createResponseStream(this);
-							};
-							if (!responseStream) {
-								responseStream = new nodejsIO.BinaryOutputStream(this.nodeJsResponse, {autoFlush: true});
-							};
-							this.setAttribute('responseStream', responseStream);
+							this.__headersWritten = true;
 						};
 					}),
 					
-					sendTrailers: doodad.OVERRIDE(function sendTrailers(/*optional*/trailers) {
-						if (!this.trailersSent) {
-							this.setAttribute('trailersSent', true);
-								
-							this.sendHeaders(); // must write headers before
-							
-							this.responseStream.flush({callback: new http.RequestCallback(this, this, function flushCallback() {
-								this.addTrailers(trailers);
+					__responseStreamOnWrite: doodad.PROTECTED(function __responseStreamOnWrite(ev) {
+						this.sendHeaders();
+					}),
+					
+					getResponseStream: doodad.OVERRIDE(function getResponseStream() {
+						if (!this.__responseStream) {
+							let responseStream = null;
 
-								trailers = this.responseTrailers;
-								
-								if (!types.isEmpty(trailers)) {
-									this.nodeJsResponse.addTrailers(trailers);
-								};
-								
-								this.close();
-							})});
+							if (types.isImplemented(this.currentPage, 'createResponseStream')) {
+								responseStream = this.currentPage.createResponseStream(this);
+							};
+
+							if (!responseStream) {
+								responseStream = new nodejsIO.BinaryOutputStream(this.nodeJsResponse, {autoFlush: true});
+							};
+
+							responseStream.onWrite.attachOnce(this, this.__responseStreamOnWrite);
+							
+							this.__responseStream = responseStream;
+						};
+						
+						return this.__responseStream;
+					}),
+					
+					sendTrailers: doodad.OVERRIDE(function sendTrailers(/*optional*/trailers) {
+						if (this.__trailersSent) {
+							throw new types.Error("Trailers have already been sent and the request has ended.");
+						};
+						
+						var proceedTrailers = new http.RequestCallback(this, this, function _proceedTrailers() {
+							if (!this.nodeJsResponse.headersSent) {
+								this.sendHeaders(); // must write headers before
+							};
+							
+							this.addTrailers(trailers);
+
+							trailers = this.responseTrailers;
+							
+							if (!types.isEmpty(trailers)) {
+								this.nodeJsResponse.addTrailers(trailers);
+							};
+							
+							this.__trailersSent = true;
+
+							this.close();
+						});
+						
+						if (this.__responseStream) {
+							this.__responseStream.flush({callback: proceedTrailers});
+						} else {
+							proceedTrailers();
 						};
 					}),
 					
 					clear: doodad.OVERRIDE(function clear() {
-						if (!this.headersSent) {
+						if (!this.nodeJsResponse.headersSent) {
 							this.clearHeaders();
 						};
-						if (this.responseStream) {
-							this.responseStream.clear();
+						if (this.__responseStream) {
+							this.__responseStream.clear();
 						};
 					}),
 					
 					respondWithStatus: doodad.OVERRIDE(function respondWithStatus(/*optional*/status, /*optional*/message, /*optional*/headers, /*optional*/data) {
 						this.clear();
 						
-						if (!this.headersSent) {
-							this.addHeaders(headers);
-
-							this.responseStatus = status;
-							this.responseMessage = message;
-							this.customData.statusData = data;
-							
-							this.sendHeaders();
-							
-							this.onStatus(new doodad.Event());
+						if (this.nodeJsResponse.headersSent) {
+							throw new types.Error("Can't respond with a new status because the headers have been sent to the client.");
 						};
+						
+						this.addHeaders(headers);
+
+						this.setAttributes({
+							responseStatus: status,
+							responseMessage: message,
+						});
+
+						this.customData.statusData = data;
+						
+						this.sendHeaders();
+						
+						this.onStatus(new doodad.Event());
 						
 						this.end();
 					}),
 					
 					respondWithError: doodad.OVERRIDE(function respondWithError(ex) {
+						if (ex instanceof types.ScriptAbortedError) {
+							throw ex;
+						};
+						
 						this.clear();
 						this.onError(new doodad.ErrorEvent(ex));
-						if (this.headersSent) {
+						
+						if (this.nodeJsResponse.headersSent) {
+							// Too late !
 							this.end();
 						} else {
-							this.respondWithStatus(http.StatusCodes.InternalError, null, null, ex);
+							this.respondWithStatus(types.HttpStatus.InternalError, null, null, ex);
 						};
 					}),
 
 					redirectClient: doodad.OVERRIDE(function redirectClient(url, /*optional*/isPermanent) {
 						const maxRedirects = types.get(this.server.options, 'maxRedirects', 5);
-						if (this.headersSent) {
+						if (this.nodeJsResponse.headersSent) {
 							throw new types.Error("Unable to redirect because HTTP headers are already sent.");
 						} else if (this.__redirectsCount >= maxRedirects) {
 							this.reject();
 						} else {
 							this.__redirectsCount++;
 							if (types.isString(url)) {
-								url = this.url.combine(url);
+								url = this.url.set({file: null}).combine(url);
 							};
-							const status = (isPermanent ? http.StatusCodes.MovedPermanently : http.StatusCodes.TemporaryRedirect);
+							const status = (isPermanent ? types.HttpStatus.MovedPermanently : types.HttpStatus.TemporaryRedirect);
 							this.respondWithStatus(status, null, {
 								'Location': url.toString({
 									//protocol: 'http',
@@ -375,7 +546,7 @@
 					
 					redirectServer: doodad.OVERRIDE(function redirectServer(url) {
 						const maxRedirects = types.get(this.server.options, 'maxRedirects', 5);
-						if (this.headersSent) {
+						if (this.nodeJsResponse.headersSent) {
 							throw new types.Error("Unable to redirect because HTTP headers are already sent.");
 						} else if (this.__redirectsCount >= maxRedirects) {
 							this.reject();
@@ -402,7 +573,7 @@
 						if (page) {
 							this.proceed(page);
 						} else {
-							this.close(true);
+							this.respondWithStatus(types.HttpStatus.VersionNotSupported);
 						};
 					}),
 					
@@ -456,7 +627,6 @@
 					//onNodeConnectHandler: doodad.PROTECTED(null),
 					
 					onNodeListening: doodad.PROTECTED(function onNodeListening() {
-						this.__listening = true;
 						this.setAttribute('__address', this.__nodeServer.address());
 						tools.log(tools.LogLevels.Info, "HTTP server listening on port '~port~', address '~address~'.", this.__address);
 						tools.log(tools.LogLevels.Warning, "IMPORTANT: It is an experimental and not finished software. Don't use it on production, or do it at your own risks. Please report bugs and suggestions to 'doodadjs [at] gmail <dot> com'.");
@@ -469,122 +639,127 @@
 					onNodeErrorHandler: doodad.PROTECTED(null),
 					
 					onNodeClose: doodad.PROTECTED(function onNodeClose() {
-						if (this.__listening) {
-							this.__listening = false;
+						const server = this.__nodeServer;
+						
+						server.removeListener('listening', this.onNodeListeningHandler);
+						this.onNodeListeningHandler = null;
+						
+						server.removeListener('error', this.onNodeErrorHandler);
+						this.onNodeErrorHandler = null;
+						
+						server.removeListener('close', this.onNodeCloseHandler);
+						this.onNodeCloseHandler = null;
+						
+						//if (this.onNodeConnectHandler) {
+						//	server.removeListener('connect', this.onNodeConnectHandler);
+						//	this.onNodeConnectHandler = null;
+						//};
+						
+						tools.log(tools.LogLevels.Info, "Listening socket closed (address '~address~', port '~port~').", this.__address);
 
-							const server = this.__nodeServer;
-							
-							server.removeListener('listening', this.onNodeListeningHandler);
-							this.onNodeListeningHandler = null;
-							
-							server.removeListener('error', this.onNodeErrorHandler);
-							this.onNodeErrorHandler = null;
-							
-							server.removeListener('close', this.onNodeCloseHandler);
-							this.onNodeCloseHandler = null;
-							
-							//if (this.onNodeConnectHandler) {
-							//	server.removeListener('connect', this.onNodeConnectHandler);
-							//	this.onNodeConnectHandler = null;
-							//};
-							
-							tools.log(tools.LogLevels.Info, "Listening socket closed (address '~address~', port '~port~').", this.__address);
-
-							this.setAttribute('__nodeServer', null);
-						};
+						this.setAttribute('__nodeServer', null);
 					}),
 					onNodeCloseHandler: doodad.PROTECTED(null),
 					
+					isListening: doodad.OVERRIDE(function isListening() {
+						return this.__listening;
+					}),
+					
 					listen: doodad.OVERRIDE(function listen(/*optional*/options) {
-						if (!options) {
-							options = {};
-						};
-						
-						const protocol = types.get(options, 'protocol', 'http');
-						let factory;
-						if ((protocol === 'http') || (protocol === 'https')) {
-							factory = require(protocol);
-						} else {
-							throw new doodad.Error("Invalid protocol : '~0~'.", [protocol]);
-						};
-						
-						let server;
-						if (protocol === 'https') {
-							// TODO: Implement other available options
-							// TODO: Ask for private key's passphrase from the terminal if encrypted and decrypt the key.
-							const opts = {};
-							if (types.get(options, 'pfxFile')) {
-								opts.pfx = nodeFs.readFileSync(options.pfxFile);
-							} else if (types.get(options, 'rawPfx')) {
-								opts.pfx = options.rawPfx;
+						if (!this.__listening) {
+							this.__listening = true;
+
+							if (!options) {
+								options = {};
+							};
+							
+							const protocol = types.get(options, 'protocol', 'http');
+							let factory;
+							if ((protocol === 'http') || (protocol === 'https')) {
+								factory = require(protocol);
 							} else {
-								if (types.get(options, 'keyFile')) {
-									opts.key = nodeFs.readFileSync(options.keyFile);
-								} else if (types.get(options, 'rawKey')) {
-									opts.key = options.rawKey;
+								throw new doodad.Error("Invalid protocol : '~0~'.", [protocol]);
+							};
+							
+							let server;
+							if (protocol === 'https') {
+								// TODO: Implement other available options
+								// TODO: Ask for private key's passphrase from the terminal if encrypted and decrypt the key.
+								const opts = {};
+								if (types.get(options, 'pfxFile')) {
+									opts.pfx = nodeFs.readFileSync(options.pfxFile);
+								} else if (types.get(options, 'rawPfx')) {
+									opts.pfx = options.rawPfx;
 								} else {
-									throw new types.Error("Missing private key file.");
+									if (types.get(options, 'keyFile')) {
+										opts.key = nodeFs.readFileSync(options.keyFile);
+									} else if (types.get(options, 'rawKey')) {
+										opts.key = options.rawKey;
+									} else {
+										throw new types.Error("Missing private key file.");
+									};
+									if (types.get(options, 'certFile')) {
+										opts.cert = nodeFs.readFileSync(options.certFile);
+									} else if (types.get(options, 'rawCert')) {
+										opts.cert = options.rawCert;
+									} else {
+										throw new types.Error("Missing certificate file.");
+									};
 								};
-								if (types.get(options, 'certFile')) {
-									opts.cert = nodeFs.readFileSync(options.certFile);
-								} else if (types.get(options, 'rawCert')) {
-									opts.cert = options.rawCert;
-								} else {
-									throw new types.Error("Missing certificate file.");
+								if (!opts.pfx && !opts.key && !opts.cert) {
+									throw new types.Error("Missing private key and certificate files.");
 								};
+								server = factory.createServer(opts, new doodad.Callback(this, 'onNodeRequest'));
+							} else {
+								server = factory.createServer(new doodad.Callback(this, 'onNodeRequest'));
 							};
-							if (!opts.pfx && !opts.key && !opts.cert) {
-								throw new types.Error("Missing private key and certificate files.");
+							
+							this.onNodeListeningHandler = new doodad.Callback(this, 'onNodeListening');
+							server.on('listening', this.onNodeListeningHandler);
+
+							this.onNodeErrorHandler = new doodad.Callback(this, 'onNodeError');
+							server.on('error', this.onNodeErrorHandler);
+
+							this.onNodeCloseHandler = new doodad.Callback(this, 'onNodeClose');
+							server.on('close', this.onNodeCloseHandler);
+
+							//if (types.get(options, 'acceptConnect', false)) {
+							//	this.onNodeConnectHandler = new doodad.Callback(this, 'onNodeConnect');
+							//	server.on('connect', this.onNodeConnectHandler);
+							//};
+							
+							//server.on('connection');
+							//server.on('checkContinue');
+							//server.on('upgrade');
+							//server.on('clientError');
+							
+							this.setAttribute('__nodeServer', server);
+							
+							const target = types.get(options, 'target', '127.0.0.1');
+							const type = types.get(options, 'type', 'tcp', false); // 'tcp', 'unix', 'handle'
+							if (type === 'tcp') { // TCP/IP Socket
+								const port = types.get(options, 'port', (protocol === 'https' ? 443 : 80));
+								const queueLength = types.get(options, 'queueLength', undefined);
+								if (root.DD_ASSERT) {
+									root.DD_ASSERT(types.isString(target), "Invalid target.");
+									root.DD_ASSERT(types.isInteger(port) && (port >= 0) && (port <= 65535), "Invalid port.");
+									root.DD_ASSERT(types.isNothing(queueLength) || (types.isInteger(queueLength) && (queueLength > 0)), "Invalid queue length.");
+								};
+								server.listen(port, target, queueLength);
+							} else if (type === 'unix') { // Unix Socket
+								root.DD_ASSERT && root.DD_ASSERT(types.isString(target), "Invalid target.");
+								server.listen(target);
+							} else if (type === 'handle') { // System Handle
+								root.DD_ASSERT && root.DD_ASSERT(types.isObject(target) && (('_handle' in target) || ('fd' in target)), "Invalid target.");
+								server.listen(target);
+							} else {
+								throw new doodad.Error("Invalid target type option : '~0~'.", [type]);
 							};
-							server = factory.createServer(opts, new doodad.Callback(this, 'onNodeRequest'));
-						} else {
-							server = factory.createServer(new doodad.Callback(this, 'onNodeRequest'));
-						};
-						
-						this.onNodeListeningHandler = new doodad.Callback(this, 'onNodeListening');
-						server.on('listening', this.onNodeListeningHandler);
-
-						this.onNodeErrorHandler = new doodad.Callback(this, 'onNodeError');
-						server.on('error', this.onNodeErrorHandler);
-
-						this.onNodeCloseHandler = new doodad.Callback(this, 'onNodeClose');
-						server.on('close', this.onNodeCloseHandler);
-
-						//if (types.get(options, 'acceptConnect', false)) {
-						//	this.onNodeConnectHandler = new doodad.Callback(this, 'onNodeConnect');
-						//	server.on('connect', this.onNodeConnectHandler);
-						//};
-						
-						//server.on('connection');
-						//server.on('checkContinue');
-						//server.on('upgrade');
-						//server.on('clientError');
-						
-						this.setAttribute('__nodeServer', server);
-						
-						const target = types.get(options, 'target', '127.0.0.1');
-						const type = types.get(options, 'type', 'tcp', false); // 'tcp', 'unix', 'handle'
-						if (type === 'tcp') { // TCP/IP Socket
-							const port = types.get(options, 'port', (protocol === 'https' ? 443 : 80));
-							const queueLength = types.get(options, 'queueLength', undefined);
-							if (root.DD_ASSERT) {
-								root.DD_ASSERT(types.isString(target), "Invalid target.");
-								root.DD_ASSERT(types.isInteger(port) && (port >= 0) && (port <= 65535), "Invalid port.");
-								root.DD_ASSERT(types.isNothing(queueLength) || (types.isInteger(queueLength) && (queueLength > 0)), "Invalid queue length.");
-							};
-							server.listen(port, target, queueLength);
-						} else if (type === 'unix') { // Unix Socket
-							root.DD_ASSERT && root.DD_ASSERT(types.isString(target), "Invalid target.");
-							server.listen(target);
-						} else if (type === 'handle') { // System Handle
-							root.DD_ASSERT && root.DD_ASSERT(types.isObject(target) && (('_handle' in target) || ('fd' in target)), "Invalid target.");
-							server.listen(target);
-						} else {
-							throw new doodad.Error("Invalid target type option : '~0~'.", [type]);
 						};
 					}),
 					stopListening: doodad.OVERRIDE(function stopListening() {
 						if (this.__listening) {
+							this.__listening = false;
 							this.__nodeServer.close();
 						};
 					}),
@@ -608,8 +783,8 @@
 				{
 					$TYPE_NAME: 'StaticPage',
 
-					$prepare: doodad.OVERRIDE(function(mappings, mapping, key) {
-						this._super(mappings, mapping, key);
+					$prepare: doodad.OVERRIDE(function(mappings, mapping, matcher) {
+						this._super(mappings, mapping, matcher);
 						
 						if (!types.isArray(mapping.path)) {
 							mapping.path = [mapping.path];
@@ -617,10 +792,10 @@
 						
 						mapping.path = tools.map(mapping.path, function(path) {
 							if (types.isString(path)) {
-								return tools.Path.parse(path);
-							} else {
-								return path;
+								path = tools.Path.parse(path);
 							};
+							root.DD_ASSERT && root.DD_ASSERT((path instanceof tools.Path), "Invalid path.");
+							return path;
 						});
 					}),
 
@@ -631,39 +806,53 @@
 					}),
 					
 					getSystemPath: doodad.PROTECTED(function getSystemPath(request, index) {
-						const url = types.clone(request.url);
-						const path = request.mapping.path[index].combine(url, {
+						const path = request.mapping.path[index].combine(request.url, {
 							protocol: 'file',
-							path: url.path.slice(request.mapping.level),
+							path: request.url.path.slice(request.mapping.level),
 							dontThrow: true,
+							isRelative: true,
 						});
 						return path;
 					}),
 					
 					addHeaders: doodad.PROTECTED(function addHeaders(request, path, callback) {
-						// TODO: Look at "Accept"
 						if (!path) {
 							// Path was invalid
-							request.respondWithStatus(http.StatusCodes.NotFound);
+							request.respondWithStatus(types.HttpStatus.NotFound);
 						};
 
 						nodeFs.stat(path.toString(), new http.RequestCallback(request, this, function statCallback(err, stats) {
 							if (!err) {
-								request.addHeaders({
-									'Last-Modified': dates.strftime('%a, %d %b %Y %H:%M:%S GMT', stats.mtime, __Internal__.enUSLocale, true),             // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
-								});
+								let mimeTypes;
 								if (stats.isFile()) {
-									request.addHeaders({
-										'Content-Length': stats.size,
-										'Content-Type': mime.getTypes(path.file)[0],
-										'Content-Disposition': 'filename=' + path.file,
-									});
+									mimeTypes = mime.getTypes(path.file);
 								} else {
+									mimeTypes = ['text/html'];
+								};
+								
+								mimeTypes = request.parseAccept(mimeTypes);
+								
+								if (mimeTypes.length) {
 									request.addHeaders({
-										'Content-Type': 'text/html',
+										'Last-Modified': dates.strftime('%a, %d %b %Y %H:%M:%S GMT', stats.mtime, __Internal__.enUSLocale, true), // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
 									});
+									
+									if (stats.isFile()) {
+										request.addHeaders({
+											'Content-Length': stats.size,
+											'Content-Type': mimeTypes[0].name,
+											'Content-Disposition': 'filename=' + path.file,
+										});
+									} else {
+										request.addHeaders({
+											'Content-Type': mimeTypes[0].name,
+										});
+									};
+								} else {
+									err = new types.HttpError(types.HttpStatus.NotAcceptable, "Content refused by the client.");
 								};
 							};
+							
 							callback.call(this, err, stats);
 						}));
 					}),
@@ -682,7 +871,6 @@
 								request.onSanitize.attachOnce(null, function() {
 									nodeFs.close(fd);
 								});
-								request.sendHeaders();
 								// TODO: Get file-system cluster size or get read-cache size or something else
 								let count = 0;
 								const read = function readInternal() {
@@ -693,7 +881,7 @@
 										};
 										if (bytesRead) {
 											count += bytesRead;
-											request.responseStream.write(buf.slice(0, bytesRead), {callback: new http.RequestCallback(request, this, function() {
+											request.getResponseStream().write(buf.slice(0, bytesRead), {callback: new http.RequestCallback(request, this, function() {
 												if (count >= fileSize) {
 													request.end();
 												} else {
@@ -717,12 +905,12 @@
 						};
 						if (request.url.args.has('res')) {
 							request.clearHeaders();
-							path = request.mapping.folderTemplate.combine('./public/' + request.url.args.get('res'), {isRelative: true, os: 'linux'});
+							path = request.mapping.folderTemplate.set({file: null}).combine('./public/' + request.url.args.get('res'), {isRelative: true, os: 'linux'});
 							this.addHeaders(request, path, function statCallback(err, stats) {
 								if (err) {
 									//console.log(err);
 									if (err.code === 'ENOENT') {
-										request.respondWithStatus(http.StatusCodes.NotFound);
+										request.respondWithStatus(types.HttpStatus.NotFound);
 									} else {
 										request.respondWithError(err);
 									};
@@ -734,7 +922,6 @@
 							});
 							return;
 						};
-						request.sendHeaders();
 						files.readdir(path, {async: true})
 							.then(new tools.PromiseCallback(this, function(files) {
 								files.sort(function(file1, file2) {
@@ -749,17 +936,14 @@
 									};
 								});
 								return templatesHtml.getTemplate(request.mapping.folderTemplate)
-									.then(new tools.PromiseCallback(this, function(templ) {
-										templ = new templ(request, path, files);
-										templ.render(request.responseStream);
+									.then(new tools.PromiseCallback(this, function(templType) {
+										const templ = new templType(request, path, files);
+										templ.render(request.getResponseStream());
 										return templ.renderPromise
-											['finally'](new tools.PromiseCallback(this, function() {
+											['finally'](function() {
 												templ.destroy();
-											}));
-									}))
-									['catch'](function(ex) {
-										request.respondWithError(ex);
-									});
+											});
+									}));
 							}))
 							.then(new tools.PromiseCallback(this, function() {
 								request.end();
@@ -776,11 +960,14 @@
 								const path = this.getSystemPath(request, pathIndex);
 								this.addHeaders(request, path, function addHeadersCallback(err, stats) {
 									if (err) {
-										if (err.code === 'ENOENT') {
-											if (++pathIndex < request.mapping.path.length) {
+										if (err instanceof types.HttpError) {
+											request.respondWithStatus(err.code);
+										} else if (err.code === 'ENOENT') {
+											pathIndex++;
+											if (pathIndex < request.mapping.path.length) {
 												next();
 											} else {
-												request.respondWithStatus(http.StatusCodes.NotFound);
+												request.respondWithStatus(types.HttpStatus.NotFound);
 											};
 										} else {
 											request.respondWithError(err);
@@ -795,7 +982,7 @@
 					}),
 					
 					execute_GET: doodad.OVERRIDE(function execute_GET(request) {
-						// TODO: Client cache
+						// TODO: Cache-Control
 						// TODO: Range
 						if (request.mapping.path.length) {
 							let pathIndex = 0;
@@ -805,11 +992,14 @@
 								this.addHeaders(request, path, function addHeadersCallback(err, stats) {
 									if (err) {
 					//console.log(err);
-										if (err.code === 'ENOENT') {
-											if (++pathIndex < request.mapping.path.length) {
+										if (err instanceof types.HttpError) {
+											request.respondWithStatus(err.code);
+										} else if (err.code === 'ENOENT') {
+											pathIndex++;
+											if (pathIndex < request.mapping.path.length) {
 												next();
 											} else {
-												request.respondWithStatus(http.StatusCodes.NotFound);
+												request.respondWithStatus(types.HttpStatus.NotFound);
 											};
 										} else {
 											request.respondWithError(err);
@@ -822,7 +1012,7 @@
 										this.sendFolder(request, path, stats);
 									} else {
 					//console.log("reject");
-										request.reject(stats);
+										request.reject();
 									};
 								});
 							});
@@ -838,28 +1028,51 @@
 					
 					$__cache: doodad.PROTECTED(doodad.TYPE(  {}  )),
 					
-					$prepare: doodad.OVERRIDE(function(mappings, mapping, key) {
-						this._super(mappings, mapping, key);
+					$prepare: doodad.OVERRIDE(function(mappings, mapping, matcher) {
+						this._super(mappings, mapping, matcher);
 						
 						if (types.isString(mapping.cachePath)) {
 							mapping.cachePath = tools.Path.parse(mapping.cachePath);
 						};
 					}),
 
+					createCachedFile: doodad.PROTECTED(function(request) {
+						let ok = false,
+							cachedFilePath = null,
+							fd = null;
+						for (var i = 0; i < 10; i++) {
+							cachedFilePath = request.mapping.cachePath.combine(null, {file: tools.generateUUID()});
+							try {
+								fd = nodeFs.openSync(cachedFilePath.toString(), 'wx', request.mapping.cachedFilesMode || 0o644);
+								ok = true;
+								break;
+							} catch(ex) {
+								if (ex instanceof types.ScriptAbortedError) {
+									throw ex;
+								};
+								if (ex.code !== 'EEXIST') {
+									throw ex;
+								};
+							};
+						};
+						if (!ok) {
+							throw new types.Error("Failed to create a unique file.");
+						};
+						return {
+							path: cachedFilePath,
+							fd: fd,
+							ready: false,
+						};
+					}),
+					
 					createResponseStream: doodad.REPLACE(function(request) {
 						const outputStream = new nodejsIO.TextOutputStream(request.nodeJsResponse, {autoFlush: true}),
 							type = types.getType(this),
 							key = request.customData.cacheKey;
 						let cached = types.get(type.$__cache, key);
 						if (!cached) {
-							// TODO: Generate a new UUID if file already exists
-							const cacheFilePath = request.mapping.cachePath.combine(null, {file: tools.generateUUID()});
-							type.$__cache[key] = cached = {
-								path: cacheFilePath,
-								ready: false,
-								fd: nodeFs.openSync(cacheFilePath.toString(), 'wx', 0o644),
-							};
-							request.onSanitize.attachOnce(null, new http.RequestCallback(request, this, function() {
+							type.$__cache[key] = cached = this.createCachedFile(request);
+							request.onSanitize.attachOnce(null, new http.RequestCallback(request, this, function sanitize() {
 								const cached = types.get(type.$__cache, key);
 								if (cached) {
 									const fd = cached.fd;
@@ -873,7 +1086,7 @@
 						if (cached.ready) {
 							return outputStream;
 						} else {
-							const jsStream = new minifiers.Javascript(),
+							const jsStream = new minifiers.Javascript({autoFlush: true}),
 								directives = request.mapping.directives;
 							if (directives) {
 								for (let i = 0; i < directives.length; i++) {
@@ -881,8 +1094,9 @@
 								};
 							};
 							jsStream.pipe(outputStream, function(data) {
-								const fd = cached.fd;
-								if (data.raw === io.EOF) {
+								const fd = cached.fd,
+									value = data.valueOf();
+								if (value === io.EOF) {
 									cached.ready = true;
 									if (fd) {
 										nodeFs.close(fd);
@@ -890,7 +1104,7 @@
 									};
 								} else {
 									if (fd) {
-										nodeFs.writeSync(fd, data.text);
+										nodeFs.writeSync(fd, value, null, jsStream.options.encoding);
 									};
 								};
 							});
@@ -914,13 +1128,9 @@
 					}),
 					
 					addHeaders: doodad.OVERRIDE(function addHeaders(request, path, callback) {
-						//const type = types.getType(this);
 						this._super(request, path, new http.RequestCallback(request, this, function(err, stats) {
 							if (!err) {
-								//const cached = types.get(type.$__cache, request.customData.cacheKey);
-								//if (!cached || !cached.ready) {
-									request.clearHeaders('Content-Length');
-								//};
+								request.clearHeaders('Content-Length');
 								request.addHeaders({
 									'Content-Type': mime.getTypes(request.customData.fileName)[0],
 									'Content-Disposition': 'filename=' + request.customData.fileName,
@@ -943,8 +1153,8 @@
 		return DD_MODULES;
 	};
 	
-	if (!global.process) {
+	if (typeof process !== 'object') {
 		// <PRB> export/import are not yet supported in browsers
 		global.DD_MODULES = exports.add(global.DD_MODULES);
 	};
-})();
+}).call((typeof global !== 'undefined') ? global : ((typeof window !== 'undefined') ? window : this));
