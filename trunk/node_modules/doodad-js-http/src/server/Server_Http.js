@@ -79,6 +79,12 @@
 				const __Internal__ = {
 				};
 
+
+				const __Natives__ = {
+					mathFloor: global.Math.floor,
+				};
+				
+				
 				
 	/* RFC 7230
 		 token          = 1*tchar
@@ -272,7 +278,7 @@
 										// Invalid "qvalue"
 										return null;
 									};
-									qvalue = Math.floor(qvalue * 1000) / 1000; // 3 decimal digits
+									qvalue = __Natives__.mathFloor(qvalue * 1000) / 1000; // 3 decimal digits
 								} else {
 									pos[0] = i;
 									delimiters[0] = ";,";
