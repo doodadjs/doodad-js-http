@@ -488,7 +488,7 @@
 					createRequestStream: doodad.PUBLIC(doodad.NOT_IMPLEMENTED()), // function(request)
 					createResponseStream: doodad.PUBLIC(doodad.NOT_IMPLEMENTED()), // function(request)
 					
-					execute: doodad.OVERRIDE(function(request) {
+					execute: doodad.OVERRIDE(function execute(request) {
 						const method = 'execute_' + request.verb.toUpperCase();
 						let result;
 						if (types.isImplemented(this, method)) {
@@ -633,7 +633,7 @@
 					
 					url: doodad.PUBLIC( null ),
 					
-					create: doodad.OVERRIDE(function(url) {
+					create: doodad.OVERRIDE(function create(url) {
 						this._super();
 						if (types.isString(url)) {
 							url = tools.Url.parse(url);
@@ -642,21 +642,32 @@
 						this.url = url;
 					}),
 					
-					match: doodad.OVERRIDE(function(request, map) {
-						this._super(request, map);
+					match: doodad.OVERRIDE(function match(request, mapping) {
+						this._super(request, mapping);
 						
 						const requestUrl = request.url,
-							requestUrlPath = requestUrl.path,
-							requestUrlPathLen = (requestUrlPath && requestUrlPath.length || 0);
-
-						const path = this.url.path,
-							pathLen = (path && path.length || 0);
+							requestUrlPath = requestUrl.toArray();
 							
+						let requestUrlPathLen = requestUrlPath.length;
+						if (requestUrlPath[requestUrlPathLen - 1] === '') {
+							requestUrlPathLen--;
+						};
+
+						const path = this.url.toArray();
+						
+						let pathLen = path.length;
+						if (path[pathLen - 1] === '') {
+							pathLen--;
+						};
+
 						let level = 0,     // path level (used later to remove the beginning of the path)
 							weight = 0,    // weight
 							full = false,  // full match
-							depth = 0,
-							starStar = false;
+							relativePath = null,
+							starStar = false,
+							starStarWeight = 0;
+							
+						const maxDepth = mapping.depth;
 							
 						if (pathLen <= requestUrlPathLen) {
 							weight++;
@@ -665,67 +676,46 @@
 							while ((i < pathLen) && (j < requestUrlPathLen)) {
 								let name1 = path[i],
 									name2 = requestUrlPath[j];
-								if (!map.caseSensitive) {
+								if (!mapping.caseSensitive) {
 									name1 = name1.toUpperCase();
 									name2 = name2.toUpperCase();
 								};
 								if (name1 === '**') {
 									starStar = true;
+									starStarWeight = 0;
 									i++;
-									level++;
-								} else if (starStar) {
-									if (name1 === name2) {
-										i++;
-										level++;
-										starStar = false;
-									};
 								} else {
-									if ((name1 !== '*') && (name1 !== name2)) {
-										break;
-									};
-									i++;
-									level++;
-								};
-								j++;
-								weight++;
-							};
-							
-							if (level >= pathLen) {
-								let ok = true;
-								if (!types.isNothing(map.depth)) {
-									if (this.url.file) {
-										pathLen++;
-									};
-									if ((pathLen + map.depth) < (requestUrlPathLen + (requestUrl.file ? 1 : 0))) {
-										ok = false;
-									};
-								};
-								
-								if (ok) {
-									if (this.url.file) {
-										if (requestUrl.file) {
-											let name1 = this.url.file,
-												name2 = requestUrl.file;
-											if (!map.caseSensitive) {
-												name1 = name1.toUpperCase();
-												name2 = name2.toUpperCase();
-											};
-											if (name1 === name2) {
-												weight++;
-												full = true;
-											};
+									if (starStar) {
+										if (name1 === name2) {
+											i++;
+											starStar = false;
+											weight += starStarWeight;
+										} else {
+											starStarWeight++;
 										};
 									} else {
-										full = true;
+										if ((name1 !== '*') && (name1 !== name2)) {
+											break;
+										};
+										i++;
+										weight++;
 									};
+									j++;
+									level++;
 								};
 							};
+							
+							full = ((level >= pathLen) && (requestUrlPathLen - level <= maxDepth));
+							
+							relativePath = tools.Path.parse(requestUrlPath.slice(level), {
+								isRelative: true,
+							});
 						};
-						
-						types.extend(map, {
-							level: level,
+
+						types.extend(mapping, {
 							weight: weight,
 							full: full,
+							relativePath: relativePath,
 						});
 					}),
 					
@@ -739,14 +729,14 @@
 					}),
 				}));
 				
-				
+				/*
 				http.REGISTER(http.RequestMatcher.$extend(
 				{
 					$TYPE_NAME: 'RegExpUrlMatcher',
 					
 					regex: doodad.PUBLIC( null ),
 					
-					create: doodad.OVERRIDE(function(regex) {
+					create: doodad.OVERRIDE(function create(regex) {
 						this._super();
 						if (types.isString(regex)) {
 							regex = new global.RegExp(regex);
@@ -755,7 +745,7 @@
 						this.regex = regex;
 					}),
 					
-					match: doodad.OVERRIDE(function(request, map) {
+					match: doodad.OVERRIDE(function match(request, map) {
 						this._super(request, map);
 
 						// TODO: Test
@@ -778,6 +768,7 @@
 								return false;
 							};
 						});
+						map.relativePath = ...
 					}),
 
 					toString: doodad.OVERRIDE(function toString() {
@@ -789,7 +780,7 @@
 						};
 					}),
 				}));
-				
+				*/
 				
 				http.REGISTER(doodad.Object.$extend(
 									httpInterfaces.PageFactory,
@@ -834,10 +825,21 @@
 					options: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					
 					create: doodad.OVERRIDE(function create(urlMappings, /*optional*/options) {
-						root.DD_ASSERT && root.DD_ASSERT((urlMappings instanceof types.Map) || types.isObject(urlMappings), "Invalid url mappings.");
+						this._super();
+						
+						this.setAttributes({
+							options: options
+						});
 
-						const parsedMappings = new types.Map();
-						tools.forEach(urlMappings, function(maps, matcher) {
+						this.addMappings(urlMappings);
+					}),
+					
+					addMappings: doodad.PUBLIC(function addMappings(mappings) {
+						root.DD_ASSERT && root.DD_ASSERT((mappings instanceof types.Map) || types.isObject(mappings), "Invalid url mappings.");
+
+						const parsedMappings = (this.urlMappings || new types.Map());
+						
+						tools.forEach(mappings, function(maps, matcher) {
 							if (matcher && maps) {
 								if (types.isString(matcher)) {
 									matcher = new http.UrlMatcher(matcher);
@@ -849,6 +851,7 @@
 								};
 								
 								const parsedMaps = [];
+								
 								tools.forEach(maps, function(map) {
 									if (map) {
 										const newMap = types.extend({}, map);
@@ -859,11 +862,13 @@
 											newMap.page = namespaces.getNamespace(newMap.page);
 										};
 										
+										newMap.depth = (types.isNothing(map.depth) ? Infinity : types.toInteger(map.depth))
+										
 										if (!types._implements(newMap.page, httpMixIns.Page)) {
 											throw new types.TypeError(tools.format("Invalid page type '~0~' for Url matcher '~1~'.", [types.getTypeName(map.page), matcher.toString()]));
 										};
 										
-										types.getType(newMap.page).$prepare(urlMappings, newMap, matcher);
+										types.getType(newMap.page).$prepare(mappings, newMap, matcher);
 										
 										parsedMaps.push(newMap);
 									};
@@ -872,8 +877,10 @@
 								parsedMappings.set(matcher, parsedMaps);
 							};
 						});
-						
-						this.setAttributes({server: server, urlMappings: parsedMappings, options: options});
+
+						this.setAttributes({
+							urlMappings: parsedMappings,
+						});
 					}),
 					
 					createPage: doodad.OVERRIDE(function createPage(request) {
@@ -996,21 +1003,12 @@
 					}),
 				}));
 				
-				http.ServerRedirect = types.createErrorType("ServerRedirect", types.ScriptAbortedError, function _new(url) {
-					this.url = url;
-					return types.ScriptAbortedError.call(this, "Server redirect.");
+				http.RequestRedirected = types.createErrorType("RequestRedirected", types.ScriptAbortedError, function _new(page) {
+					var ex = types.ScriptAbortedError.call(this, "Request redirected.");
+					ex.page = page;
+					return ex;
 				});
 
-				http.ClientRedirect = types.createErrorType("ClientRedirect", types.ScriptAbortedError, function _new(url, /*optional*/isPermanent) {
-					this.url = url;
-					this.isPermanent = isPermanent;
-					return types.ScriptAbortedError.call(this, "Client redirect.");
-				});
-				
-				http.RequestRejected = types.createErrorType("RequestRejected", types.ScriptAbortedError, function _new() {
-					return types.ScriptAbortedError.call(this, "Request rejected.");
-				});
-				
 				http.RequestCallback = types.setPrototypeOf(function(request, obj, fn) {
 					if (types.isString(fn)) {
 						fn = obj[fn];
@@ -1032,12 +1030,8 @@
 										// Do nothing
 									} else if (types._instanceof(ex, server.RequestClosed)) {
 										request.destroy()
-									} else if (types._instanceof(ex, http.RequestRejected)) {
-										request.reject();
-									} else if (types._instanceof(ex, http.ClientRedirect)) {
-										request.redirectClient(ex.url, ex.isPermanent);
-									} else if (types._instanceof(ex, http.ServerRedirect)) {
-										request.redirectServer(ex.url);
+									} else if (types._instanceof(ex, http.RequestRedirected)) {
+										request.proceed(ex.page);
 									} else if (types._instanceof(ex, types.ScriptAbortedError)) {
 										abort = true;
 									} else {

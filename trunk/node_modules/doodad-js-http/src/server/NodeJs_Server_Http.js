@@ -285,6 +285,7 @@
 							this.close();
 						};
 						
+						// NOTE: See "http.RequestCallback"
 						throw new server.EndOfRequest();
 					}),
 
@@ -342,6 +343,7 @@
 							this.__responseStream = null;
 						};
 						
+						// NOTE: See "http.RequestCallback"
 						throw new server.RequestClosed();
 					}),
 
@@ -482,6 +484,7 @@
 					}),
 					
 					respondWithStatus: doodad.OVERRIDE(function respondWithStatus(/*optional*/status, /*optional*/message, /*optional*/headers, /*optional*/data) {
+						// NOTE: Must always throw an error.
 						this.clear();
 						
 						if (this.nodeJsResponse.headersSent) {
@@ -505,6 +508,7 @@
 					}),
 					
 					respondWithError: doodad.OVERRIDE(function respondWithError(ex) {
+						// NOTE: Must always throw an error.
 						if (ex instanceof types.ScriptAbortedError) {
 							throw ex;
 						};
@@ -521,6 +525,7 @@
 					}),
 
 					redirectClient: doodad.OVERRIDE(function redirectClient(url, /*optional*/isPermanent) {
+						// NOTE: Must always throw an error.
 						const maxRedirects = types.get(this.server.options, 'maxRedirects', 5);
 						if (this.nodeJsResponse.headersSent) {
 							throw new types.Error("Unable to redirect because HTTP headers are already sent.");
@@ -545,6 +550,7 @@
 					}),
 					
 					redirectServer: doodad.OVERRIDE(function redirectServer(url) {
+						// NOTE: Must always throw an error.
 						const maxRedirects = types.get(this.server.options, 'maxRedirects', 5);
 						if (this.nodeJsResponse.headersSent) {
 							throw new types.Error("Unable to redirect because HTTP headers are already sent.");
@@ -557,11 +563,13 @@
 								url = tools.Url.parse(url);
 							};
 							this.setAttribute('url', url);
-							this.proceed(this.currentPage);
+							// NOTE: See "http.RequestCallback"
+							throw new http.RequestRedirected(this.currentPage);
 						};
 					}),
 					
 					reject: doodad.OVERRIDE(function reject(/*optional*/rejectData, /*optional*/page) {
+						// NOTE: Must always throw an error.
 						this.setAttributes({
 							rejected: true,
 							rejectPage: this.currentPage,
@@ -571,7 +579,8 @@
 							page = this.mapping.nextSibling();
 						};
 						if (page) {
-							this.proceed(page);
+							// NOTE: See "http.RequestCallback"
+							throw new http.RequestRedirected(page);
 						} else {
 							this.respondWithStatus(types.HttpStatus.VersionNotSupported);
 						};
@@ -786,17 +795,15 @@
 					$prepare: doodad.OVERRIDE(function(mappings, mapping, matcher) {
 						this._super(mappings, mapping, matcher);
 						
-						if (!types.isArray(mapping.path)) {
-							mapping.path = [mapping.path];
+						let path = mapping.path;
+						
+						if (types.isString(path)) {
+							path = tools.Path.parse(path);
 						};
 						
-						mapping.path = tools.map(mapping.path, function(path) {
-							if (types.isString(path)) {
-								path = tools.Path.parse(path);
-							};
-							root.DD_ASSERT && root.DD_ASSERT((path instanceof tools.Path), "Invalid path.");
-							return path;
-						});
+						root.DD_ASSERT && root.DD_ASSERT((path instanceof tools.Path), "Invalid path.");
+
+						mapping.path = path;
 					}),
 
 					createResponseStream: doodad.OVERRIDE(function(request) {
@@ -805,13 +812,9 @@
 						};
 					}),
 					
-					getSystemPath: doodad.PROTECTED(function getSystemPath(request, index) {
-						const path = request.mapping.path[index].combine(request.url, {
-							protocol: 'file',
-							path: request.url.path.slice(request.mapping.level),
-							dontThrow: true,
-							isRelative: true,
-						});
+					getSystemPath: doodad.PROTECTED(function getSystemPath(request) {
+						const path = request.mapping.path.combine(request.mapping.relativePath);
+			//console.log(path.toString());
 						return path;
 					}),
 					
@@ -898,9 +901,9 @@
 						};
 					}),
 					
-					sendFolder: doodad.PROTECTED(function sendFile(request, path, stats) {
+					sendFolder: doodad.PROTECTED(function sendFolder(request, path, stats) {
 						request.customData.isFolder = true;
-						if (path.file) {
+						if (request.url.file) {
 							request.redirectClient(request.url.pushFile());
 						};
 						if (request.url.args.has('res')) {
@@ -923,8 +926,8 @@
 							return;
 						};
 						files.readdir(path, {async: true})
-							.then(new tools.PromiseCallback(this, function(files) {
-								files.sort(function(file1, file2) {
+							.then(new tools.PromiseCallback(this, function(filesList) {
+								filesList.sort(function(file1, file2) {
 									const n1 = file1.name.toUpperCase(),
 										n2 = file2.name.toUpperCase();
 									if ((!file1.isFolder && file2.isFolder) || (n1 > n2)) {
@@ -935,9 +938,10 @@
 										return 0;
 									};
 								});
+					//console.log(filesList);
 								return templatesHtml.getTemplate(request.mapping.folderTemplate)
 									.then(new tools.PromiseCallback(this, function(templType) {
-										const templ = new templType(request, path, files);
+										const templ = new templType(request, path, filesList);
 										templ.render(request.getResponseStream());
 										return templ.renderPromise
 											['finally'](function() {
@@ -954,70 +958,48 @@
 					}),
 					
 					execute_HEAD: doodad.OVERRIDE(function execute_HEAD(request) {
-						if (request.mapping.path.length) {
-							let pathIndex = 0;
-							const next = new http.RequestCallback(request, this, function _next() {
-								const path = this.getSystemPath(request, pathIndex);
-								this.addHeaders(request, path, function addHeadersCallback(err, stats) {
-									if (err) {
-										if (err instanceof types.HttpError) {
-											request.respondWithStatus(err.code);
-										} else if (err.code === 'ENOENT') {
-											pathIndex++;
-											if (pathIndex < request.mapping.path.length) {
-												next();
-											} else {
-												request.respondWithStatus(types.HttpStatus.NotFound);
-											};
-										} else {
-											request.respondWithError(err);
-										};
-									} else {
-										request.end();
-									};
-								});
-							});
-							next();
-						};
+						const path = this.getSystemPath(request);
+						this.addHeaders(request, path, new http.RequestCallback(request, this, function addHeadersCallback(err, stats) {
+							if (err) {
+								if (err instanceof types.HttpError) {
+									request.respondWithStatus(err.code);
+								} else if (err.code === 'ENOENT') {
+									request.respondWithStatus(types.HttpStatus.NotFound);
+								} else {
+									request.respondWithError(err);
+								};
+							} else {
+								request.end();
+							};
+						}));
 					}),
 					
 					execute_GET: doodad.OVERRIDE(function execute_GET(request) {
 						// TODO: Cache-Control
 						// TODO: Range
-						if (request.mapping.path.length) {
-							let pathIndex = 0;
-							const next = new http.RequestCallback(request, this, function _next() {
-								const path = this.getSystemPath(request, pathIndex);
-					//console.log(path);
-								this.addHeaders(request, path, function addHeadersCallback(err, stats) {
-									if (err) {
-					//console.log(err);
-										if (err instanceof types.HttpError) {
-											request.respondWithStatus(err.code);
-										} else if (err.code === 'ENOENT') {
-											pathIndex++;
-											if (pathIndex < request.mapping.path.length) {
-												next();
-											} else {
-												request.respondWithStatus(types.HttpStatus.NotFound);
-											};
-										} else {
-											request.respondWithError(err);
-										};
-									} else if (stats.isFile()) {
-					//console.log("file");
-										this.sendFile(request, path, stats);
-									} else if (request.mapping.showFolders && request.mapping.folderTemplate && templatesHtml.isAvailable()) {
-					//console.log("folder");
-										this.sendFolder(request, path, stats);
-									} else {
-					//console.log("reject");
-										request.reject();
-									};
-								});
-							});
-							next();
-						};
+						const path = this.getSystemPath(request);
+			//console.log(path);
+						this.addHeaders(request, path, new http.RequestCallback(request, this, function addHeadersCallback(err, stats) {
+							if (err) {
+			//console.log(err);
+								if (err instanceof types.HttpError) {
+									request.respondWithStatus(err.code);
+								} else if (err.code === 'ENOENT') {
+									request.respondWithStatus(types.HttpStatus.NotFound);
+								} else {
+									request.respondWithError(err);
+								};
+							} else if (stats.isFile()) {
+			//console.log("file");
+								this.sendFile(request, path, stats);
+							} else if (request.mapping.showFolders && request.mapping.folderTemplate && templatesHtml.isAvailable()) {
+			//console.log("folder");
+								this.sendFolder(request, path, stats);
+							} else {
+			//console.log("reject");
+								request.reject();
+							};
+						}));
 					}),
 					
 				}));
