@@ -35,43 +35,47 @@
 		DD_MODULES = (DD_MODULES || {});
 		DD_MODULES['Doodad.NodeJs.Server.Http'] = {
 			type: null,
-			version: '0.2d',
+			version: '0.4.0d',
 			namespaces: null,
 			dependencies: [
 				{
 					name: 'Doodad.Types', 
-					version: '1.1r',
+					version: '2.0.0',
 				},
-				'Doodad', 
+				"Doodad.Tools.Files",
+				{
+					name: 'Doodad',
+					version: '2.0.0',
+				}, 
 				{
 					name: 'Doodad.IO',
-					version: '0.2',
+					version: '0.4.0',
 				}, 
 				'Doodad.Tools.Mime', 
 				{
 					name: 'Doodad.Tools.Locale',
-					version: '1.2',
+					version: '1.3.0',
 				}, 
 				{
 					name: 'Doodad.Tools.Dates',
-					version: '1.1',
+					version: '1.2.0',
 				}, 
 				{
 					name: 'Doodad.Server',
-					version: '0.2',
+					version: '0.3.0',
 				}, 
 				{
 					name: 'Doodad.Server.Http',
-					version: '0.2',
+					version: '0.4.0',
 				},
 				'Doodad.NodeJs', 
 				{
 					name: 'Doodad.NodeJs.IO',
-					version: '0.2',
+					version: '0.4.0',
 				}, 
 				{
 					name: 'Doodad.IO.Minifiers', 
-					version: '0.2',
+					version: '0.3.0',
 				},
 				'Doodad.Templates.Html',
 			],
@@ -174,7 +178,7 @@
 					}),
 					
 					create: doodad.OVERRIDE(function create(server, nodeJsRequest, nodeJsResponse) {
-						this.setAttributes({
+						types.setAttributes(this, {
 							startTime: process.hrtime(),
 							nodeJsRequest: nodeJsRequest,
 							nodeJsResponse: nodeJsResponse,
@@ -273,7 +277,7 @@
 						if (this.currentPage && (this.currentPage !== page)) {
 							this.currentPage.destroy();
 						};
-						this.setAttribute('currentPage', page);
+						types.setAttribute(this, 'currentPage', page);
 						
 						page.execute(this);
 					}),
@@ -333,7 +337,7 @@
 							this.__responseStream && this.__responseStream.destroy();
 							this.__requestStream && this.__requestStream.destroy();
 							
-							this.setAttributes({
+							types.setAttributes(this, {
 								nodeJsRequest: null,
 								nodeJsResponse: null,
 								currentPage: null,
@@ -387,7 +391,7 @@
 							tools.forEach(this.responseHeaders, function(value, name) {
 								response.removeHeader(name);
 							});
-							this.setAttributes({
+							types.setAttributes(this, {
 								responseHeaders: {},
 								responseTrailers: {},
 							});
@@ -411,7 +415,7 @@
 								response.setHeader(name, value);
 							});
 							
-							this.setAttributes({
+							types.setAttributes(this, {
 								responseStatus: response.statusCode,
 								responseMessage: response.statusMessage,
 							});
@@ -493,7 +497,7 @@
 						
 						this.addHeaders(headers);
 
-						this.setAttributes({
+						types.setAttributes(this, {
 							responseStatus: status,
 							responseMessage: message,
 						});
@@ -560,9 +564,9 @@
 							this.clear();
 							this.__redirectsCount++;
 							if (types.isString(url)) {
-								url = tools.Url.parse(url);
+								url = files.Url.parse(url);
 							};
-							this.setAttribute('url', url);
+							types.setAttribute(this, 'url', url);
 							// NOTE: See "http.RequestCallback"
 							throw new http.RequestRedirected(this.currentPage);
 						};
@@ -570,7 +574,7 @@
 					
 					reject: doodad.OVERRIDE(function reject(/*optional*/rejectData, /*optional*/page) {
 						// NOTE: Must always throw an error.
-						this.setAttributes({
+						types.setAttributes(this, {
 							rejected: true,
 							rejectPage: this.currentPage,
 							rejectData: rejectData,
@@ -636,7 +640,7 @@
 					//onNodeConnectHandler: doodad.PROTECTED(null),
 					
 					onNodeListening: doodad.PROTECTED(function onNodeListening() {
-						this.setAttribute('__address', this.__nodeServer.address());
+						types.setAttribute(this, '__address', this.__nodeServer.address());
 						tools.log(tools.LogLevels.Info, "HTTP server listening on port '~port~', address '~address~'.", this.__address);
 						tools.log(tools.LogLevels.Warning, "IMPORTANT: It is an experimental and not finished software. Don't use it on production, or do it at your own risks. Please report bugs and suggestions to 'doodadjs [at] gmail <dot> com'.");
 					}),
@@ -666,7 +670,7 @@
 						
 						tools.log(tools.LogLevels.Info, "Listening socket closed (address '~address~', port '~port~').", this.__address);
 
-						this.setAttribute('__nodeServer', null);
+						types.setAttribute(this, '__nodeServer', null);
 					}),
 					onNodeCloseHandler: doodad.PROTECTED(null),
 					
@@ -742,7 +746,7 @@
 							//server.on('upgrade');
 							//server.on('clientError');
 							
-							this.setAttribute('__nodeServer', server);
+							types.setAttribute(this, '__nodeServer', server);
 							
 							const target = types.get(options, 'target', '127.0.0.1');
 							const type = types.get(options, 'type', 'tcp', false); // 'tcp', 'unix', 'handle'
@@ -798,10 +802,10 @@
 						let path = mapping.path;
 						
 						if (types.isString(path)) {
-							path = tools.Path.parse(path);
+							path = files.Path.parse(path);
 						};
 						
-						root.DD_ASSERT && root.DD_ASSERT((path instanceof tools.Path), "Invalid path.");
+						root.DD_ASSERT && root.DD_ASSERT((path instanceof files.Path), "Invalid path.");
 
 						mapping.path = path;
 					}),
@@ -926,7 +930,7 @@
 							return;
 						};
 						files.readdir(path, {async: true})
-							.then(new tools.PromiseCallback(this, function(filesList) {
+							.then(new types.PromiseCallback(this, function(filesList) {
 								filesList.sort(function(file1, file2) {
 									const n1 = file1.name.toUpperCase(),
 										n2 = file2.name.toUpperCase();
@@ -940,7 +944,7 @@
 								});
 					//console.log(filesList);
 								return templatesHtml.getTemplate(request.mapping.folderTemplate)
-									.then(new tools.PromiseCallback(this, function(templType) {
+									.then(new types.PromiseCallback(this, function(templType) {
 										const templ = new templType(request, path, filesList);
 										templ.render(request.getResponseStream());
 										return templ.renderPromise
@@ -949,7 +953,7 @@
 											});
 									}));
 							}))
-							.then(new tools.PromiseCallback(this, function() {
+							.then(new types.PromiseCallback(this, function() {
 								request.end();
 							}))
 							['catch'](function(ex) {
@@ -1014,7 +1018,7 @@
 						this._super(mappings, mapping, matcher);
 						
 						if (types.isString(mapping.cachePath)) {
-							mapping.cachePath = tools.Path.parse(mapping.cachePath);
+							mapping.cachePath = files.Path.parse(mapping.cachePath);
 						};
 					}),
 

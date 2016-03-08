@@ -35,23 +35,27 @@
 		DD_MODULES = (DD_MODULES || {});
 		DD_MODULES['Doodad.Server.Http'] = {
 			type: null,
-			version: '0.2d',
+			version: '0.4.0d',
 			namespaces: ['Interfaces', 'MixIns'],
 			dependencies: [
 				{
 					name: 'Doodad.Types', 
-					version: '1.1r',
+					version: '2.0.0',
 				},
 				'Doodad.Tools', 
+				'Doodad.Tools.Files', 
 				'Doodad.Tools.Mime', 
-				'Doodad', 
+				{
+					name: 'Doodad',
+					version: '2.0.0',
+				}, 
 				{
 					name: 'Doodad.IO',
-					version: '0.2',
+					version: '0.4.0',
 				}, 
 				{
 					name: 'Doodad.Server',
-					version: '0.2',
+					version: '0.3.0',
 				}, 
 				'Doodad.Widgets'
 			],
@@ -62,6 +66,7 @@
 				const doodad = root.Doodad,
 					types = doodad.Types,
 					tools = doodad.Tools,
+					files = tools.Files,
 					namespaces = doodad.Namespaces,	
 					mime = tools.Mime,
 					mixIns = doodad.MixIns,
@@ -421,17 +426,17 @@
 					
 					create: doodad.OVERRIDE(function create(server, verb, url, headers) {
 						if (types.isString(url)) {
-							url = tools.Url.parse(url);
+							url = files.Url.parse(url);
 						};
 					
 						if (root.DD_ASSERT) {
 							root.DD_ASSERT && root.DD_ASSERT(types._implements(server, http.Server), "Invalid server.");
 							root.DD_ASSERT(types.isString(verb), "Invalid verb.");
-							root.DD_ASSERT((url instanceof tools.Url), "Invalid URL.");
+							root.DD_ASSERT((url instanceof files.Url), "Invalid URL.");
 							root.DD_ASSERT(types.isObject(headers), "Invalid headers.");
 						};
 						
-						this.setAttributes({
+						types.setAttributes(this, {
 							server: server,
 							verb: verb.toLowerCase(),
 							url: url,
@@ -454,7 +459,7 @@
 							fileMimeTypes = this.parseAccept(mime.getTypes(requestFile));
 						};
 
-						this.setAttributes({
+						types.setAttributes(this, {
 							fileExtension: fileExtension,
 							fileMimeTypes: fileMimeTypes || [],
 						});
@@ -511,7 +516,7 @@
 						let allowed = this.__allowedVerbs;
 						if (!allowed) {
 							allowed = tools.filter(this.knownVerbs, this.isAllowed, this);
-							this.setAttribute('__allowedVerbs', allowed);
+							types.setAttribute(this, '__allowedVerbs', allowed);
 						};
 						request.addHeaders({Allow: allowed.join(',')});
 						request.end();
@@ -614,7 +619,7 @@
 					create: doodad.OVERRIDE(function create(pageFactory, /*optional*/options) {
 						root.DD_ASSERT && root.DD_ASSERT(types._implements(pageFactory, httpInterfaces.PageFactory), "Invalid page factory.");
 						
-						this.setAttributes({pageFactory: pageFactory, options: options});
+						types.setAttributes(this, {pageFactory: pageFactory, options: options});
 					}),
 				})));
 
@@ -636,9 +641,9 @@
 					create: doodad.OVERRIDE(function create(url) {
 						this._super();
 						if (types.isString(url)) {
-							url = tools.Url.parse(url);
+							url = files.Url.parse(url);
 						};
-						root.DD_ASSERT && root.DD_ASSERT((url instanceof tools.Url), "Invalid url.");
+						root.DD_ASSERT && root.DD_ASSERT((url instanceof files.Url), "Invalid url.");
 						this.url = url;
 					}),
 					
@@ -707,7 +712,7 @@
 							
 							full = ((level >= pathLen) && (requestUrlPathLen - level <= maxDepth));
 							
-							relativePath = tools.Path.parse(requestUrlPath.slice(level), {
+							relativePath = files.Path.parse(requestUrlPath.slice(level), {
 								isRelative: true,
 							});
 						};
@@ -827,7 +832,7 @@
 					create: doodad.OVERRIDE(function create(urlMappings, /*optional*/options) {
 						this._super();
 						
-						this.setAttributes({
+						types.setAttributes(this, {
 							options: options
 						});
 
@@ -878,7 +883,7 @@
 							};
 						});
 
-						this.setAttributes({
+						types.setAttributes(this, {
 							urlMappings: parsedMappings,
 						});
 					}),
@@ -987,7 +992,7 @@
 									return getSibling(1, this.index);
 								};
 								
-								types.invoke(request, 'setAttribute', ['mapping', mapping])
+								types.setAttribute(request, 'mapping', mapping)
 								
 								if (types.isType(mapping.page)) {
 									mapping.page = new mapping.page();
