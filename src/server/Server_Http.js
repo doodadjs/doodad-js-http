@@ -35,29 +35,32 @@
 		DD_MODULES = (DD_MODULES || {});
 		DD_MODULES['Doodad.Server.Http'] = {
 			type: null,
-			version: '0.4.0d',
+			version: '0.4.2a',
 			namespaces: ['Interfaces', 'MixIns'],
 			dependencies: [
 				{
 					name: 'Doodad.Types', 
-					version: '2.0.0',
+					version: '2.2.0',
 				},
 				'Doodad.Tools', 
 				'Doodad.Tools.Files', 
 				'Doodad.Tools.Mime', 
 				{
 					name: 'Doodad',
-					version: '2.0.0',
+					version: '2.2.0',
 				}, 
 				{
 					name: 'Doodad.IO',
-					version: '0.4.0',
+					version: '1.0.0',
 				}, 
 				{
 					name: 'Doodad.Server',
 					version: '0.3.0',
 				}, 
-				'Doodad.Widgets'
+				{
+					name: 'Doodad.Widgets',
+					version: '0.3.0',
+				}, 
 			],
 
 			create: function create(root, /*optional*/_options) {

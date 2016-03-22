@@ -35,30 +35,30 @@
 		DD_MODULES = (DD_MODULES || {});
 		DD_MODULES['Doodad.NodeJs.Server.Http'] = {
 			type: null,
-			version: '0.4.0d',
+			version: '0.4.2a',
 			namespaces: null,
 			dependencies: [
 				{
 					name: 'Doodad.Types', 
-					version: '2.0.0',
+					version: '2.2.0',
 				},
 				"Doodad.Tools.Files",
 				{
 					name: 'Doodad',
-					version: '2.0.0',
+					version: '2.2.0',
 				}, 
 				{
 					name: 'Doodad.IO',
-					version: '0.4.0',
+					version: '1.0.0',
 				}, 
 				'Doodad.Tools.Mime', 
 				{
 					name: 'Doodad.Tools.Locale',
-					version: '1.3.0',
+					version: '2.0.0',
 				}, 
 				{
 					name: 'Doodad.Tools.Dates',
-					version: '1.2.0',
+					version: '1.3.0',
 				}, 
 				{
 					name: 'Doodad.Server',
@@ -71,11 +71,11 @@
 				'Doodad.NodeJs', 
 				{
 					name: 'Doodad.NodeJs.IO',
-					version: '0.4.0',
+					version: '1.0.0',
 				}, 
 				{
 					name: 'Doodad.IO.Minifiers', 
-					version: '0.3.0',
+					version: '0.4.0',
 				},
 				'Doodad.Templates.Html',
 			],
@@ -948,8 +948,13 @@
 										const templ = new templType(request, path, filesList);
 										templ.render(request.getResponseStream());
 										return templ.renderPromise
-											['finally'](function() {
+											.nodeify(function(err, result) {
 												templ.destroy();
+												if (err) {
+													throw err;
+												} else {
+													return result;
+												};
 											});
 									}));
 							}))
@@ -1080,9 +1085,8 @@
 								};
 							};
 							jsStream.pipe(outputStream, function(data) {
-								const fd = cached.fd,
-									value = data.valueOf();
-								if (value === io.EOF) {
+								const fd = cached.fd;
+								if (data.raw === io.EOF) {
 									cached.ready = true;
 									if (fd) {
 										nodeFs.close(fd);
@@ -1090,7 +1094,7 @@
 									};
 								} else {
 									if (fd) {
-										nodeFs.writeSync(fd, value, null, jsStream.options.encoding);
+										nodeFs.writeSync(fd, data.valueOf(), null, jsStream.options.encoding);
 									};
 								};
 							});
