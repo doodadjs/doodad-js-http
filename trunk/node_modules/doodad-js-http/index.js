@@ -1,5 +1,5 @@
 // dOOdad - Object-oriented programming framework
-// File: index.js - Http module startup file
+// File: index.js - Will get replaced on build.
 // Project home: https://sourceforge.net/projects/doodad-js/
 // Trunk: svn checkout svn://svn.code.sf.net/p/doodad-js/code/trunk doodad-js-code
 // Author: Claude Petit, Quebec city
@@ -21,47 +21,6 @@
 //	See the License for the specific language governing permissions and
 //	limitations under the License.
 
-(function() {
-	var global = this;
+"use struict";
 
-	var exports = {};
-	if (typeof process === 'object') {
-		module.exports = exports;
-	};
-	
-	var MODULE_NAME = 'doodad-js-http';
-	
-	exports.add = function add(DD_MODULES) {
-		DD_MODULES = (DD_MODULES || {});
-		DD_MODULES[MODULE_NAME] = {
-			type: 'Package',
-			version: '0.4.2a',
-			namespaces: null,
-			dependencies: ['Doodad.Modules'],
-			exports: exports,
-			
-			create: function create(root, /*optional*/_options) {
-				"use strict";
-				
-				var doodad = root.Doodad,
-					modules = doodad.Modules,
-					files = [];
-				
-				var fromSource = root.getOptions().settings.fromSource;
-				
-				files.push(
-					(fromSource ? 'src/server/Server_Http.js' : 'Server_Http.min.js'),
-					(fromSource ? 'src/server/NodeJs_Server_Http.js' : 'NodeJs_Server_Http.min.js')
-				);
-				
-				return modules.load(MODULE_NAME, files, _options);
-			},
-		};
-		return DD_MODULES;
-	};
-	
-	if (typeof process !== 'object') {
-		// <PRB> export/import are not yet supported in browsers
-		global.DD_MODULES = exports.add(global.DD_MODULES);
-	};
-}).call((typeof global !== 'undefined') ? global : ((typeof window !== 'undefined') ? window : this));
+module.exports = require('./src/common/index.js');

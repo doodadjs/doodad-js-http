@@ -35,49 +35,10 @@
 		DD_MODULES = (DD_MODULES || {});
 		DD_MODULES['Doodad.NodeJs.Server.Http'] = {
 			type: null,
-			version: '0.4.2a',
+			//! INSERT("version:'" + VERSION('doodad-js-http') + "',")
 			namespaces: null,
 			dependencies: [
-				{
-					name: 'Doodad.Types', 
-					version: '2.2.0',
-				},
-				"Doodad.Tools.Files",
-				{
-					name: 'Doodad',
-					version: '2.2.0',
-				}, 
-				{
-					name: 'Doodad.IO',
-					version: '1.0.0',
-				}, 
-				'Doodad.Tools.Mime', 
-				{
-					name: 'Doodad.Tools.Locale',
-					version: '2.0.0',
-				}, 
-				{
-					name: 'Doodad.Tools.Dates',
-					version: '1.3.0',
-				}, 
-				{
-					name: 'Doodad.Server',
-					version: '0.3.0',
-				}, 
-				{
-					name: 'Doodad.Server.Http',
-					version: '0.4.0',
-				},
-				'Doodad.NodeJs', 
-				{
-					name: 'Doodad.NodeJs.IO',
-					version: '1.0.0',
-				}, 
-				{
-					name: 'Doodad.IO.Minifiers', 
-					version: '0.4.0',
-				},
-				'Doodad.Templates.Html',
+				'Doodad.Server.Http',
 			],
 
 			create: function create(root, /*optional*/_options) {
