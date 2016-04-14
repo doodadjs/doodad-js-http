@@ -24,76 +24,124 @@
 	"//": "    See the License for the specific language governing permissions and",
 	"//": "    limitations under the License.",
 	"//": "",
-	"makeData": {
-		"tasks": {
-			"make": {
-				"operations": [
-					{
-						"class": "Make.File.Javascript",
-						"source": "%SOURCEDIR%/server/Server_Http.js",
-						"destination": "%PACKAGEDIR%/Server_Http.min.js",
-						"runDirectives": true
-					},
-					{
-						"class": "Make.File.Javascript",
-						"source": "%SOURCEDIR%/server/NodeJs_Server_Http.js",
-						"destination": "%PACKAGEDIR%/NodeJs_Server_Http.min.js",
-						"runDirectives": true
-					},
-					{
-						"class": "Make.File.Javascript",
-						"source": "%SOURCEDIR%/common/index.js",
-						"destination": "%PACKAGEDIR%/index.js",
-						"runDirectives": true
-					},
-					{
-						"class": "Make.File.Javascript",
-						"source": "%SOURCEDIR%/browserify/browserify.js",
-						"destination": "%PACKAGEDIR%/browserify.js",
-						"runDirectives": true
-					},
-					{
-						"class": "Make.Folder.Copy",
-						"source": "%SOURCEDIR%/server/res",
-						"destination": "%PACKAGEDIR%/res"
-					},
-
-					{
-						"class": "Make.Update.PackageJson"
-					},
-					
-					{
-						"class": "Make.Task",
-						"name": "configure"
-					}
-				]
-			},
-			"configure": {
-				"operations": [
-					{
-						"class": "Make.Folder.Create",
-						"destination": "%INSTALLDIR%/"
-					},
-					{
-						"class": "Make.Folder.Create",
-						"destination": "%INSTALLDIR%/%PACKAGENAME%/"
-					},
-					{
-						"class": "Make.File.Copy",
-						"source": "%SOURCEDIR%/LICENSE",
-						"destination": "%INSTALLDIR%/%PACKAGENAME%/LICENSE"
-					},
-					{
-						"class": "Make.Generate.Configuration",
-						"destination": "%INSTALLDIR%/%PACKAGENAME%/config.json"
-					},
-					
-					{
-						"class": "Make.Generate.Configuration",
-						"destination": "%PACKAGEDIR%/config.json"
-					}
-				]
-			}
+	"dependencies": [
+		{
+			"name": "doodad-js",
+			"optional": false,
+			"client": false,
+			"server": true,
+			"browserify": false
+		},
+		{
+			"name": "doodad-js-io",
+			"optional": false,
+			"client": false,
+			"server": true,
+			"browserify": false
+		},
+		{
+			"name": "doodad-js-mime",
+			"optional": false,
+			"client": false,
+			"server": true,
+			"browserify": false
+		},
+		{
+			"name": "doodad-js-locale",
+			"optional": false,
+			"client": false,
+			"server": true,
+			"browserify": false
+		},
+		{
+			"name": "doodad-js-dates",
+			"optional": false,
+			"client": false,
+			"server": true,
+			"browserify": false
+		},
+		{
+			"name": "doodad-js-server",
+			"optional": false,
+			"client": false,
+			"server": true,
+			"browserify": false
+		},
+		{
+			"name": "doodad-js-minifiers",
+			"optional": false,
+			"client": false,
+			"server": true,
+			"browserify": false
+		},
+		{
+			"name": "doodad-js-templates",
+			"optional": false,
+			"client": false,
+			"server": true,
+			"browserify": false
+		},
+		{
+			"name": "doodad-js-widgets",
+			"optional": false,
+			"client": false,
+			"server": true,
+			"browserify": false
+		}
+	],
+	"modules": [
+		{
+			"src": "server/Server_Http.js",
+			"client": false,
+			"server": true,
+			"browserify": false
+		},
+		{
+			"src": "server/NodeJs_Server_Http.js",
+			"client": false,
+			"server": true,
+			"browserify": false
+		}
+	],
+	"resources": [
+		{
+			"src": "server/res",
+			"namespace": "Doodad.NodeJs.Server.Http",
+			"client": false,
+			"server": true,
+			"browserify": false
+		}
+	],
+	"tasks": {
+		"make": {
+			"operations": [
+				{
+					"class": "Make.Generate.Package"
+				},
+				
+				{
+					"class": "Make.Task",
+					"name": "install"
+				},
+				{
+					"class": "Make.Task",
+					"name": "browserify"
+				}
+			]
+		},
+		"install": {
+			"operations": [
+				{
+					"class": "Make.Generate.Package"
+				}
+			]
+		},
+		"browserify": {
+			"operations": [
+				{
+					"class": "Make.Generate.Package"
+				}
+			]
 		}
 	}
 }
