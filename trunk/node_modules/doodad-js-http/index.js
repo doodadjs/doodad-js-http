@@ -21,6 +21,4 @@
 //	See the License for the specific language governing permissions and
 //	limitations under the License.
 
-"use struict";
-
-module.exports = require('./src/common/index.js');
+"use strict";
