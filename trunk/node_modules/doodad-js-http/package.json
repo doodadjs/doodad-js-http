@@ -1,6 +1,6 @@
 {
   "name": "doodad-js-http",
-  "version": "0.6.4",
+  "version": "0.7.0",
   "stage": "a",
   "description": "HTTP server (alpha)",
   "files": [

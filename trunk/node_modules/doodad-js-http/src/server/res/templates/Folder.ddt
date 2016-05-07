@@ -62,7 +62,7 @@
 						<div class="cell space"/>
 						<div class="cell name">
 							<div  class="flex">
-								<a class="value" t:href="file.name + (file.isFolder ? '/' : '')">
+								<a class="value" t:href="file.name + (file.isFolder ? '/' : '') + '?redirects=0'">
                     				<t:eval>file.name</t:eval>
 								</a>
 								<div class="cell space"/>
