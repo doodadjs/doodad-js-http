@@ -27,63 +27,54 @@
 	"dependencies": [
 		{
 			"name": "doodad-js",
-			"optional": false,
 			"client": false,
 			"server": true,
 			"browserify": false
 		},
 		{
 			"name": "doodad-js-io",
-			"optional": false,
 			"client": false,
 			"server": true,
 			"browserify": false
 		},
 		{
 			"name": "doodad-js-mime",
-			"optional": false,
 			"client": false,
 			"server": true,
 			"browserify": false
 		},
 		{
 			"name": "doodad-js-locale",
-			"optional": false,
 			"client": false,
 			"server": true,
 			"browserify": false
 		},
 		{
 			"name": "doodad-js-dates",
-			"optional": false,
 			"client": false,
 			"server": true,
 			"browserify": false
 		},
 		{
 			"name": "doodad-js-server",
-			"optional": false,
 			"client": false,
 			"server": true,
 			"browserify": false
 		},
 		{
 			"name": "doodad-js-minifiers",
-			"optional": false,
 			"client": false,
 			"server": true,
 			"browserify": false
 		},
 		{
 			"name": "doodad-js-templates",
-			"optional": false,
 			"client": false,
 			"server": true,
 			"browserify": false
 		},
 		{
 			"name": "doodad-js-widgets",
-			"optional": false,
 			"client": false,
 			"server": true,
 			"browserify": false
