@@ -577,11 +577,9 @@
 						const result = this.show(request);
 						if (result !== false) {
 							const stream = request.getResponseStream();
-							if (stream) {
-								request.writeHeader();
-								this.render(stream);
-								request.writeFooter();
-							};
+							request.writeHeader();
+							this.render(stream);
+							request.writeFooter();
 						};
 						return result;
 					}),
@@ -589,11 +587,9 @@
 						const result = this.load(request);
 						if (result !== false) {
 							const stream = request.getResponseStream();
-							if (stream) {
-								request.writeHeader();
-								this.render(stream);
-								request.writeFooter();
-							};
+							request.writeHeader();
+							this.render(stream);
+							request.writeFooter();
 						};
 						return result;
 					}),
