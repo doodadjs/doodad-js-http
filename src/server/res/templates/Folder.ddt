@@ -38,48 +38,52 @@
 		url = page.request.url;
 	]]></t:script>
 -->
+
+	<t:variable name="url" expr="page.request.url" />
 	
 	<html>
 		<head>
-			<link rel="stylesheet" type="text/css" t:href="page.request.url.setArgs('res', 'css/Folder.css')" />
+			<link rel="stylesheet" type="text/css" t:href="url.setArgs({'res': 'css/Folder.css'})" />
 		</head>
 		
-		<header>
-			<t:include src="Header.ddi" />
-			<!--<t:script>
-				page.asyncWrite('ALLO');
-			</t:script>-->
-
-			<h3 class="current"><span>Content of <a href="./"><t:eval>page.request.url</t:eval></a></span></h3>
-		</header>
-		
 		<body>
-			<span class="parent">Jump to <a t:href="page.request.url.moveUp()">parent</a></span>
-			<ul class="content">
-				<t:for-each items="page.files" item="file">
-					<li t:class="'item ' + (file.isFolder ? 'folder' : 'file')">
-						<div class="cell icon"/>
-						<div class="cell space"/>
-						<div class="cell name">
-							<div  class="flex">
-								<a class="value" t:href="file.name + (file.isFolder ? '/' : '') + '?redirects=0'">
-                    				<t:eval>file.name</t:eval>
-								</a>
-								<div class="cell space"/>
-								<div class="filler">&nbsp;</div>
+			<header>
+				<t:include src="Header.ddi" />
+				<!--<t:script>
+					page.asyncWrite('ALLO');
+				</t:script>-->
+
+				<h3 class="current"><span>Content of <a href="./"><t:eval>url</t:eval></a></span></h3>
+			</header>
+
+			<section>
+				<span class="parent">Jump to <a t:href="url.moveUp()">parent</a></span>
+				<ul class="content">
+					<t:for-each items="page.files" item="file">
+						<li t:class="'item ' + (file.isFolder ? 'folder' : 'file')">
+							<div class="cell icon"/>
+							<div class="cell space"/>
+							<div class="cell name">
+								<div class="flex">
+									<a class="value" t:href="url.combine(file.name + (file.isFolder ? '/' : ''))">
+										<t:eval>file.name</t:eval>
+									</a>
+									<div class="cell space"/>
+									<div class="filler">&nbsp;</div>
+								</div>
 							</div>
-						</div>
-						<div class="cell space"/>
-						<div class="cell size">
-							<div class="value"><t:eval>file.size</t:eval></div>
-						</div>
-					</li>
-				</t:for-each>
-			</ul>
-		</body>
+							<div class="cell space"/>
+							<div class="cell size">
+								<div class="value"><t:eval>file.size</t:eval></div>
+							</div>
+						</li>
+					</t:for-each>
+				</ul>
+			</section>
 		
-		<footer>
-			<t:include src="Footer.ddi" />
-		</footer>
+			<footer>
+				<t:include src="Footer.ddi" />
+			</footer>
+		</body>
 	</html>
 </t:ddt>

@@ -71,6 +71,8 @@
 
 				const __Natives__ = {
 					mathFloor: global.Math.floor,
+					windowParseFloat: global.parseFloat,
+					windowIsNaN: global.isNaN,
 				};
 				
 				
@@ -234,8 +236,8 @@
 						qvalue = 1.0;
 						acceptExts = {};
 							
-						pos[0] = i;
-						delimiters[0] = ";,";
+						pos[0] = i; // by ref
+						delimiters[0] = ";,"; // by ref
 						media = __Internal__.getNextTokenOrString(value, pos, true, delimiters);
 						i = pos[0];
 						if (!media) {
@@ -245,8 +247,8 @@
 						
 						if (delimiters[0] !== ',') {
 							newExt: while (i < value.length) {
-								pos[0] = i;
-								delimiters[0] = "=";
+								pos[0] = i; // by ref
+								delimiters[0] = "="; // by ref
 								token = __Internal__.getNextTokenOrString(value, pos, true, delimiters);
 								i = pos[0];
 								if (token === null) {
@@ -258,19 +260,19 @@
 									return null;
 								};
 								if (token === 'q') {
-									pos[0] = i;
-									delimiters[0] = ";,";
+									pos[0] = i; // by ref
+									delimiters[0] = ";,"; // by ref
 									qvalue = __Internal__.getNextTokenOrString(value, pos, false, delimiters);
 									i = pos[0];
-									qvalue = parseFloat(qvalue);
-									if (isNaN(qvalue) || (qvalue <= 0.0) || (qvalue > 1.0)) {
+									qvalue = __Natives__.windowParseFloat(qvalue);
+									if (__Natives__.windowIsNaN(qvalue) || (qvalue <= 0.0) || (qvalue > 1.0)) {
 										// Invalid "qvalue"
 										return null;
 									};
 									qvalue = __Natives__.mathFloor(qvalue * 1000) / 1000; // 3 decimal digits
 								} else {
-									pos[0] = i;
-									delimiters[0] = ";,";
+									pos[0] = i; // by ref
+									delimiters[0] = ";,"; // by ref
 									str = __Internal__.getNextTokenOrString(value, pos, false, delimiters);
 									i = pos[0];
 									if (str === null) {
@@ -311,56 +313,21 @@
 					});
 				};
 				
-				/* TODO: Terminate and Test
-				http.REGISTER(doodad.BASE(doodad.Object.$extend(
-				{
-					$TYPE_NAME: 'BodyHandler',
-					
-					mimeType: doodad.PUBLIC(doodad.READ_ONLY( null )),
-					
-					create: doodad.OVERRIDE(function(mimeType) {
-						this._super();
-						
-						if (types.isObject(mimeType)) {
-							mimeType = mimeType.type + '/' + mimeType.subtype;
-						};
-
-						this.setAttributes({
-							mimeType: String(mimeType),
-						});
-					}),
-					
-					addHeaders: doodad.PUBLIC(function(request, / *optional* /options) {
-						request.addHeaders({
-							'Content-Type': this.mimeType,
-						});
-					}),
-					
-					addTrailers: doodad.PUBLIC(doodad.METHOD()), // function(request, / *optional* /options)
-					
-					createRequestStream: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, / *optional* /options)
-					
-					createResponseStream: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, / *optional* /options)
-				})));
-				*/
-				
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
 									serverMixIns.Request,
 				{
 					$TYPE_NAME: 'Request',
 					
 					onStatus: doodad.EVENT(false),
+					onSendHeaders: doodad.EVENT(false),
 					
-					mapping: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					route: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					verb: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					url: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					//fileMimeTypes: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					requestHeaders: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					
 					startBodyTransfer: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(/*optional*/options)
-					
-//					__requestBodyHandler: doodad.PROTECTED( null ),
-//					__responseBodyHandler: doodad.PROTECTED( null ),
 					
 					__requestStream: doodad.PROTECTED(null),
 					__responseStream: doodad.PROTECTED(null),
@@ -459,12 +426,12 @@
 							verb: verb.toUpperCase(),
 							url: url,
 							requestHeaders: headers,
-							customData: {},
+							data: {},
 							responseHeaders: {},
 							responseTrailers: {},
 						});
 						
-						const requestFile = url.file;
+						//const requestFile = url.file;
 						
 						/*
 						let fileMimeTypes = null;
@@ -487,6 +454,7 @@
 				{
 					$TYPE_NAME: 'Server',
 
+					protocol: doodad.PUBLIC(doodad.READ_ONLY()),
 					pageFactory: doodad.PUBLIC(doodad.READ_ONLY()),
 					bodyFactory: doodad.PUBLIC(doodad.READ_ONLY()),
 					options:  doodad.PUBLIC(doodad.READ_ONLY()),
@@ -496,31 +464,46 @@
 				{
 					$TYPE_NAME: 'PageFactory',
 					
-					createPage: doodad.PUBLIC(doodad.RETURNS(function(val) {return types._implements(val, httpMixIns.Page)})), // function(request)
+					createResponse: doodad.PUBLIC(doodad.RETURNS(function(val) {return types._implements(val, httpInterfaces.Response)})), // function(request)
 				})));
 				
+				httpInterfaces.REGISTER(doodad.INTERFACE(serverInterfaces.Response.$extend(
+				{
+					$TYPE_NAME: 'Response',
+
+					$prepare: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(routes, route, key)
+
+					createRequestStream: doodad.PUBLIC(doodad.NOT_IMPLEMENTED()), // function(request, /*optional*/options)
+					createResponseStream: doodad.PUBLIC(doodad.NOT_IMPLEMENTED()), // function(request, /*optional*/options)
+				})));
+				
+				
 				httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
-									mixIns.Creatable,
-									serverInterfaces.Response,
+									httpInterfaces.Response,
 				{
 					$TYPE_NAME: 'Page',
 					
-					supportedMimeTypes: doodad.PUBLIC(doodad.ATTRIBUTE([], extenders.UniqueArray)), // empty=all
-					knownVerbs: doodad.PUBLIC(doodad.ATTRIBUTE(['head', 'get', 'post', 'put', 'delete', 'trace', 'connect', 'options'], extenders.UniqueArray)),
+					__knownVerbs: doodad.PROTECTED(doodad.ATTRIBUTE(['HEAD', 'GET', 'POST', 'PUT', 'DELETE', 'TRACE', 'CONNECT', 'OPTIONS'], extenders.UniqueArray)),
+
 					__allowedVerbs: doodad.PROTECTED(doodad.READ_ONLY(null)),
 					
-					createRequestStream: doodad.PUBLIC(doodad.NOT_IMPLEMENTED()), // function(request, /*optional*/options)
-					createResponseStream: doodad.PUBLIC(doodad.NOT_IMPLEMENTED()), // function(request, /*optional*/options)
-					
-					execute: doodad.OVERRIDE(function execute(request) {
-						const method = 'execute_' + request.verb;
-						let result;
-						if (types.isImplemented(this, method)) {
-							result = this[method](request);
-						} else {
-							result = request.respondWithStatus(types.HttpStatus.NotImplemented);
+					$prepare: doodad.OVERRIDE(function(routes, route, key) {
+						if (route.extensions) {
+							if (!types.isArray(route.extensions)) {
+								route.extensions = [route.extensions];
+							};
+							tools.forEach(route.extensions, function(ext, i) {
+								route.extensions[i] = ext.toLowerCase();
+							});
 						};
-						return result;
+						if (route.verbs) {
+							if (!types.isArray(route.verbs)) {
+								route.verbs = [route.verbs];
+							};
+							tools.forEach(route.verbs, function(verb, i) {
+								route.verbs[i] = verb.toUpperCase();
+							});
+						};
 					}),
 
 					execute_HEAD: doodad.PROTECTED(doodad.NOT_IMPLEMENTED()), // function(request)
@@ -534,28 +517,24 @@
 					execute_OPTIONS: doodad.PROTECTED(function(request) {
 						let allowed = this.__allowedVerbs;
 						if (!allowed) {
-							allowed = tools.filter(this.knownVerbs, this.isAllowed, this);
+							allowed = tools.filter(this.__knownVerbs, this.isAllowed, this);
 							types.setAttribute(this, '__allowedVerbs', allowed);
 						};
 						request.addHeaders({Allow: allowed.join(',')});
 						request.end();
 					}),
-					
+
+					execute: doodad.OVERRIDE(function execute(request) {
+						const method = 'execute_' + request.verb;
+						if (types.isImplemented(this, method)) {
+							this[method](request);
+						} else {
+							request.respondWithStatus(types.HttpStatus.NotImplemented);
+						};
+					}),
+
 					isAllowed: doodad.PUBLIC(function(verb) {
 						return types.isImplemented(this, 'execute_' + verb.toUpperCase());
-					}),
-					
-					$prepare: doodad.PUBLIC(function(mappings, mapping, key) {
-						if (types.isArray(mapping.extensions)) {
-							tools.forEach(mapping.extensions, function(ext, i) {
-								mapping.extensions[i] = ext.toLowerCase();
-							});
-						};
-						if (types.isArray(mapping.verbs)) {
-							tools.forEach(mapping.verbs, function(verb, i) {
-								mapping.verbs[i] = verb.toUpperCase();
-							});
-						};
 					}),
 				})));
 				
@@ -572,10 +551,10 @@
 					$TYPE_NAME: 'StatusPage',
 					
 					execute_HEAD: doodad.OVERRIDE(function execute_HEAD(request) {
-						request.respondWithStatus(request.mapping.status);
+						request.respondWithStatus(request.route.status);
 					}),
 					execute_GET: doodad.OVERRIDE(function execute_GET(request) {
-						request.respondWithStatus(request.mapping.status);
+						request.respondWithStatus(request.route.status);
 					}),
 				}));
 
@@ -597,18 +576,24 @@
 					execute_GET: doodad.OVERRIDE(function(request) {
 						const result = this.show(request);
 						if (result !== false) {
-							request.writeHeader();
-							this.render(request.getResponseStream());
-							request.writeFooter();
+							const stream = request.getResponseStream();
+							if (stream) {
+								request.writeHeader();
+								this.render(stream);
+								request.writeFooter();
+							};
 						};
 						return result;
 					}),
 					execute_POST: doodad.OVERRIDE(function(request) {
 						const result = this.load(request);
 						if (result !== false) {
-							request.writeHeader();
-							this.render(request.getResponseStream());
-							request.writeFooter();
+							const stream = request.getResponseStream();
+							if (stream) {
+								request.writeHeader();
+								this.render(stream);
+								request.writeFooter();
+							};
 						};
 						return result;
 					}),
@@ -624,14 +609,187 @@
 					$TYPE_NAME: 'RedirectPage',
 					
 					execute_GET: doodad.OVERRIDE(function(request) {
-						if (request.mapping.internal) {
-							request.redirectServer(request.mapping.targetUrl);
+						if (request.route.internal) {
+							request.redirectServer(request.route.targetUrl);
 						} else {
-							request.redirectClient(request.mapping.targetUrl, request.mapping.permanent);
+							request.redirectClient(request.route.targetUrl, request.route.permanent);
 						};
 					}),
 				}));
-				
+
+
+				http.REGISTER(doodad.Object.$extend(
+									httpInterfaces.Response,
+				{
+					$TYPE_NAME: 'CrossOriginResponse',
+					
+					$prepare: doodad.OVERRIDE(function(routes, route, key) {
+						route.allowedOrigins = route.allowedOrigins || [];
+						if (!types.isArray(route.allowedOrigins)) {
+							route.allowedOrigins = [route.allowedOrigins];
+						};
+						
+						route.allowedHeaders = route.allowedHeaders || [];
+						if (!types.isArray(route.allowedHeaders)) {
+							route.allowedHeaders = [route.allowedHeaders];
+						};
+						
+						route.exposedHeaders = route.exposedHeaders || [];
+						if (!types.isArray(route.exposedHeaders)) {
+							route.exposedHeaders = [route.exposedHeaders];
+						};
+						
+						route.allowCredentials = types.toBoolean(route.allowCredentials);
+						
+						route.maxAge = (types.isNothing(route.maxAge) ? null : types.toInteger(route.maxAge) || null);
+					}),
+
+					execute_OPTIONS: doodad.PROTECTED(function execute_OPTIONS(request) {
+						const cors = request.requestHeaders['origin'];
+						if (cors) {
+							// Preflight CORS
+							
+							const allowedOrigins = request.route.allowedOrigins;
+							if (allowedOrigins.length && (tools.indexOf(allowedOrigins, cors) < 0))
+								{ // Case sensitive
+								// Invalid origin
+								request.end();
+							};
+
+							const allowCredentials = request.route.allowCredentials;
+							
+							const wantedMethod = request.requestHeaders['access-control-request-method'];
+							if (!wantedMethod) {
+								// No method
+								request.end();
+							};
+							
+							const allowedMethods = request.route.verbs || ['HEAD', 'GET', 'POST'];
+							if (tools.indexOf(allowedMethods, wantedMethod) < 0) { // Case sensitive
+								// Invalid method
+								request.end();
+							};
+							
+							let wantedHeaders = request.requestHeaders['access-control-request-headers'];
+							const allowedHeaders = request.route.allowedHeaders;
+							if (wantedHeaders) {
+								wantedHeaders = wantedHeaders.split(',').map(function(val) {
+										return val.trim().toLowerCase();
+									});
+								const allowedHeadersLC = allowedHeaders.map(function(val) {
+										return val.toLowerCase();
+									});
+								if (!tools.every(wantedHeaders, function(val) {
+											return (tools.indexOf(allowedHeadersLC, val) >= 0)  // Case insensitive
+										})) {
+									// Invalid header
+									request.end();
+								};
+							};
+							
+							request.addHeaders({
+								'Access-Control-Max-Age': (types.isInteger(request.route.maxAge) ? String(request.route.maxAge) : ''),
+								'Access-Control-Allow-Origin': (allowCredentials || allowedOrigins.length ? cors : '*'),
+								'Access-Control-Allow-Credentials': (allowCredentials ? 'true' : 'false'),
+								'Access-Control-Allow-Methods': allowedMethods.join(', '),
+								'Access-Control-Allow-Headers': allowedHeaders.join(', '),
+							});
+							
+							request.end();
+						};
+					}),
+					
+					execute: doodad.OVERRIDE(function execute(request) {
+						const method = 'execute_' + request.verb;
+						if (types.isImplemented(this, method)) {
+							this[method](request);
+							
+						} else {
+							const cors = request.requestHeaders['origin'];
+							if (cors) {
+								const allowedOrigins = request.route.allowedOrigins;
+								if (allowedOrigins.length && (tools.indexOf(allowedOrigins, cors) < 0)) { // Case sensitive
+									// Invalid origin
+									request.end();
+								};
+								
+								const allowedMethods = request.route.verbs || ['HEAD', 'GET', 'POST'];
+								if (tools.indexOf(allowedMethods, request.verb) < 0) { // Case sensitive
+									// Invalid method
+									request.end();
+								};
+								
+								const allowCredentials = request.route.allowCredentials;
+								
+								const exposedHeaders = request.route.exposedHeaders;
+								
+								request.addHeaders({
+									'Access-Control-Allow-Origin': (allowCredentials || allowedOrigins.length ? cors : '*'),
+									'Access-Control-Allow-Credentials': (allowCredentials ? 'true' : 'false'),
+									'Access-Control-Expose-Headers': exposedHeaders.join(', '),
+								});
+							};
+						};
+						
+						// Execute next page
+						request.reject();
+					}),
+				}));
+
+
+				http.REGISTER(doodad.Object.$extend(
+									httpInterfaces.Response,
+				{
+					$TYPE_NAME: 'UpgradeInsecureRequestsResponse',
+					
+					$prepare: doodad.OVERRIDE(function(routes, route, key) {
+						route.sslPort = (types.toInteger(route.sslPort) || 443);
+						route.sslDomain = (types.isNothing(route.sslDomain) ? null : types.toString(route.sslDomain));
+						route.hstsSafe = types.toBoolean(route.hstsSafe);
+						route.hstsMaxAge = (types.toInteger(route.hstsMaxAge) || 10886400);
+					}),
+
+					execute: doodad.OVERRIDE(function execute(request) {
+						const uirs = request.requestHeaders['upgrade-insecure-requests'];
+
+						if (request.route.hstsSafe) {
+							request.addHeaders({
+								'Strict-Transport-Security': 'max-age=' + types.toString(request.route.hstsMaxAge) + '; preload',
+								'Content-Security-Policy': 'block-all-mixed-content;',
+							});
+						} else {
+							request.addHeaders({
+								'Content-Security-Policy': 'upgrade-insecure-requests;',
+							});
+						};
+						
+						if (uirs === '1') {
+							request.addHeaders({
+								'Vary': 'Upgrade-Insecure-Requests',
+							});
+							
+							if (!request.route.hstsSafe) {
+								request.addHeaders({
+									'Strict-Transport-Security': 'max-age=' + types.toString(request.route.hstsMaxAge),
+								});
+							};
+						};
+						
+						if (request.route.hstsSafe || (uirs === '1')) {
+							if ((request.url.protocol !== 'https') && (request.url.domain || request.route.sslDomain)) {
+								const opts = {protocol: 'https', port: request.route.sslPort};
+								if (request.route.sslDomain) {
+									opts.domain = request.route.sslDomain;
+								};
+								const url = request.url.set(opts);
+								request.redirectClient(url);
+							};
+						};
+						
+						// Execute next page
+						request.reject();
+					}),
+				}));
 
 
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
@@ -656,7 +814,7 @@
 				{
 					$TYPE_NAME: 'RequestMatcher',
 					
-					match: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, mapping)
+					match: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, route)
 				})));
 				
 				
@@ -675,10 +833,14 @@
 						this.baseUrl = baseUrl;
 					}),
 					
-					match: doodad.OVERRIDE(function match(request, mapping) {
-						this._super(request, mapping);
+					match: doodad.OVERRIDE(function match(request, route) {
+						// TODO: Query string matching and extraction in "request.data.query" : ex. "/invoice/edit?id&details=1" will match "/invoice$edit?id=194&details=1"
+						// TODO: Url arguments matching and extraction in "request.data.args" : ex. "/invoice/id:/edit" will match "/invoice/194/edit"
+						// TODO: RegExp between parentheses in patterns : ex. "/invoice$edit?id=(\\d+)&details=1"   ,   "/invoice/id:(\\d+)/edit", ...
 						
-						const urlPath = mapping.url.toArray();
+						this._super(request, route);
+						
+						const urlPath = route.url.toArray();
 						if (!urlPath[0]) {
 							urlPath.shift();
 						};
@@ -701,12 +863,12 @@
 								i = 0,
 								j = 0;
 							
-							const maxDepth = mapping.depth;
+							const maxDepth = route.depth;
 						
 							while (j < urlPathLen) {
 								let name1 = (i < basePathLen ? basePath[i] : null),
 									name2 = urlPath[j];
-								if (!mapping.caseSensitive) {
+								if (!route.caseSensitive) {
 									name1 = name1 && name1.toUpperCase();
 									name2 = name2 && name2.toUpperCase();
 								};
@@ -752,7 +914,7 @@
 						return {
 							weight: weight,
 							full: full,
-							urlRemaining: urlRemaining,
+							url: urlRemaining,
 						};
 					}),
 					
@@ -782,18 +944,18 @@
 						this.regex = regex;
 					}),
 					
-					match: doodad.OVERRIDE(function match(request, mapping) {
-						this._super(request, mapping);
+					match: doodad.OVERRIDE(function match(request, route) {
+						this._super(request, route);
 
-						const url = mapping.url.toString();
-						mapping.matches = this.regex.exec(url);
-						if (!mapping.matches) {
+						const url = route.url.toString();
+						route.matches = this.regex.exec(url);
+						if (!route.matches) {
 							return false;
 						};
-						const level = url.slice(0, mapping.matches.index).split('/').length - 1;
+						const level = url.slice(0, route.matches.index).split('/').length - 1;
 						let weight = -1; // -1 because first item is the whole string
 						let ok = true;
-						const full = tools.every(mapping.matches, function(match) {
+						const full = tools.every(route.matches, function(match) {
 							if (match) {
 								if (ok) {
 									weight++;
@@ -828,11 +990,11 @@
 				{
 					$TYPE_NAME: 'PageFactory',
 
-					urlMappings: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					urlRoutes: doodad.PUBLIC(doodad.READ_ONLY(null)),
 										/*
-											mapping = {
+											route = {
 												// Common
-												page: Class,
+												responses: [Class],
 												verbs: [],
 												extensions: [],
 												mimeTypes: [],
@@ -865,22 +1027,22 @@
 										*/
 					options: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					
-					create: doodad.OVERRIDE(function create(urlMappings, /*optional*/options) {
+					create: doodad.OVERRIDE(function create(urlRoutes, /*optional*/options) {
 						this._super();
 						
 						types.setAttributes(this, {
 							options: options
 						});
 
-						this.addMappings(urlMappings);
+						this.addRoutes(urlRoutes);
 					}),
 					
-					addMappings: doodad.PUBLIC(function addMappings(mappings) {
-						root.DD_ASSERT && root.DD_ASSERT((mappings instanceof types.Map) || types.isObject(mappings), "Invalid url mappings.");
+					addRoutes: doodad.PUBLIC(function addRoutes(routes) {
+						root.DD_ASSERT && root.DD_ASSERT((routes instanceof types.Map) || types.isObject(routes), "Invalid routes.");
 
-						const parsedMappings = (this.urlMappings || new types.Map());
+						const parsedRoutes = (this.urlRoutes || new types.Map());
 						
-						tools.forEach(mappings, function(maps, matcher) {
+						tools.forEach(routes, function(maps, matcher) {
 							if (matcher && maps) {
 								if (types.isString(matcher)) {
 									matcher = new http.UrlMatcher(matcher);
@@ -891,60 +1053,67 @@
 									maps = [maps];
 								};
 								
-								const parsedMaps = [];
+								const newRoutes = [];
 								
 								tools.forEach(maps, function(map) {
 									if (map) {
-										let newMap;
+										let newRoute;
 										if (types.isJsObject(map)) {
-											newMap = types.extend({}, map);
+											newRoute = types.extend({}, map);
 										} else {
-											newMap = {};
-											newMap.page = map;
-											newMap.depth = Infinity;
-										};
-											
-										newMap.matcher = matcher;
-										
-										if (types.isString(newMap.page)) {
-											newMap.page = namespaces.getNamespace(newMap.page);
+											newRoute = {};
+											newRoute.responses = map;
+											newRoute.depth = Infinity;
 										};
 										
-										if (types._implements(newMap.page, httpMixIns.Page)) {
-											types.getType(newMap.page).$prepare(mappings, newMap, matcher);
-										} else if (types._implements(newMap.page, httpInterfaces.PageFactory)) {
-											// ...
-										} else {
-											throw new types.TypeError("Invalid page type '~0~' for Url matcher '~1~'.", [types.getTypeName(newMap.page), matcher.toString()]);
-										};
-										
-										newMap.depth = (types.isNothing(newMap.depth) ? 0 : types.toInteger(newMap.depth));
+										newRoute.matcher = matcher;
+										newRoute.depth = (types.isNothing(newRoute.depth) ? 0 : types.toInteger(newRoute.depth));
 
-										parsedMaps.push(newMap);
+										if (!types.isArray(newRoute.responses)) {
+											newRoute.responses = [newRoute.responses];
+										};
+										
+										for (let i = 0; i < newRoute.responses.length; i++) {
+											let response = newRoute.responses[i];
+											
+											if (types.isString(response)) {
+												newRoute.responses[i] = response = namespaces.getNamespace(response);
+											};
+											
+											if (types._implements(response, httpInterfaces.Response)) {
+												types.getType(response).$prepare(routes, newRoute, matcher);
+											} else if (types._implements(response, httpInterfaces.PageFactory)) {
+												// ...
+											} else {
+												throw new types.TypeError("Invalid response type '~0~' in Url matcher '~1~'.", [types.getTypeName(response), matcher.toString()]);
+											};
+										};
+										
+										newRoutes.push(newRoute);
 									};
 								});
 								
-								parsedMappings.set(matcher, parsedMaps);
+								parsedRoutes.set(matcher, newRoutes);
 							};
 						});
 
 						types.setAttributes(this, {
-							urlMappings: parsedMappings,
+							urlRoutes: parsedRoutes,
 						});
 					}),
 					
-					createPage: doodad.OVERRIDE(function createPage(request, /*optional*/parentMapping) {
-						let mappings = tools.reduce(this.urlMappings, function(mappings, maps) {
-							nextMap: for (let h = 0; h < maps.length; h++) {
+					createResponse: doodad.OVERRIDE(function createResponse(request, /*optional*/parentRoute) {
+						let routes = tools.reduce(this.urlRoutes, function(routes, maps) {
+							nextRoute: for (let h = 0; h < maps.length; h++) {
 								const map = maps[h];
 									
 								if (map.verbs && (tools.indexOf(map.verbs, request.verb) === -1)) {
-									continue nextMap;
+									continue nextRoute;
 								};
 								
 								if (map.extensions && !types.isNothing(request.url.extension)) {
 									if (tools.indexOf(map.extensions, request.url.extension) === -1) {
-										continue nextMap;
+										continue nextRoute;
 									};
 								};
 								
@@ -964,7 +1133,7 @@
 									});
 									if (pos === null) {
 										// Not accepted by client
-										continue nextMap;
+										continue nextRoute;
 									} else {
 										mimeType = request.fileMimeTypes[pos];
 										mimeTypes.push(mimeType);
@@ -975,13 +1144,13 @@
 								};
 								*/
 
-								const newMap = types.extend({}, map);
+								const newRoute = types.extend({}, map);
 
-								newMap.url = (parentMapping ? parentMapping.matcherResult.urlRemaining : request.url);
-								newMap.parent = parentMapping;
+								newRoute.url = (parentRoute ? parentRoute.matcherResult.url : request.url);
+								newRoute.parent = parentRoute;
 								
 								/*
-								newMap.mimeTypes = mimeTypes.sort(function(type1, type2) {
+								newRoute.mimeTypes = mimeTypes.sort(function(type1, type2) {
 									if (type1.weight > type2.weight) {
 										return -1;
 									} else if (type1.weight < type2.weight) {
@@ -990,10 +1159,10 @@
 										return 0;
 									};
 								});
-								newMap.mimeWeight = mimeWeight;
+								newRoute.mimeWeight = mimeWeight;
 								*/
-								newMap.mimeTypes = (map.mimeTypes && request.parseAccept(map.mimeTypes));
-								newMap.mimeWeight = tools.reduce(newMap.mimeTypes, function(result, mimeType) {
+								newRoute.mimeTypes = (map.mimeTypes && request.parseAccept(map.mimeTypes));
+								newRoute.mimeWeight = tools.reduce(newRoute.mimeTypes, function(result, mimeType) {
 									if (mimeType.weight > result) {
 										return mimeType.weight;
 									} else {
@@ -1001,18 +1170,18 @@
 									};
 								}, 0.0);
 								
-								newMap.matcherResult = map.matcher.match(request, newMap);
+								newRoute.matcherResult = map.matcher.match(request, newRoute);
 								
-								if ((newMap.matcherResult.weight > 0) || newMap.matcherResult.full) {
-									mappings.push(newMap);
+								if ((newRoute.matcherResult.weight > 0) || newRoute.matcherResult.full) {
+									routes.push(newRoute);
 								};
 							};
 							
-							return mappings;
+							return routes;
 						}, []);
 
 						// NOTE: Sort descending
-						mappings = mappings.sort(function(map1, map2) {
+						routes = routes.sort(function(map1, map2) {
 							if (map1.matcherResult.full && !map2.matcherResult.full) {
 								return -1;
 							} else if (!map1.matcherResult.full && map2.matcherResult.full) {
@@ -1032,104 +1201,143 @@
 
 						const self = this;
 						
-						const getSibling = function getSibling(direction, index) {
-							for (let i = index + direction; (i >= 0) && (i < mappings.length); i += direction) {
-								const mapping = mappings[i];
+						const __getSibling = function __getSibling(index, responseIndex) {
+							if ((index < 0) || (index >= routes.length)) {
+								return null;
+							};
+							const route = routes[index];
+							
+							if ((responseIndex < 0) || (responseIndex > route.responses.length)) {
+								return null;
+							};
+							let response = route.responses[responseIndex];
 
-								mapping.index = i;
-								mapping.previousSibling = function() {
-									if (this.noSibling || types.get(self.options, 'noSibling', false)) {
-										return null;
-									};
-									return getSibling(-1, this.index);
+							route.index = index;
+							route.responseIndex = responseIndex;
+							
+							//route.previousSibling = function previousSibling() {
+							//	if (this.noSibling || types.get(self.options, 'noSibling', false)) {
+							//		return null;
+							//	};
+							//	if (this.responseIndex > 0) {
+							//		return __getSibling(this.index, this.responseIndex - 1);
+							//	} else {
+							//		return __getSibling(this.index - 1, 0);
+							//	};
+							//};
+							
+							route.nextSibling = function nextSibling() {
+								if (this.noSibling || types.get(self.options, 'noSibling', false)) {
+									return null;
 								};
-								mapping.nextSibling = function() {
-									if (this.noSibling || types.get(self.options, 'noSibling', false)) {
-										return null;
-									};
-									return getSibling(1, this.index);
-								};
-								
-								types.setAttribute(request, 'mapping', mapping)
-								
-								if (types.isType(mapping.page)) {
-									mapping.page = mapping.page.$createInstance();
-								};
-
-								if (types._implements(mapping.page, httpInterfaces.PageFactory)) {
-									return mapping.page.createPage(request, mapping);
+								if (this.responseIndex < this.responses.length - 1) {
+									return __getSibling(this.index, this.responseIndex + 1);
 								} else {
-									return mapping.page;
+									return __getSibling(this.index + 1, 0);
 								};
 							};
+							
+							route.getSibling = function getSibling(index, responseIndex) {
+								if (this.noSibling || types.get(self.options, 'noSibling', false)) {
+									return null;
+								};
+								return __getSibling(index, responseIndex);
+							};
+							
+							types.setAttribute(request, 'route', route)
 
-							return null;
+							if (types.isType(response)) {
+								response = response.$createInstance();
+							};
+
+							if (types._implements(response, httpInterfaces.PageFactory)) {
+								return response.createResponse(request, route);
+							} else {
+								return response;
+							};
 						};
 						
-						return getSibling(1, -1);
+						return __getSibling(0, 0);
 					}),
 				}));
 				
-				http.RequestRedirected = types.createErrorType("RequestRedirected", types.ScriptAbortedError, function _new(page) {
-					var ex = types.ScriptAbortedError.call(this, "Request redirected.");
-					ex.page = page;
+				http.RequestRedirected = types.createErrorType("RequestRedirected", types.ScriptInterruptedError, function _new(response, /*optional*/message, /*optional*/params) {
+					var ex = types.ScriptInterruptedError.call(this, message || "Request redirected.", params);
+					ex.response = response;
 					return ex;
 				});
 
 				http.RequestCallback = types.setPrototypeOf(function(request, obj, fn) {
-					if (fn instanceof types.Callback) {
+					// IMPORTANT: No error should popup from a callback, excepted "ScriptAbortedError".
+					if (types.isPrototypeOf(types.Callback, fn)) {
 						return fn;
 					};
-					if (types.isString(fn)) {
+					if (types.isString(fn) || types.isSymbol(fn)) {
 						fn = obj[fn];
 					};
-					fn = types.makeInside(obj, fn);
+					const insideFn = types.makeInside(obj, fn);
 					let callback = function requestCallback(/*paramarray*/) {
 						try {
 							if (!request.isDestroyed()) {
-								return fn.apply(obj, arguments);
+								return insideFn.apply(obj, arguments);
 							};
 						} catch(ex) {
 							const max = 5; // prevents infinite loop
 							let count = 0,
 								abort = false;
-							while (count < max) {
-								count++;
+							if (request.isDestroyed()) {
+								if (types._instanceof(ex, types.ScriptAbortedError)) {
+									abort = true;
+								} else if (types._instanceof(ex, server.ScriptInterruptedError)) {
+									// Do nothing
+								} else {
+									count = max;
+								};
+							} else {
+								while (count < max) {
+									count++;
+									try {
+										if (types._instanceof(ex, server.RequestClosed)) {
+											tools.callAsync(function() {
+												if (!request.isDestroyed()) {
+													request.destroy();
+												};
+											}, -1);
+										} else if (types._instanceof(ex, server.EndOfRequest)) {
+											request.close();
+										} else if (types._instanceof(ex, http.RequestRedirected)) {
+											request.proceed(ex.response);
+										} else if (types._instanceof(ex, types.ScriptAbortedError)) {
+											abort = true;
+										} else {
+											// Internal error.
+											request.respondWithError(ex);
+										};
+										break;
+									} catch(o) {
+										ex = o;
+									};
+								};
+							};
+							if (abort) {
+								throw ex;
+							} else if (count >= max) {
+								// Failed to respond with internal error.
 								try {
-									if (types._instanceof(ex, server.EndOfRequest)) {
-										// Do nothing
-									} else if (types._instanceof(ex, server.RequestClosed)) {
-										request.destroy()
-									} else if (types._instanceof(ex, http.RequestRedirected)) {
-										request.proceed(ex.page);
-									} else if (types._instanceof(ex, types.ScriptAbortedError)) {
-										abort = true;
-									} else {
-										// Internal error.
-										request.respondWithError(ex);
-									};
-									break;
+									doodad.trapException(obj, ex, attr);
 								} catch(o) {
-									ex = o;
 								};
-								if (abort) {
-									throw ex;
-								};
-								if (count >= max) {
-									// Failed to respond with internal error.
-									try {
-										doodad.trapException(obj, ex, attr);
-									} catch(o) {
-									};
-									try {
+								try {
+									if (!request.isDestroyed()) {
 										request.destroy();
-									} catch(o) {
 									};
+								} catch(o) {
 								};
 							};
 						};
 					};
 					callback = types.setPrototypeOf(callback, http.RequestCallback);
+					callback[types.OriginalValueSymbol] = fn;
 					return callback;
 				}, types.Callback);
 				

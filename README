@@ -16,8 +16,8 @@ $ npm install doodad-js-http
   -  HTTP server.
   -  Page factory class.
   -  Page base class. Most known HTTP verbs are implemented as methods. Has the "OPTIONS" verb managed and can have custom verbs.
-  -  Has some prebuilt page classes (NullPage, StatusPage, StaticPage, WidgetPage, RedirectPage, ...).
-  -  Request and routes mapping. Prebuilt are UrlMatcher and RegExpUrlMatcher.
+  -  Has some prebuilt page classes (NullPage, StatusPage, StaticPage, RedirectPage, ...).
+  -  Request and routes mapping. Prebuilt is UrlMatcher.
   -  Prebuilt page factory with : routes filtering by verb, by file extension, by mime type, and by the "Accept" header.
   -  Statistics on requests.
 
