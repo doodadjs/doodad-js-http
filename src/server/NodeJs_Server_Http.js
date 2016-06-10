@@ -274,7 +274,7 @@
 						};							
 
 						if (this.__nodeJsRequestClosed) {
-							return null;
+							throw new server.RequestClosed();
 						};
 						
 						if (!this.__requestStream) {
@@ -359,11 +359,6 @@
 
 						const requestStream = this.getRequestStream(options);
 
-						if (!requestStream) {
-							callback({raw: io.EOF});
-							return;
-						};
-						
 						if (requestStream.isListening()) {
 							throw new types.Error("Transfer has already started.");
 						};
@@ -1115,17 +1110,13 @@
 										if (bytesRead) {
 											count += bytesRead;
 											const stream = request.getResponseStream();
-											if (stream) {
-												stream.write(buf.slice(0, bytesRead), {callback: new http.RequestCallback(request, this, function() {
-													if (count >= fileSize) {
-														request.end();
-													} else {
-														read.call(this);
-													};
-												})});
-											} else {
-												request.end();
-											};
+											stream.write(buf.slice(0, bytesRead), {callback: new http.RequestCallback(request, this, function() {
+												if (count >= fileSize) {
+													request.end();
+												} else {
+													read.call(this);
+												};
+											})});
 										} else {
 											request.end();
 										};
@@ -1165,19 +1156,17 @@
 							return templatesHtml.getTemplate(request.route.folderTemplate)
 								.then(new types.PromiseCallback(this, function(templType) {
 									const stream = request.getResponseStream();
-									if (stream) {
-										const templ = new templType(request, path, filesList);
-										templ.render(stream);
-										return templ.renderPromise
-											.nodeify(function(err, result) {
-												templ.destroy();
-												if (err) {
-													throw err;
-												} else {
-													return result;
-												};
-											});
-									};
+									const templ = new templType(request, path, filesList);
+									templ.render(stream);
+									return templ.renderPromise
+										.nodeify(function(err, result) {
+											templ.destroy();
+											if (err) {
+												throw err;
+											} else {
+												return result;
+											};
+										});
 								}));
 						};
 						function sendJson(filesList) {
@@ -1192,25 +1181,26 @@
 								// TODO: Create helper functions in the request object, with an option to use a specific format handler
 								// NOT NEEDED: new http.RequestCallback(request, this, function(err) {})
 								const stream = request.getResponseStream();
-								if (stream) {
-									stream.write(json, {callback: function(err) {
-										if (err) {
-											reject(err);
-										} else {
-											resolve();
-										};
-									}});
-								} else {
-									resolve();
-								};
+								stream.write(json, {callback: function(err) {
+									if (err) {
+										reject(err);
+									} else {
+										resolve();
+									};
+								}});
 							});
 						};
 						function send(filesList) {
+							let promise;
 							if (data.mimeType.name === 'text/html') {
-								return sendHtml(filesList);
+								promise = sendHtml(filesList);
 							} else {
-								return sendJson(filesList);
+								promise = sendJson(filesList);
 							};
+							return promise
+								.catch(new http.RequestCallback(request, this, function(err) {
+									request.respondWithError(err);
+								}));
 						};
 						function readDir() {
 							return files.readdir(path, {async: true})
