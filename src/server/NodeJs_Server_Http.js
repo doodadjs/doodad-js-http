@@ -1,6 +1,6 @@
 //! REPLACE_BY("// Copyright 2016 Claude Petit, licensed under Apache License version 2.0\n", true)
 // dOOdad - Object-oriented programming framework
-// File: NodeJs_Server.js - Server tools extension for NodeJs
+// File: NodeJs_Server_Http.js - HTTP Server tools for NodeJs
 // Project home: https://sourceforge.net/projects/doodad-js/
 // Trunk: svn checkout svn://svn.code.sf.net/p/doodad-js/code/trunk doodad-js-code
 // Author: Claude Petit, Quebec city
@@ -46,7 +46,7 @@
 				'Doodad.Server.Http',
 			],
 
-			create: function create(root, /*optional*/_options) {
+			create: function create(root, /*optional*/_options, _shared) {
 				"use strict";
 
 				const doodad = root.Doodad,
@@ -65,11 +65,12 @@
 					ioMixIns = io.MixIns,
 					nodejs = doodad.NodeJs,
 					nodejsIO = nodejs.IO,
+					nodejsIOInterfaces = nodejsIO.Interfaces,
 					server = doodad.Server,
 					serverInterfaces = server.Interfaces,
 					http = server.Http,
 					httpInterfaces = http.Interfaces,
-					httpMixIns = http.Interfaces,
+					httpMixIns = http.MixIns,
 					nodejsServer = nodejs.Server,
 					nodejsHttp = nodejsServer.Http,
 					minifiers = io.Minifiers,
@@ -83,9 +84,9 @@
 					enUSLocale: null,
 				};
 				
-				const __Natives__ = {
+				types.complete(_shared.Natives, {
 					windowJSON: global.JSON,
-				};
+				});
 
 				// TODO: 
 				// 1) (todo) Setup page: IPs, Ports, Base URLs, Fall-back Pages (html status), Max number of processes, Storage Manager location
@@ -104,14 +105,17 @@
 					__trailersSent: doodad.PROTECTED(false),
 					__closed: doodad.PROTECTED(false),
 					
-					currentResponse: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					rejected: doodad.PUBLIC(doodad.READ_ONLY(true)),
-					rejectResponse: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					rejectData: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					currentHandler: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					//rejected: doodad.PUBLIC(doodad.READ_ONLY(true)),
+					//rejectHandler: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					//rejectData: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					
-					nodeJsRequest: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					nodeJsResponse: doodad.PUBLIC(doodad.READ_ONLY(null)),
-
+					nodeJsRequest: doodad.PROTECTED(null),
+					nodeJsResponse: doodad.PROTECTED(null),
+					
+					requestStreamIsReady: doodad.PROTECTED(false),
+					responseStreamIsReady: doodad.PROTECTED(false),
+					
 					__nodeJsRequestClosed: doodad.PROTECTED(false),
 
 					startTime: doodad.PROTECTED(null),
@@ -173,23 +177,41 @@
 						this.$__failed = {};
 					}),
 					
-					nodeJsRequestOnClose: doodad.NODE_EVENT('close', function nodeJsRequestOnClose(context) {
+					nodeJsRequestOnEnd: doodad.NODE_EVENT('end', function nodeJsRequestOnEnd(context) {
 						this.__nodeJsRequestClosed = true;
 					}),
 					
-					nodeJsResponseOnClose: doodad.NODE_EVENT('close', function nodeJsResponseOnClose(context) {
-						this.close(true);
+					nodeJsResponseOnFinish: doodad.NODE_EVENT('finish', function nodeJsResponseOnFinish(context) {
+						if (!this.__closed) {
+							// Response stream has been closed from an unknown operation
+							try {
+								this.close(true);
+							} catch(ex) {
+							};
+						};
+						
+						this.responseStreamIsReady && this.responseStream.destroy();
+						this.requestStreamIsReady && this.requestStream.destroy();
+						
+						this.nodeJsRequest = null;
+						this.nodeJsResponse = null;
+						
+						_shared.setAttribute(this, 'currentHandler', null);
+						
+						this.requestStream = null;
+						this.responseStream = null;
 					}),
 					
 					create: doodad.OVERRIDE(function create(server, nodeJsRequest, nodeJsResponse) {
-						this.nodeJsRequestOnClose.attach(nodeJsRequest);
-						this.nodeJsResponseOnClose.attach(nodeJsResponse);
+						this.nodeJsRequestOnEnd.attachOnce(nodeJsRequest);
+						this.nodeJsResponseOnFinish.attachOnce(nodeJsResponse);
 						
-						types.setAttributes(this, {
-							startTime: process.hrtime(),
-							nodeJsRequest: nodeJsRequest,
-							nodeJsResponse: nodeJsResponse,
-						});
+						this.startTime = process.hrtime();
+						this.nodeJsRequest = nodeJsRequest;
+						this.nodeJsResponse = nodeJsResponse;
+						
+						this.requestStream = nodeJsRequest;
+						this.responseStream = nodeJsResponse;
 
 						let host = nodeJsRequest.headers['host'];
 						if (host) {
@@ -206,8 +228,12 @@
 							this.__redirectsCount = 0;
 						};
 
+						// TODO: Handle client crash
+						//this.clientCrashed = types.toBoolean(url.args.get('crashReport', true));
 						
-						this._super(server, nodeJsRequest.method, url.removeArgs('redirects'), nodeJsRequest.headers);
+						url = url.removeArgs(['redirects', 'crashReport'])
+						
+						this._super(server, nodeJsRequest.method, url, nodeJsRequest.headers);
 						
 						
 						const type = types.getType(this);
@@ -260,12 +286,27 @@
 					}),
 					
 					destroy: doodad.OVERRIDE(function destroy() {
-						try {
-							this.close(true);
-						} catch(ex) {
+						if (!this.__closed) {
+							try {
+								this.close(true);
+							} catch(ex) {
+							};
 						};
-
 						this._super();
+					}),
+					
+					addRequestPipe: doodad.PUBLIC(function addRequestPipe(stream) {
+						if (this.requestStreamIsReady) {
+							throw new types.NotAvailable();
+						};
+						const requestStream = this.requestStream;
+						if (!types._implements(requestStream, io.Stream) && types._implements(stream, io.Stream)) {
+							const iwritable = stream.getInterface(nodejsIOInterfaces.IWritable);
+							requestStream.pipe(iwritable);
+						} else {
+							requestStream.pipe(stream);
+						};
+						this.requestStream = stream;
 					}),
 					
 					getRequestStream: doodad.OVERRIDE(function getRequestStream(/*optional*/options) {
@@ -277,65 +318,52 @@
 							throw new server.RequestClosed();
 						};
 						
-						if (!this.__requestStream) {
-							options = types.clone(options) || {};
-
-							const pageEncoding = types.get(options, 'encoding'); // encoding expected by the page
+						if (!this.requestStreamIsReady) {
+							const accept = http.parseAcceptHeader(types.get(options, 'accept'));  // content-types expected by the page
+							if (!accept) {
+								throw new types.Error("Option 'accept' is missing or invalid.");
+							};
 							
-							if (types.get(options, 'text', false)) {
-								// Force text mode with default encoding
-								types.getDefault(options, 'encoding', 'utf-8');
+							const requestType = http.parseContentTypeHeader(this.getRequestHeader('Content-Type'));
+							if (!requestType) {
+								this.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 							};
 
-							const contentType = this.requestHeaders['content-type'];
-							if (contentType) {
-								let contentArgs = contentType.split(';', 2)[1];
-								if (contentArgs) {
-									contentArgs = contentArgs.split(',')
-										.map(function(arg) {
-												return arg.split('=', 2)
-													.map(function(val) {
-														return val.trim().toLowerCase();
-													});
-											})
-										.filter(function(keyValue) {
-											return keyValue[0] === 'charset';
-										});
-									if (contentArgs.length) {
-										// Encoding of the request body
-										options.encoding = contentArgs[0][1];
-									};
-								};
+							let requestEncoding = null;
+							if (types.has(requestType.params, 'charset')) {
+								// Encoding of the request body
+								requestEncoding = requestType.params.charset;
 							};
 
-							const encoding = types.get(options, 'encoding', pageEncoding);
-
-							if (pageEncoding && (encoding !== pageEncoding)) {
+							const contentTypes = tools.filter(accept, function(type) {
+								return (((type.name === requestType.name) || (type.name === '*/*') || ((type.type === requestType.type) && (type.subtype === '*'))) && (type.weight > 0.0));
+							});
+							
+							if (types.isEmpty(contentTypes)) {
 								this.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 							};
 							
-							let requestStream = null;
-							
-							if (types.isImplemented(this.currentResponse, 'createRequestStream')) {
-								requestStream = this.currentResponse.createRequestStream(this, options);
+							if (!requestEncoding) {
+								requestEncoding = types.get(options, 'encoding'); // default encoding
 							};
 							
-							if (!requestStream) {
-								options.nodeStream = this.nodeJsRequest;
-								if (encoding) {
-									if (!nodejsIO.TextInputStream.$isValidEncoding(encoding)) {
+							let requestStream = this.requestStream;
+							if (!types._implements(requestStream, io.Stream)) {
+								if (requestEncoding) {
+									if (!nodejsIO.TextInputStream.$isValidEncoding(requestEncoding)) {
 										this.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 									};
-									requestStream = new nodejsIO.TextInputStream(options);
+									requestStream = new nodejsIO.TextInputStream({nodeStream: this.requestStream, encoding: requestEncoding});
 								} else {
-									requestStream = new nodejsIO.BinaryInputStream(options);
+									requestStream = new nodejsIO.BinaryInputStream({nodeStream: this.requestStream});
 								};
 							};
-							
-							this.__requestStream = requestStream;
+
+							this.requestStream = requestStream;
+							this.requestStreamIsReady = true;
 						};
 						
-						return this.__requestStream;
+						return this.requestStream;
 					}),
 					
 					startBodyTransfer: doodad.OVERRIDE(function startBodyTransfer(/*optional*/options) {
@@ -351,9 +379,10 @@
 						let callback = types.get(options, 'callback');
 							
 						if (callback) {
+							// TODO: delete options.callback;
 							if (!(callback instanceof types.Callback)) {
 								const callbackObj = types.get(options, 'callbackObj');
-								callback = new http.RequestCallback(this, callbackObj, callback);
+								callback = new doodad.Callback(callbackObj, callback);
 							};
 						};
 
@@ -364,7 +393,7 @@
 						};
 						
 						if (callback) {
-							requestStream.onReady.attach(null, function(ev) {
+							requestStream.onReady.attach(null, function readyCallback(ev) {
 								ev.preventDefault();
 								callback(ev.data);
 							});
@@ -373,17 +402,34 @@
 						requestStream.listen();
 					}),
 					
-					proceed: doodad.PUBLIC(function proceed(response) {
+					proceed: doodad.OVERRIDE(function proceed(handler) {
 						if (this.__closed) {
 							throw new server.RequestClosed();
-						};							
-						
-						if (this.currentResponse && (this.currentResponse !== response)) {
-							this.currentResponse.destroy();
 						};
-						types.setAttribute(this, 'currentResponse', response);
 						
-						response.execute(this);
+						const Promise = types.getPromise();
+						
+						_shared.setAttribute(this, 'currentHandler', handler);
+						
+						let promise;
+						if (types._implements(handler, httpMixIns.Handler)) {
+							promise = handler.execute(this);
+						} else { // if (types.isJsFunction(handler))
+							promise = Promise.resolve(handler(this));
+						};
+						
+						return promise
+							.catch(this.catchError)
+							.then(function(handler) {
+								if (handler) {
+									return this.proceed(handler);
+								} else {
+									handler = this.route && this.route.nextSibling();
+									if (handler) {
+										return this.proceed(handler);
+									};
+								};
+							}, null, this);
 					}),
 					
 					end: doodad.OVERRIDE(function end() {
@@ -398,7 +444,7 @@
 							this.close();
 						};
 						
-						// NOTE: See "http.RequestCallback"
+						// NOTE: See "Request.catchError"
 						throw new server.EndOfRequest();
 					}),
 
@@ -433,42 +479,23 @@
 
 							this.onEnd(new doodad.Event());
 
-							this.nodeJsRequestOnClose.clear();
-							this.nodeJsResponseOnClose.clear();
-							
 							if (this.nodeJsResponse) {
 								if (forceDisconnect) {
 									// Close sockets
 									this.nodeJsResponse.destroy();
 									this.nodeJsRequest.destroy();
-								} else if (this.__responseStream) {
+								} else if (this.responseStreamIsReady) {
 									// EOF
-									this.__responseStream.write(io.EOF);
-									this.__responseStream.flush();
+									this.responseStream.write(io.EOF);
+									this.responseStream.flush();
 								} else {
 									// EOF
 									this.nodeJsResponse.end();
 								};
 							};
-							
-							if (this.currentResponse) {
-								this.currentResponse.destroy();
-							};
-							
-							this.__responseStream && this.__responseStream.destroy();
-							this.__requestStream && this.__requestStream.destroy();
-							
-							types.setAttributes(this, {
-								nodeJsRequest: null,
-								nodeJsResponse: null,
-								currentResponse: null,
-							});
-							
-							this.__requestStream = null;
-							this.__responseStream = null;
 						};
 						
-						// NOTE: See "http.RequestCallback"
+						// NOTE: See "Request.catchError"
 						throw new server.RequestClosed();
 					}),
 
@@ -481,9 +508,13 @@
 						};
 						const responseHeaders = this.responseHeaders;
 						tools.forEach(headers, function(value, name) {
-							name = tools.title(name, '-');
+							const fixed = tools.title(name, '-');
 							value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
-							responseHeaders[name] = value;
+							if (value) {
+								responseHeaders[fixed] = value;
+							} else {
+								delete responseHeaders[fixed];
+							};
 						});
 						this.__headersWritten = false;
 					}),
@@ -497,12 +528,12 @@
 						};
 						const responseTrailers = this.responseTrailers;
 						tools.forEach(trailers, function(value, name) {
-							name = tools.title(name, '-');
+							const fixed = tools.title(name, '-');
 							value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
 							if (value) {
-								responseTrailers[name] = value;
+								responseTrailers[fixed] = value;
 							} else {
-								delete responseTrailers[name];
+								delete responseTrailers[fixed];
 							};
 						});
 					}),
@@ -529,7 +560,7 @@
 							tools.forEach(this.responseHeaders, function(value, name) {
 								response.removeHeader(name);
 							});
-							types.setAttributes(this, {
+							_shared.setAttributes(this, {
 								responseHeaders: {},
 								responseTrailers: {},
 							});
@@ -562,17 +593,33 @@
 								};
 							});
 							
-							types.setAttributes(this, {
+							_shared.setAttributes(this, {
 								responseStatus: response.statusCode,
 								responseMessage: response.statusMessage,
 							});
-							
+
 							this.__headersWritten = true;
 						};
 					}),
 					
-					__responseStreamOnWrite: doodad.PROTECTED(function __responseStreamOnWrite(ev) {
-						this.sendHeaders();
+					responseStreamOnWrite: doodad.PROTECTED(function responseStreamOnWrite(ev) {
+						if (!this.__closed) {
+							this.sendHeaders();
+						};
+					}),
+					
+					addResponsePipe: doodad.PUBLIC(function addResponsePipe(stream) {
+						if (this.responseStreamIsReady) {
+							throw new types.NotAvailable();
+						};
+						const responseStream = this.responseStream;
+						if (!types._implements(stream, io.Stream) && types._implements(responseStream, io.Stream)) {
+							const iwritable = responseStream.getInterface(nodejsIOInterfaces.IWritable);
+							stream.pipe(iwritable);
+						} else {
+							stream.pipe(responseStream);
+						};
+						this.responseStream = stream;
 					}),
 					
 					getResponseStream: doodad.OVERRIDE(function getResponseStream(/*optional*/options) {
@@ -580,33 +627,43 @@
 							throw new server.RequestClosed();
 						};							
 
-						if (!this.__responseStream) {
-							let responseStream = null;
-
-							if (types.isImplemented(this.currentResponse, 'createResponseStream')) {
-								responseStream = this.currentResponse.createResponseStream(this, options);
+						if (!this.responseStreamIsReady) {
+							let encoding = null;
+							let contentType = http.parseContentTypeHeader(types.get(options, 'contentType', this.getResponseHeader('content-type')));
+							if (!contentType) {
+								throw new types.Error("'Content-Type' header missing or invalid.");
+							};
+							encoding = types.get(options, 'encoding', types.get(contentType.params, 'charset'));
+							if (encoding) {
+								this.addHeaders({'Content-Type':  contentType.name + ';charset=' + encoding});
+							} else {
+								this.addHeaders({'Content-Type':  contentType.name});
 							};
 
-							if (!responseStream) {
-								// TODO: Take "encoding" from "Content-Type" before, then from "options".
-								// TODO: Append ";charset=" to "Content-Type"
+							let responseStream = this.responseStream;
+							
+							if (!types._implements(responseStream, io.Stream)) {
 								const postpone = types.get(options, 'postpone', false);
-								const encoding = types.get(options, 'encoding');
 								if (encoding) {
-									responseStream = new nodejsIO.TextOutputStream({encoding: encoding, nodeStream: this.nodeJsResponse, autoFlush: !postpone});
+									if (!nodejsIO.TextInputStream.$isValidEncoding(encoding)) {
+										throw new types.Error("Invalid encoding.");
+									};
+									responseStream = new nodejsIO.TextOutputStream({encoding: encoding, nodeStream: responseStream, autoFlush: !postpone});
 								} else {
-									responseStream = new nodejsIO.BinaryOutputStream({nodeStream: this.nodeJsResponse, autoFlush: !postpone});
+									responseStream = new nodejsIO.BinaryOutputStream({nodeStream: responseStream, autoFlush: !postpone});
 								};
-							};
 
-							if (responseStream.options.autoFlush) {
-								responseStream.onWrite.attachOnce(this, this.__responseStreamOnWrite);
+								this.responseStream = responseStream;
 							};
 							
-							this.__responseStream = responseStream;
+							if (responseStream.options.autoFlush) { // if (!postpone)
+								responseStream.onWrite.attachOnce(this, this.responseStreamOnWrite);
+							};
+							
+							this.responseStreamIsReady = true;
 						};
 						
-						return this.__responseStream;
+						return this.responseStream;
 					}),
 					
 					sendTrailers: doodad.OVERRIDE(function sendTrailers(/*optional*/trailers) {
@@ -625,7 +682,7 @@
 
 						this.__trailersSent = true;
 
-						var proceedTrailers = new http.RequestCallback(this, this, function _proceedTrailers() {
+						var proceedTrailers = new doodad.Callback(this, function _proceedTrailers() {
 							trailers = this.responseTrailers;
 							
 							if (!types.isEmpty(trailers)) {
@@ -635,8 +692,8 @@
 							this.close();
 						});
 						
-						if (this.__responseStream) {
-							this.__responseStream.flush({callback: proceedTrailers});
+						if (this.responseStreamIsReady) {
+							this.responseStream.flush({callback: proceedTrailers});
 						} else {
 							proceedTrailers();
 						};
@@ -651,8 +708,8 @@
 								this.clearHeaders();
 							};
 						};
-						if (this.__responseStream) {
-							this.__responseStream.clear();
+						if (this.responseStreamIsReady) {
+							this.responseStream.clear();
 						};
 					}),
 					
@@ -667,7 +724,7 @@
 						
 						this.addHeaders(headers);
 
-						types.setAttributes(this, {
+						_shared.setAttributes(this, {
 							responseStatus: status,
 							responseMessage: message,
 						});
@@ -680,6 +737,66 @@
 						
 						this.end();
 					}),
+					
+					catchError: function catchError(ex) {
+						const request = this;
+						const max = 5; // prevents infinite loop
+						let count = 0,
+							abort = false;
+						if (request.isDestroyed()) {
+							if (types._instanceof(ex, types.ScriptAbortedError)) {
+								abort = true;
+							} else if (types._instanceof(ex, server.ScriptInterruptedError)) {
+								// Do nothing
+							} else {
+								count = max;
+							};
+						} else {
+							while (count < max) {
+								count++;
+								try {
+									if (types._instanceof(ex, types.HttpError)) {
+										request.respondWithStatus(ex.code);
+									} else if (types._instanceof(ex, http.ProceedNewHandler)) {
+										return ex.handler;
+									} else if (types._instanceof(ex, server.RequestClosed)) {
+										tools.callAsync(function() {
+											if (!request.isDestroyed()) {
+												request.destroy();
+											};
+										}, -1);
+									} else if (types._instanceof(ex, server.EndOfRequest)) {
+										request.close();
+									} else if (types._instanceof(ex, types.ScriptAbortedError)) {
+										abort = true;
+									} else if (types._instanceof(ex, types.ScriptInterruptedError)) {
+										request.close(true);
+									} else {
+										// Internal error.
+										request.respondWithError(ex);
+									};
+									break;
+								} catch(o) {
+									ex = o;
+								};
+							};
+						};
+						if (abort) {
+							throw ex;
+						} else if (count >= max) {
+							// Failed to respond with internal error.
+							try {
+								doodad.trapException(ex);
+							} catch(o) {
+							};
+							try {
+								if (!request.isDestroyed()) {
+									request.destroy();
+								};
+							} catch(o) {
+							};
+						};
+					},
 					
 					respondWithError: doodad.OVERRIDE(function respondWithError(ex) {
 						// NOTE: Must always throw an error.
@@ -715,7 +832,8 @@
 						if (this.nodeJsResponse.headersSent) {
 							throw new types.Error("Unable to redirect because HTTP headers are already sent.");
 						} else if (this.__redirectsCount >= maxRedirects) {
-							this.respondWithStatus(types.HttpStatus.NotFound);
+							//this.respondWithStatus(types.HttpStatus.NotFound);
+							this.end();
 						} else {
 							this.__redirectsCount++;
 							if (types.isString(url)) {
@@ -743,39 +861,39 @@
 						if (this.nodeJsResponse.headersSent) {
 							throw new types.Error("Unable to redirect because HTTP headers are already sent.");
 						} else if (this.__redirectsCount >= maxRedirects) {
-							this.reject();
+							this.end();
 						} else {
 							this.clear();
 							this.__redirectsCount++;
 							if (types.isString(url)) {
 								url = files.Url.parse(url);
 							};
-							types.setAttribute(this, 'url', url);
-							// NOTE: See "http.RequestCallback"
-							throw new http.RequestRedirected(this.currentResponse);
+							_shared.setAttribute(this, 'url', url);
+							// NOTE: See "Request.catchError"
+							throw new http.ProceedNewHandler(this.server.routes);
 						};
 					}),
 					
-					reject: doodad.OVERRIDE(function reject(/*optional*/rejectData, /*optional*/newResponse) {
-						// NOTE: Must always throws an error.
-						if (this.__closed) {
-							throw new server.RequestClosed();
-						};							
-						types.setAttributes(this, {
-							rejected: true,
-							rejectResponse: this.currentResponse,
-							rejectData: rejectData,
-						});
-						if (!newResponse) {
-							newResponse = this.route.nextSibling();
-						};
-						if (newResponse) {
-							// NOTE: See "http.RequestCallback"
-							throw new http.RequestRedirected(newResponse);
-						} else {
-							this.respondWithStatus(types.HttpStatus.NotFound);
-						};
-					}),
+					//reject: doodad.OVERRIDE(function reject(/*optional*/rejectData, /*optional*/newHandler) {
+					//	// NOTE: Must always throws an error.
+					//	if (this.__closed) {
+					//		throw new server.RequestClosed();
+					//	};							
+					//	_shared.setAttributes(this, {
+					//		rejected: true,
+					//		rejectHandler: this.currentHandler,
+					//		rejectData: rejectData,
+					//	});
+					//	if (!newHandler) {
+					//		newHandler = this.route.nextSibling();
+					//	};
+					//	if (newHandler) {
+					//		// NOTE: See "Request.catchError"
+					//		throw new http.ProceedNewHandler(newHandler);
+					//	} else {
+					//		throw new types.ScriptInterruptedError();
+					//	};
+					//}),
 					
 					getTime: doodad.PUBLIC(function getTime() {
 						if (this.__closed) {
@@ -794,6 +912,22 @@
 							address: this.nodeJsRequest.socket.remoteAddress,
 						};
 					}),
+
+					hasRequestStream: doodad.OVERRIDE(function hasRequestStream() {
+						return this.requestStreamIsReady;
+					}),
+					
+					hasResponseStream: doodad.OVERRIDE(function hasResponseStream() {
+						return this.responseStreamIsReady;
+					}),
+					
+					isFullfilled: doodad.OVERRIDE(function isFullfilled() {
+						return !types.isNothing(this.responseStatus) || 
+							!!this.hasRequestStream() || 
+							!!this.hasResponseStream() || 
+							!types.isEmpty(this.responseHeaders) || 
+							!types.isEmpty(this.responseTrailers);
+					}),
 				}));
 				
 				nodejsHttp.REGISTER(http.Server.$extend(
@@ -804,9 +938,10 @@
 					__address: doodad.PROTECTED(doodad.READ_ONLY()),
 					__listening: doodad.PROTECTED(false),
 					
-					onNodeRequest: doodad.PROTECTED(function onRequest(request, response) {
+					onNodeRequest: doodad.PROTECTED(function onNodeRequest(nodeRequest, nodeResponse) {
+						const Promise = types.getPromise();
 						if (this.__listening) {
-							request = new nodejsHttp.Request(this, request, response);
+							const request = new nodejsHttp.Request(this, nodeRequest, nodeResponse);
 							
 							const ev = new doodad.Event({
 									request: request,
@@ -815,15 +950,21 @@
 							this.onNewRequest(ev);
 								
 							if (!ev.prevent) {
-								const callback = new http.RequestCallback(request, this, function() {
-									const response = this.pageFactory.createResponse(request);
-									if (response) {
-										request.proceed(response);
-									} else {
-										request.respondWithStatus(types.HttpStatus.NotFound);
-									};
-								});
-								callback();
+								request.proceed(this.routes)
+									.catch(request.catchError)
+									.then(function endRequest() {
+										try {
+											if (!request.isDestroyed()) {
+												if (request.isFullfilled()) {
+													request.end();
+												} else {
+													request.respondWithStatus(types.HttpStatus.NotFound);
+												};
+											};
+										} catch(o) {
+										};
+									})
+									.catch(tools.catchAndExit);
 							};
 						};
 					}),
@@ -833,7 +974,7 @@
 					//onNodeConnectHandler: doodad.PROTECTED(null),
 					
 					onNodeListening: doodad.PROTECTED(function onNodeListening() {
-						types.setAttribute(this, '__address', this.__nodeServer.address());
+						_shared.setAttribute(this, '__address', this.__nodeServer.address());
 						tools.log(tools.LogLevels.Info, "HTTP server listening on port '~port~', address '~address~'.", this.__address);
 						tools.log(tools.LogLevels.Warning, "IMPORTANT: It is an experimental and not finished software. Don't use it on production, or do it at your own risks. Please report bugs and suggestions to 'doodadjs [at] gmail <dot> com'.");
 					}),
@@ -863,7 +1004,7 @@
 						
 						tools.log(tools.LogLevels.Info, "Listening socket closed (address '~address~', port '~port~').", this.__address);
 
-						types.setAttribute(this, '__nodeServer', null);
+						_shared.setAttribute(this, '__nodeServer', null);
 					}),
 					onNodeCloseHandler: doodad.PROTECTED(null),
 					
@@ -939,7 +1080,7 @@
 							//server.on('upgrade');
 							//server.on('clientError');
 							
-							types.setAttribute(this, '__nodeServer', server);
+							_shared.setAttribute(this, '__nodeServer', server);
 							
 							const target = types.get(options, 'target', '127.0.0.1');
 							const type = types.get(options, 'type', 'tcp', false); // 'tcp', 'unix', 'handle'
@@ -962,7 +1103,7 @@
 								throw new doodad.Error("Invalid target type option : '~0~'.", [type]);
 							};
 							
-							types.setAttribute(this, 'protocol', protocol);
+							_shared.setAttribute(this, 'protocol', protocol);
 							
 							this.onListen(new doodad.Event());
 						};
@@ -970,8 +1111,12 @@
 					stopListening: doodad.OVERRIDE(function stopListening() {
 						if (this.__listening) {
 							this.__listening = false;
-							this.__nodeServer.close();
 							this.onStopListening(new doodad.Event());
+							this.__nodeServer.close();
+							_shared.setAttributes(this, {
+								__nodeServer: null,
+								__address: null,
+							});
 						};
 					}),
 				}));
@@ -994,172 +1139,135 @@
 				{
 					$TYPE_NAME: 'StaticPage',
 
-					$prepare: doodad.OVERRIDE(function(routes, route, matcher) {
-						this._super(routes, route, matcher);
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						this._super(options);
 						
-						let path = route.path;
-						if (types.isString(path)) {
-							path = files.Path.parse(path);
+						let val;
+						
+						val = types.get(options, 'path');
+						if (types.isString(val)) {
+							val = files.Path.parse(val);
 						};
-						root.DD_ASSERT && root.DD_ASSERT((path instanceof files.Path), "Invalid path.");
-						route.path = path;
+						root.DD_ASSERT && root.DD_ASSERT((val instanceof files.Path), "Invalid path.");
+						options.path = val;
 
-						if (route.showFolders) {
-							let folderTemplate = route.folderTemplate;
-							if (types.isNothing(folderTemplate)) {
-								folderTemplate = files.Path.parse(module.filename).set({file: null}).combine('./res/templates/Folder.ddt', {os: 'linux'});
-							} else if (types.isString(folderTemplate)) {
-								folderTemplate = files.Path.parse(folderTemplate);
+						val = types.toBoolean(types.get(options, 'showFolders', false));
+						options.showFolders = val;
+						if (val) {
+							val = types.get(options, 'folderTemplate');
+							if (types.isNothing(val)) {
+								val = files.Path.parse(module.filename).set({file: null}).combine('./res/templates/Folder.ddt', {os: 'linux'});
+							} else if (types.isString(val)) {
+								val = files.Path.parse(val);
 							};
-							root.DD_ASSERT && root.DD_ASSERT((folderTemplate instanceof files.Path), "Invalid folder template.");
-							route.folderTemplate = folderTemplate;
+							root.DD_ASSERT && root.DD_ASSERT((val instanceof files.Path), "Invalid folder template.");
+							options.folderTemplate = val;
 						};
-						
 					}),
 
-					createResponseStream: doodad.OVERRIDE(function(request, /*optional*/options) {
-						const postpone = types.get(options, 'postpone', false);
-						if (request.data.isFolder) {
-							return new nodejsIO.TextOutputStream({nodeStream: request.nodeJsResponse, autoFlush: !postpone});
-						};
-					}),
+					//createResponseStream: doodad.OVERRIDE(function createResponseStream(request, outputStream, /*optional*/options) {
+					//	const postpone = types.get(options, 'postpone', false);
+					//	if (request.data.isFolder) {
+					//		return new nodejsIO.TextOutputStream({nodeStream: outputStream, autoFlush: !postpone});
+					//	};
+					//}),
 					
 					getSystemPath: doodad.PROTECTED(function getSystemPath(request) {
-						const path = request.route.path.combine(request.route.matcherResult.url);
+						let path;
+						if (request.url.args.has('res')) {
+							path = request.route.folderTemplate.set({file: null}).combine('./public/' + request.url.args.get('res'), {isRelative: true, os: 'linux'});
+						} else {
+							path = request.route.path.combine(request.route.matcherResult.urlRemaining);
+						};
 			//console.log(path.toString());
 						return path;
 					}),
 					
-					addHeaders: doodad.PROTECTED(function addHeaders(request, path, callback) {
-						if (!path) {
-							// Path was invalid
-							request.respondWithStatus(types.HttpStatus.NotFound);
-						};
-
-						nodeFs.stat(path.toString(), new http.RequestCallback(request, this, function statCallback(err, stats) {
-							if (err) {
-								callback(err);
-							} else {
-								let mimeTypes,
-									mimeType;
-									
+					addHeaders: doodad.PROTECTED(doodad.ASYNC(function addHeaders(request) {
+						const Promise = types.getPromise();
+						const path = this.getSystemPath(request);
+						return Promise.create(function tryStat(resolve, reject) {
+								nodeFs.stat(path.toString(), new doodad.Callback(this, function getStatsCallback(err, stats) {
+									if (err) {
+										if (err.code === 'ENOENT') {
+											//request.respondWithStatus(types.HttpStatus.NotFound);
+											resolve(null);
+										} else {
+											reject(err);
+										};
+									} else {
+										resolve(stats);
+									};
+								}))
+							}, this)
+							.then(function parseStats(stats) {
+								if (!stats) {
+									return null;
+								};
+								
+								let mimeTypes;
 								if (stats.isFile()) {
 									mimeTypes = mime.getTypes(path.file);
 								} else {
 									mimeTypes = ['text/html', 'application/json'];
 								};
 								
-								mimeTypes = request.parseAccept(mimeTypes);
+								const mimeType = request.parseAccept(mimeTypes)[0];
 								
-								if (mimeTypes.length) {
-									mimeType = mimeTypes[0];
-
-									request.addHeaders({
-										'Last-Modified': dates.strftime('%a, %d %b %Y %H:%M:%S GMT', stats.mtime, __Internal__.enUSLocale, true), // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
-									});
-									
-									if (stats.isFile()) {
-										request.addHeaders({
-											'Content-Length': stats.size,
-											'Content-Type': mimeType.name,
-											'Content-Disposition': 'filename=' + path.file,
-										});
-									} else {
-										request.addHeaders({
-											'Content-Type': mimeType.name,
-										});
-									};
-
-									callback(null, {
-										mimeType: mimeType,
-										stats: stats,
-									});
-									
-								} else {
-									err = new types.HttpError(types.HttpStatus.NotAcceptable, "Content refused by the client.");
-									callback(err);
-								};
-							};		
-							
-						}));
-					}),
-
-					sendFile: doodad.PROTECTED(function sendFile(request, path, data) {
-						request.data.isFolder = false;
-						const fileSize = data.stats.size;
-						if (fileSize <= 0) {
-							// Empty file
-							request.end();
-						} else {
-							nodeFs.open(path.toString(), 'r', undefined, new http.RequestCallback(request, this, function openFileCallback(err, fd) {
-								if (err) {
-									request.respondWithError(err);
-								};
-								request.onSanitize.attachOnce(null, function() {
-									nodeFs.close(fd);
+								request.addHeaders({
+									'Last-Modified': dates.strftime('%a, %d %b %Y %H:%M:%S GMT', stats.mtime, __Internal__.enUSLocale, true), // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
 								});
-								// TODO: Get file-system cluster size or get read-cache size or something else
-								const BUF_SIZE = 4096;
-								let count = 0;
-								const read = function readInternal() {
-									const buf = new Buffer(Math.min(fileSize, BUF_SIZE));
-									nodeFs.read(fd, buf, 0, buf.length, count, new http.RequestCallback(request, this, function readFileCallback(err, bytesRead) {
-										if (err) {
-											request.respondWithError(err);
-										};
-										if (bytesRead) {
-											count += bytesRead;
-											const stream = request.getResponseStream();
-											stream.write(buf.slice(0, bytesRead), {callback: new http.RequestCallback(request, this, function() {
-												if (count >= fileSize) {
-													request.end();
-												} else {
-													read.call(this);
-												};
-											})});
-										} else {
-											request.end();
-										};
-									}));
+								
+								if (stats.isFile()) {
+									request.addHeaders({
+										'Content-Length': stats.size,
+										'Content-Type': mimeType.name,
+										'Content-Disposition': 'filename=' + path.file,
+									});
+								} else {
+									request.addHeaders({
+										'Content-Type': mimeType.name,
+									});
 								};
-								read.call(this);
-							}));
-						};
-					}),
+
+								return {
+									mimeType: mimeType,
+									stats: stats,
+									path: path,
+								};
+							});
+					})),
+
+					sendFile: doodad.PROTECTED(doodad.ASYNC(function sendFile(request, data) {
+						const Promise = types.getPromise();
 					
-					sendFolder: doodad.PROTECTED(function sendFolder(request, path, data) {
+						return Promise.create(function tryPipe(resolve, reject) {
+							request.data.isFolder = false;
+
+							const inputStream = nodeFs.createReadStream(data.path.toString());
+							const outputStream = request.getResponseStream();
+							const iwritable = outputStream.getInterface(nodejsIOInterfaces.IWritable);
+
+							inputStream
+								.once('end', resolve)
+								.pipe(iwritable, {end: false});
+						});
+					})),
+					
+					sendFolder: doodad.PROTECTED(doodad.ASYNC(function sendFolder(request, data) {
+						const Promise = types.getPromise();
 						request.data.isFolder = true;
 						if (request.url.file) {
 							request.redirectClient(request.url.pushFile());
 						};
-						if (request.url.args.has('res')) {
-							// TODO: HEAD requests
-							request.clearHeaders();
-							path = request.route.folderTemplate.set({file: null}).combine('./public/' + request.url.args.get('res'), {isRelative: true, os: 'linux'});
-							this.addHeaders(request, path, new http.RequestCallback(request, this, function statCallback(err, data) {
-								if (err) {
-									//console.log(err);
-									if (err.code === 'ENOENT') {
-										request.respondWithStatus(types.HttpStatus.NotFound);
-									} else {
-										request.respondWithError(err);
-									};
-								} else if (data.stats.isFile()) {
-									this.sendFile(request, path, data);
-								} else {
-									request.reject(data);
-								};
-							}));
-							return;
-						};
 						function sendHtml(filesList) {
 							return templatesHtml.getTemplate(request.route.folderTemplate)
-								.then(new types.PromiseCallback(this, function(templType) {
-									const stream = request.getResponseStream();
-									const templ = new templType(request, path, filesList);
+								.then(function renderTemplate(templType) {
+									const stream = request.getResponseStream({encoding: templType.$ddt.options.encoding});
+									const templ = new templType(request, data.path, filesList);
 									templ.render(stream);
 									return templ.renderPromise
-										.nodeify(function(err, result) {
+										.nodeify(function cleanup(err, result) {
 											templ.destroy();
 											if (err) {
 												throw err;
@@ -1167,28 +1275,29 @@
 												return result;
 											};
 										});
-								}));
+								});
 						};
 						function sendJson(filesList) {
-							const json = __Natives__.windowJSON.stringify(tools.map(filesList, function(file) {
-								return {
-									isFolder: file.isFolder,
-									name: file.name,
-									size: file.size,
-								};
-							}));
-							return new Promise(function(resolve, reject) {
+							return Promise.create(function sendJsonPromise(resolve, reject) {
 								// TODO: Create helper functions in the request object, with an option to use a specific format handler
-								// NOT NEEDED: new http.RequestCallback(request, this, function(err) {})
+								// TODO: JSON Stream (instead of global.JSON)
+								filesList = tools.map(filesList, function(file) {
+									return {
+										isFolder: file.isFolder,
+										name: file.name,
+										size: file.size,
+									};
+								});
+								const json = _shared.Natives.windowJSON.stringify(filesList);
 								const stream = request.getResponseStream();
-								stream.write(json, {callback: function(err) {
+								stream.write(json, {callback: function writeCallback(err) {
 									if (err) {
 										reject(err);
 									} else {
 										resolve();
 									};
 								}});
-							});
+							}, this);
 						};
 						function send(filesList) {
 							let promise;
@@ -1198,13 +1307,13 @@
 								promise = sendJson(filesList);
 							};
 							return promise
-								.catch(new http.RequestCallback(request, this, function(err) {
+								.catch(function handleError(err) {
 									request.respondWithError(err);
-								}));
+								});
 						};
 						function readDir() {
-							return files.readdir(path, {async: true})
-								.then(new types.PromiseCallback(this, function(filesList) {
+							return files.readdir(data.path, {async: true})
+								.then(function sortFiles(filesList) {
 									filesList.sort(function(file1, file2) {
 										const n1 = file1.name.toUpperCase(),
 											n2 = file2.name.toUpperCase();
@@ -1222,57 +1331,33 @@
 									});
 						//console.log(require('util').inspect(filesList));
 									return filesList;
-								}))
+								});
 						};
 						
 						
 						return readDir()
-							.then(send)
-							.then(new http.RequestCallback(request, this, function endReadDir() {
-								request.end();
-							}));
-					}),
+							.then(send);
+					})),
 					
 					execute_HEAD: doodad.OVERRIDE(function execute_HEAD(request) {
-						const path = this.getSystemPath(request);
-						this.addHeaders(request, path, new http.RequestCallback(request, this, function addHeadersCallback(err, data) {
-							if (err) {
-								if (err instanceof types.HttpError) {
-									request.respondWithStatus(err.code);
-								} else if (err.code === 'ENOENT') {
-									request.respondWithStatus(types.HttpStatus.NotFound);
-								} else {
-									request.respondWithError(err);
-								};
-							} else {
-								request.end();
-							};
-						}));
+						return this.addHeaders(request);
 					}),
 					
 					execute_GET: doodad.OVERRIDE(function execute_GET(request) {
 						// TODO: Cache-Control
 						// TODO: Range
-						const path = this.getSystemPath(request);
-						this.addHeaders(request, path, new http.RequestCallback(request, this, function addHeadersCallback(err, data) {
-							if (err) {
-								if (err instanceof types.HttpError) {
-									request.respondWithStatus(err.code);
-								} else if (err.code === 'ENOENT') {
-									request.respondWithStatus(types.HttpStatus.NotFound);
-								} else {
-									request.respondWithError(err);
+						return this.addHeaders(request)
+							.then(function(data) {
+								if (data) {
+									if (data.stats.isFile()) {
+										return this.sendFile(request, data);
+									} else if ((data.mimeType.name === 'text/html') && request.route.showFolders && templatesHtml.isAvailable()) {
+										return this.sendFolder(request, data);
+									} else if ((data.mimeType.name === 'application/json') && request.route.showFolders) {
+										return this.sendFolder(request, data);
+									};
 								};
-							} else if (data.stats.isFile()) {
-								this.sendFile(request, path, data);
-							} else if ((data.mimeType.name === 'text/html') && request.route.showFolders && templatesHtml.isAvailable()) {
-								this.sendFolder(request, path, data);
-							} else if ((data.mimeType.name === 'application/json') && request.route.showFolders) {
-								this.sendFolder(request, path, data);
-							} else {
-								request.reject();
-							};
-						}));
+							}, this);
 					}),
 					
 				}));
@@ -1283,92 +1368,88 @@
 					
 					$__cache: doodad.PROTECTED(doodad.TYPE(  {}  )),
 					
-					$prepare: doodad.OVERRIDE(function(routes, route, matcher) {
-						this._super(routes, route, matcher);
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						this._super(options);
 						
-						if (types.isString(route.cachePath)) {
-							route.cachePath = files.Path.parse(route.cachePath);
+						let val;
+						
+						val = types.get(options, 'cachePath');
+						if (types.isString(val)) {
+							val = files.Path.parse(val);
 						};
+						root.DD_ASSERT && root.DD_ASSERT((val instanceof files.Path), "Invalid cache path.");
+						options.cachePath = val
+						
+						val = types.get(options, 'variables');
+						options.variables = val || [];
 					}),
 
-					createCachedFile: doodad.PROTECTED(function(request) {
-						let ok = false,
-							cachedFilePath = null,
-							fd = null;
-						for (var i = 0; i < 10; i++) {
-							cachedFilePath = request.route.cachePath.combine(null, {file: tools.generateUUID()});
-							try {
-								fd = nodeFs.openSync(cachedFilePath.toString(), 'wx', request.route.cachedFilesMode || 0o644);
-								ok = true;
-								break;
-							} catch(ex) {
-								if (ex instanceof types.ScriptInterruptedError) {
-									throw ex;
-								};
-								if (ex.code !== 'EEXIST') {
-									throw ex;
-								};
-							};
+					getCachedFile: doodad.PROTECTED(doodad.ASYNC(function getCachedFile(request) {
+						const Promise = types.getPromise();
+						function loopOpenFile(count) {
+							const cachedFilePath = request.route.cachePath.combine(null, {file: tools.generateUUID()});
+							return Promise.create(function tryOpen(resolve, reject) {
+									const stream = nodeFs.createWriteStream(cachedFilePath.toString(), {flags: 'wx', mode: request.route.cachedFilesMode || 0o644});
+									const cached = {
+										path: cachedFilePath,
+										stream: stream,
+										ready: false,
+										writing: false,
+									};
+									request.onSanitize.attachOnce(this, function sanitize() {
+										if (cached.stream) {
+											stream.destroy();
+											cached.stream = null;
+										};
+									});
+									resolve(cached);
+								}, this)
+								.catch(function(err) {
+									if ((err.code === 'EEXIST') && (count > 0)) {
+										resolve(loopOpenFile.call(this, count - 1));
+									} else {
+										reject(err);
+									};
+								}, this);
 						};
-						if (!ok) {
-							throw new types.Error("Failed to create a unique file.");
-						};
-						return {
-							path: cachedFilePath,
-							fd: fd,
-							ready: false,
-						};
-					}),
-					
-					createResponseStream: doodad.REPLACE(function(request, /*optional*/options) {
-						const postpone = types.get(options, 'postpone', false),
-							outputStream = new nodejsIO.TextOutputStream({nodeStream: request.nodeJsResponse, autoFlush: !postpone}),
-							type = types.getType(this),
+						
+						const type = types.getType(this),
 							key = request.data.cacheKey;
+							
 						let cached = types.get(type.$__cache, key);
-						if (!cached) {
-							type.$__cache[key] = cached = this.createCachedFile(request);
-							request.onSanitize.attachOnce(null, new http.RequestCallback(request, this, function sanitize() {
-								const cached = types.get(type.$__cache, key);
-								if (cached) {
-									const fd = cached.fd;
-									if (fd) {
-										nodeFs.close(fd);
-										cached.fd = null;
-									};
-								};
-							}));
-						};
-						if (cached.ready) {
-							return outputStream;
+						
+						if (cached) {
+							return cached;
 						} else {
-							const jsStream = new minifiers.Javascript({autoFlush: !postpone}),
-								variables = request.route.variables;
-							if (variables) {
-								tools.forEach(variables, function(value, name) {
-									jsStream.define(name, value);
-								});
-							};
-							jsStream.pipe(outputStream, function(data) {
-								const fd = cached.fd;
-								if (data.raw === io.EOF) {
-									cached.ready = true;
-									if (fd) {
-										nodeFs.close(fd);
-										cached.fd = null;
-									};
-								} else {
-									if (fd) {
-										nodeFs.writeSync(fd, data.valueOf(), null, jsStream.options.encoding);
-									};
-								};
-							});
-							return jsStream;
+							return loopOpenFile.call(this, 10)
+								.then(function(cached) {
+									type.$__cache[key] = cached;
+									return cached;
+								}, this);
 						};
-					}),
+					})),
+					
+					createPipes: doodad.PROTECTED(doodad.ASYNC(function createPipes(request) {
+						return this.getCachedFile(request)
+							.then(function createPipes(cached) {
+								if (!cached || !cached.ready) {
+									const jsStream = new minifiers.Javascript({autoFlush: true}),
+										variables = request.route.variables;
+									tools.forEach(variables, function(value, name) {
+										jsStream.define(name, value);
+									});
+									if (cached && !cached.writing) {
+										cached.writing = true;
+										const ireadable = jsStream.getInterface(nodejsIOInterfaces.IReadable);
+										ireadable.pipe(cached.stream);
+									};
+									request.addResponsePipe(jsStream);
+								};
+							}, null, this);
+					})),
 
-					getSystemPath: doodad.OVERRIDE(function getSystemPath(request, index) {
-						let path = this._super(request, index);
+					getSystemPath: doodad.OVERRIDE(function getSystemPath(request) {
+						let path = this._super(request);
 						if (path) {
 							const type = types.getType(this),
 								key = path.toString();
@@ -1382,23 +1463,30 @@
 						return path;
 					}),
 					
-					addHeaders: doodad.OVERRIDE(function addHeaders(request, path, callback) {
-						this._super(request, path, new http.RequestCallback(request, this, function(err, stats) {
-							if (!err) {
+					addHeaders: doodad.OVERRIDE(function addHeaders(request) {
+						return this._super(request)
+							.then(function overrideHeaders(data) {
 								request.clearHeaders('Content-Length');
 								request.addHeaders({
 									'Content-Type': mime.getTypes(request.data.fileName)[0],
 									'Content-Disposition': 'filename=' + request.data.fileName,
 								});
-							};
-							callback.call(this, err, stats);
-						}));
+								return data;
+							});
+					}),
+					
+					sendFile: doodad.OVERRIDE(function sendFile(request, data) {
+						const _super = this.superAsync();
+						return this.createPipes(request)
+							.then(function callSuper() {
+								return _super(request, data);
+							});
 					}),
 				}));
 
 
 				return function init(/*optional*/options) {
-					return locale.loadLocale('en_US').then(function(locale) {
+					return locale.loadLocale('en_US').then(function loadLocaleCallback(locale) {
 						__Internal__.enUSLocale = locale;
 					});
 				};
