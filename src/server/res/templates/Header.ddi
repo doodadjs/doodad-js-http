@@ -9,9 +9,9 @@
 		"http://www.doodad-js.local/schemas/ddi ../../../../../doodad-js-templates/src/common/res/schemas/ddt/ddi.xsd"
 >
 <!--
-	 dOOdad - Object-oriented programming framework
+	 doodad-js  -  Object-oriented programming framework
 	 File: Header.ddi - Footer page template include file
-	 Project home: https://sourceforge.net/projects/doodad-js/
+	 Project home: https://github.com/doodadjs/
 	 Trunk: svn checkout svn://svn.code.sf.net/p/doodad-js/code/trunk doodad-js-code
 	 Author: Claude Petit, Quebec city
 	 Contact: doodadjs [at] gmail.com

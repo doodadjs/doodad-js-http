@@ -1,8 +1,9 @@
+//! BEGIN_MODULE()
+
 //! REPLACE_BY("// Copyright 2016 Claude Petit, licensed under Apache License version 2.0\n", true)
-// dOOdad - Object-oriented programming framework
+// doodad-js - Object-oriented programming framework
 // File: Server_Http.js - Server tools
-// Project home: https://sourceforge.net/projects/doodad-js/
-// Trunk: svn checkout svn://svn.code.sf.net/p/doodad-js/code/trunk doodad-js-code
+// Project home: https://github.com/doodadjs/
 // Author: Claude Petit, Quebec city
 // Contact: doodadjs [at] gmail.com
 // Note: I'm still in alpha-beta stage, so expect to find some bugs or incomplete parts !
@@ -23,25 +24,11 @@
 //	limitations under the License.
 //! END_REPLACE()
 
-(function() {
-	const global = this;
-
-	const exports = {};
-	
-	//! BEGIN_REMOVE()
-	if ((typeof process === 'object') && (typeof module === 'object')) {
-	//! END_REMOVE()
-		//! IF_DEF("serverSide")
-			module.exports = exports;
-		//! END_IF()
-	//! BEGIN_REMOVE()
-	};
-	//! END_REMOVE()
-	
-	exports.add = function add(DD_MODULES) {
+module.exports = {
+	add: function add(DD_MODULES) {
 		DD_MODULES = (DD_MODULES || {});
 		DD_MODULES['Doodad.Server.Http'] = {
-			version: /*! REPLACE_BY(TO_SOURCE(VERSION(MANIFEST("name")))) */ null /*! END_REPLACE() */,
+			version: /*! REPLACE_BY(TO_SOURCE(VERSION(MANIFEST("name")))) */ null /*! END_REPLACE()*/,
 			namespaces: ['Interfaces', 'MixIns'],
 
 			create: function create(root, /*optional*/_options, _shared) {
@@ -50,35 +37,37 @@
 				const doodad = root.Doodad,
 					types = doodad.Types,
 					tools = doodad.Tools,
+					locale = tools.Locale,
 					files = tools.Files,
+					dates = tools.Dates,
 					namespaces = doodad.Namespaces,	
 					mime = tools.Mime,
+					interfaces = doodad.Interfaces,
 					mixIns = doodad.MixIns,
 					extenders = doodad.Extenders,
 					widgets = doodad.Widgets,
 					io = doodad.IO,
 					server = doodad.Server,
-					serverInterfaces = server.Interfaces,
 					serverMixIns = server.MixIns,
 					http = server.Http,
 					httpInterfaces = http.Interfaces,
 					httpMixIns = http.MixIns,
+					ioJson = io.Json,
+					ioXml = io.Xml,
 					
 					Promise = types.getPromise();
+					
 					
 				const __Internal__ = {
 				};
 
 
-				types.complete(_shared.Natives, {
-					mathFloor: global.Math.floor,
-					windowParseFloat: global.parseFloat,
-					windowIsNaN: global.isNaN,
-				});
+				//types.complete(_shared.Natives, {
+				//});
 				
 				
 				
-	/* RFC 7230
+		/* RFC 7230
 		 token          = 1*tchar
 
 		 tchar          = "!" / "#" / "$" / "%" / "&" / "'" / "*"
@@ -86,18 +75,18 @@
 						/ DIGIT / ALPHA
 						; any VCHAR, except delimiters
 						
-	   A string of text is parsed as a single value if it is quoted using
-	   double-quote marks.
+		A string of text is parsed as a single value if it is quoted using
+		double-quote marks.
 
 		 quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
 		 qdtext         = HTAB / SP /%x21 / %x23-5B / %x5D-7E / obs-text
 		 obs-text       = %x80-FF
 
 
-	   The backslash octet ("\") can be used as a single-octet quoting
-	   mechanism within quoted-string and comment constructs.  Recipients
-	   that process the value of a quoted-string MUST handle a quoted-pair
-	   as if it were replaced by the octet following the backslash.
+		The backslash octet ("\") can be used as a single-octet quoting
+		mechanism within quoted-string and comment constructs.  Recipients
+		that process the value of a quoted-string MUST handle a quoted-pair
+		as if it were replaced by the octet following the backslash.
 
 		 quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
 		 
@@ -109,9 +98,9 @@
 		 BWS            = OWS
 						; "bad" whitespace
 		 
-	*/
+		*/
 
-	/* RFC 7231
+		/* RFC 7231
 		Accept = #( media-range [ accept-params ] )
 
 		 media-range    = ( "* / *"
@@ -124,7 +113,7 @@
 		 weight = OWS ";" OWS "q=" qvalue
 		 qvalue = ( "0" [ "." 0*3DIGIT ] )
 				/ ( "1" [ "." 0*3("0") ] )
-	*/
+		*/
 				
 				__Internal__.isObsText = function isObsText(chrAscii) {
 					return ((chrAscii >= 0x80) && (chrAscii <= 0xFF));
@@ -223,7 +212,7 @@
 				};
 				
 				http.parseAcceptHeader = function parseAcceptHeader(value) {
-					const result = {},
+					const result = types.nullObject(),
 						pos = [],
 						delimiters = [];
 					let	i = 0,
@@ -235,8 +224,8 @@
 						
 					newMedia: while (i < value.length) {
 						qvalue = 1.0;
-						acceptExts = {};
-							
+						acceptExts = types.nullObject();
+						
 						pos[0] = i; // by ref
 						delimiters[0] = ";,"; // by ref
 						media = __Internal__.getNextTokenOrString(value, pos, true, delimiters);
@@ -252,7 +241,7 @@
 								delimiters[0] = "="; // by ref
 								token = __Internal__.getNextTokenOrString(value, pos, true, delimiters);
 								i = pos[0];
-								if (token === null) {
+								if (!token) {
 									// Invalid token
 									return null;
 								};
@@ -260,17 +249,17 @@
 									// Invalid token
 									return null;
 								};
+								token = token.toLowerCase();  // param names are case-insensitive
 								if (token === 'q') {
 									pos[0] = i; // by ref
 									delimiters[0] = ";,"; // by ref
 									qvalue = __Internal__.getNextTokenOrString(value, pos, false, delimiters);
 									i = pos[0];
-									qvalue = _shared.Natives.windowParseFloat(qvalue);
-									if (_shared.Natives.windowIsNaN(qvalue) || (qvalue <= 0.0) || (qvalue > 1.0)) {
+									qvalue = types.toFloat(qvalue, 3);
+									if ((qvalue < 0.0) || (qvalue > 1.0)) {
 										// Invalid "qvalue"
 										return null;
 									};
-									qvalue = _shared.Natives.mathFloor(qvalue * 1000) / 1000; // 3 decimal digits
 								} else {
 									pos[0] = i; // by ref
 									delimiters[0] = ";,"; // by ref
@@ -289,18 +278,18 @@
 							};
 						};
 						
-						media = media.toLowerCase();
-						token = media.split('/', 2);
+						media = media.toLowerCase();  // medias are case-insensitive
+						token = tools.split(media, '/', 2);
 						const type = token[0] || '*',
 							subtype = (token.length > 1) && token[1] || '*';
 
-						result[media] = {
+						result[media] = types.freezeObject(types.nullObject({
 							name: media,
 							type: type,
 							subtype: subtype,
 							weight: qvalue,
-							exts: acceptExts,
-						};
+							exts: types.freezeObject(acceptExts),
+						}));
 					};
 					
 					return types.values(result).sort(function(media1, media2) {
@@ -312,6 +301,116 @@
 							return 0;
 						};
 					});
+				};
+				
+				http.parseAcceptEncodingHeader = function parseAcceptEncodingHeader(value) {
+					if (!value) {
+						return [];
+					};
+
+					const result = types.nullObject(),
+						pos = [],
+						delimiters = [];
+					let	i = 0,
+						encoding,
+						token,
+						str,
+						qvalue,
+						acceptExts;
+						
+					newEncoding: while (i < value.length) {
+						qvalue = 1.0;
+						acceptExts = types.nullObject();
+							
+						pos[0] = i; // by ref
+						delimiters[0] = ";,"; // by ref
+						encoding = __Internal__.getNextTokenOrString(value, pos, true, delimiters);
+						i = pos[0];
+						if (!encoding) {
+							// Invalid token
+							return null;
+						};
+						
+						if (delimiters[0] !== ',') {
+							newExt: while (i < value.length) {
+								pos[0] = i; // by ref
+								delimiters[0] = "="; // by ref
+								token = __Internal__.getNextTokenOrString(value, pos, true, delimiters);
+								i = pos[0];
+								if (!token) {
+									// Invalid token
+									return null;
+								};
+								if (delimiters[0] !== "=") {
+									// Invalid token
+									return null;
+								};
+								token = token.toLowerCase();   // param names are case-insensitive
+								if (token === 'q') {
+									pos[0] = i; // by ref
+									delimiters[0] = ";,"; // by ref
+									qvalue = __Internal__.getNextTokenOrString(value, pos, false, delimiters);
+									i = pos[0];
+									qvalue = types.toFloat(qvalue, 3);
+									if ((qvalue < 0.0) || (qvalue > 1.0)) {
+										// Invalid "qvalue"
+										return null;
+									};
+								} else {
+									pos[0] = i; // by ref
+									delimiters[0] = ";,"; // by ref
+									str = __Internal__.getNextTokenOrString(value, pos, false, delimiters);
+									i = pos[0];
+									if (str === null) {
+										// Invalid token or quoted string
+										return null;
+									};
+									acceptExts[token] = str;
+								};
+								
+								if (delimiters[0] === ',') {
+									break newExt;
+								};
+							};
+						};
+						
+						encoding = encoding.toLowerCase(); // codings are case-insensitive
+
+						// NOTE: 'identity' means 'no encoding'
+						if ((qvalue > 0.0) || (encoding === 'identity')) { // NOTE: 'identity' with 'weight' at 0.0 forces an encoding
+							result[encoding] = types.freezeObject(types.nullObject({
+								name: encoding,
+								weight: qvalue,
+								exts: types.freezeObject(acceptExts),
+							}));
+						};
+					};
+
+					// Server MUST accept 'identity' unless explicitly not acceptable (weight at 0.0)
+					if (result.identity) {
+						// Client EXPLICITLY reject 'identity'
+						if (result.identity.weight <= 0.0) {
+							delete result.identity;
+						};
+					} else {
+						// Client DID NOT reject 'identity'
+						result.identity = types.freezeObject(types.nullObject({
+							name: 'identity',
+							weight: -1.0, // exceptional weight to make it very low priority
+							exts: types.freezeObject(types.nullObject()),
+						}));
+					};
+					
+					return types.values(result)
+						.sort(function(encoding1, encoding2) {
+							if (encoding1.weight > encoding2.weight) {
+								return -1;
+							} else if (encoding1.weight < encoding2.weight) {
+								return 1;
+							} else {
+								return 0;
+							};
+						});
 				};
 				
 				http.parseContentTypeHeader = function parseContentTypeHeader(contentType) {
@@ -330,8 +429,8 @@
 						return null;
 					};
 					
-					media = media.toLowerCase();
-					let tmp = media.split('/', 2);
+					media = media.toLowerCase();  // content-types are case-insensitive
+					let tmp = tools.split(media, '/', 2);
 					const type = tmp[0],
 						subtype = tmp[1];
 					if (!type || !subtype) {
@@ -339,7 +438,7 @@
 						return null;
 					};						
 					
-					const params = {};
+					const params = types.nullObject();
 					if (delimiters[0] === ';') {
 						while (pos[0] < contentType.length) {
 							delimiters = ['=']; // byref
@@ -348,7 +447,7 @@
 								// Invalid token
 								return null;
 							};
-							name = name.toLowerCase();
+							name = name.toLowerCase();   // param names are case-insensitive
 							
 							delimiters = [';']; // byref
 							let value = __Internal__.getNextTokenOrString(contentType, pos, false, delimiters);
@@ -357,140 +456,720 @@
 						};
 					};
 					
-					return {
+					const weight = types.toFloat(types.get(params, 'q', 1.0));
+
+					return types.freezeObject(types.nullObject({
 						name: media,
 						type: type,
 						subtype: subtype,
-						params: params,
+						params: types.freezeObject(params),
+						weight: weight,
+						toString: function toString() {
+							return this.name + tools.reduce(this.params, function(result, value, key) {
+								if (!types.isNothing(value)) {
+									result += "; " + types.toString(key) + "=" + types.toString(value);
+								};
+								return result;
+							}, "");
+						},
+						clone: function clone() {
+							const params = types.nullObject(this.params);
+							const newType = types.nullObject(this);
+							newType.params = types.freezeObject(params);
+							return types.freezeObject(newType);
+						},
+						set: function set(attrs) {
+							const params = types.nullObject(this.params, types.get(attrs, 'params'));
+							const newType = types.nullObject(this, attrs);
+							newType.params = types.freezeObject(params);
+							return types.freezeObject(newType);
+						},
+					}));
+				};
+
+				http.compareMimeTypes = function compareMimeTypes(mimeType1, mimeType2) {
+					if (mimeType1.name === mimeType2.name) {
+						return 40;
+					} else if ((mimeType1.type === mimeType2.type) && (mimeType1.subtype === '*')) {
+						return 30;
+					} else if ((mimeType1.type === '*') && (mimeType1.subtype === mimeType2.subtype)) {
+						return 30;
+					} else if ((mimeType1.type === mimeType2.type) && (mimeType2.subtype === '*')) {
+						return 20;
+					} else if ((mimeType2.type === '*') && (mimeType1.subtype === mimeType2.subtype)) {
+						return 20;
+					} else if ((mimeType1.type === '*') && (mimeType1.subtype === '*')) {
+						return 10;
+					} else {
+						return 0;
 					};
+				};
+				
+				http.toRFC1123Date = function(date) {
+					// ex.:   Fri, 10 Jul 2015 03:16:55 GMT
+					return dates.strftime('%a, %d %b %Y %H:%M:%S GMT', date, __Internal__.enUSLocale, true);
+				};
+				
+				
+				http.prepareHandlersOptions = function prepareHandlersOptions(handlersOptions, /*optional*/defaultOptions) {
+					if (!types.isArray(handlersOptions)) {
+						handlersOptions = [handlersOptions];
+					};
+					
+					return tools.map(handlersOptions, function(handlerOptions) {
+						let handler;
+						if (types.isJsObject(handlerOptions)) {
+							handlerOptions = types.nullObject(handlerOptions);
+							handler = handlerOptions.handler;
+						} else if (types.isJsFunction(handlerOptions)) {
+							handler = handlerOptions;
+							handlerOptions = types.nullObject(types.get(handler, 'options'), {handler: handler});
+						} else {
+							throw new types.TypeError("Invalid options.");
+						};
+						
+						handlerOptions = types.complete(handlerOptions, defaultOptions);
+						
+						if (types.isString(handler)) {
+							handlerOptions.handler = handler = namespaces.get(handler);
+						};
+						
+						if (types.isJsFunction(handler)) {
+							handlerOptions = httpMixIns.Handler.$prepare(handlerOptions);
+							if (handler.$prepare) {
+								handlerOptions = handler.$prepare(handlerOptions);
+							};
+							handler.options = handlerOptions;
+						} else if (types._implements(handler, httpMixIns.Handler)) {
+							handlerOptions = types.getType(handler).$prepare(handlerOptions);
+							if (!types.isType(handler)) {
+								types.extend(handler.options, handlerOptions);
+							};
+						} else {
+							throw new types.TypeError("Invalid handler type '~0~'.", [types.getTypeName(handler)]);
+						};
+						
+						return handlerOptions;
+					});
 				};
 
 				
+				http.REGISTER(doodad.BASE(doodad.Object.$extend(
+									mixIns.Events,
+		//									serverMixIns.Response,
+				{
+					$TYPE_NAME: 'Response',
+					
+					onHeadersChanged: doodad.EVENT(false),
+					onCreateStream: doodad.EVENT(false),
+					onError: doodad.EVENT(false),
+					onStatus: doodad.EVENT(false),
+					onSendHeaders: doodad.EVENT(false),
+					
+					ended: doodad.PUBLIC(doodad.READ_ONLY(false)),
+					request: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					status: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					message: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					statusData: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					contentType: doodad.PUBLIC(doodad.READ_ONLY(null)),
+
+					headers: doodad.PROTECTED(null),
+					trailers: doodad.PROTECTED(null),
+					headersSent: doodad.PUBLIC(doodad.READ_ONLY(false)),
+					trailersSent: doodad.PUBLIC(doodad.READ_ONLY(false)),
+
+					__pipes: doodad.PROTECTED(null),
+
+					stream: doodad.PROTECTED(null),
+					getStream: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function(/*optional*/options)
+					
+					clear: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function clear()
+
+					respondWithStatus: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function respondWithStatus(/*optional*/status, /*optional*/message, /*optional*/headers, /*optional*/data)
+					respondWithError: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function respondWithError(ex)
+					
+					// TODO: Validate
+					reset: doodad.PUBLIC(function reset() {
+						const handlers = this.request.getHandlers().filter(function(handler) {return !types.isFunction(handler)});
+						this.clearEvents(handlers);
+						if (!this.ended) {
+							_shared.setAttributes(this, {
+								headers: types.nullObject(),
+								trailers: types.nullObject(),
+								__pipes: [],
+								stream: null,
+							});
+						};
+					}),
+
+					create: doodad.OVERRIDE(function create(request) {
+						this._super();
+
+						_shared.setAttribute(this, 'request', request);
+						
+						this.reset();
+					}),
+
+					destroy: doodad.OVERRIDE(function destroy() {
+						if (!this.ended) {
+							this.end(true);
+						};
+
+						this._super();
+					}),
+
+					setContentType: doodad.PUBLIC(function setContentType(mimeTypes, /*optional*/encoding) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};							
+						if (this.headersSent) {
+							throw new types.Error("Can't add new headers because headers have been sent to the client.");
+						};
+
+						let contentType = this.request.getAcceptables(mimeTypes)[0];
+						if (!contentType) {
+							throw new types.HttpError(types.HttpStatus.NotAcceptable);
+						};
+
+						if (encoding) {
+							contentType = contentType.set({params: {charset: encoding}});
+						};
+
+						_shared.setAttribute(this, 'contentType', contentType);
+
+						this.headers['Content-Type'] = this.contentType.toString();
+						this.onHeadersChanged(new doodad.Event({headers: ['Content-Type']}));
+
+						return this.contentType;
+					}),
+
+					getHeader: doodad.PUBLIC(function getHeader(name) {
+						var fixed = tools.title(name, '-');
+						return this.headers[fixed];
+					}),
+					
+					getHeaders: doodad.PUBLIC(function getHeaders(/*optional*/names) {
+						if (names) {
+							if (!types.isArray(names)) {
+								names = [names];
+							};
+							const headers = {};
+							tools.forEach(names, function(name) {
+								const fixed = tools.title(name, '-');
+								headers[name] = this.headers[fixed];
+								if (name !== fixed) {
+									headers[fixed] = this.headers[fixed];
+								};
+							});
+							return headers;
+						} else {
+							return types.extend({}, this.headers);
+						};
+					}),
+					
+					addHeader: doodad.PUBLIC(function addHeader(name, value) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};							
+						if (this.headersSent) {
+							throw new types.Error("Can't add new headers because headers have been sent to the client.");
+						};
+						const responseHeaders = this.headers;
+						const fixed = tools.title(tools.trim(name), '-');
+						value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
+						if (fixed === 'Content-Type') {
+							this.setContentType(value);
+						} else {
+							if (value) {
+								responseHeaders[fixed] = value;
+							} else {
+								delete responseHeaders[fixed];
+							};
+							this.onHeadersChanged(new doodad.Event({headers: [fixed]}));
+						};
+					}),
+					
+					addHeaders: doodad.PUBLIC(function addHeaders(headers) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};							
+						if (this.headersSent) {
+							throw new types.Error("Can't add new headers because headers have been sent to the client.");
+						};
+						const responseHeaders = this.headers;
+						const changed = types.nullObject();
+						tools.forEach(headers, function(value, name) {
+							const fixed = tools.title(tools.trim(name), '-');
+							value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
+							if (fixed === 'Content-Type') {
+								this.setContentType(value);
+							} else {
+								if (value) {
+									responseHeaders[fixed] = value;
+								} else {
+									delete responseHeaders[fixed];
+								};
+								changed[fixed] = null;
+							};
+						}, this);
+						const changedKeys = types.keys(changed);
+						if (changedKeys.length) {
+							this.onHeadersChanged(new doodad.Event({headers: changedKeys}));
+						};
+					}),
+					
+					addTrailer: doodad.PUBLIC(function addTrailer(name, value) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};							
+						if (this.trailersSent) {
+							throw new types.Error("Can't add new trailers because trailers have been sent and the request has ended.");
+						};
+						const responseTrailers = this.trailers;
+						const fixed = tools.title(tools.trim(name), '-');
+						value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
+						if (value) {
+							responseTrailers[fixed] = value;
+						} else {
+							delete responseTrailers[fixed];
+						};
+						this.onHeadersChanged(new doodad.Event({headers: [fixed], areTrailers: true}));
+					}),
+
+					addTrailers: doodad.PUBLIC(function addTrailers(trailers) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};							
+						if (this.trailersSent) {
+							throw new types.Error("Can't add new trailers because trailers have been sent and the request has ended.");
+						};
+						const responseTrailers = this.trailers;
+						const changed = types.nullObject();
+						tools.forEach(trailers, function(value, name) {
+							const fixed = tools.title(tools.trim(name), '-');
+							value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
+							if (value) {
+								responseTrailers[fixed] = value;
+							} else {
+								delete responseTrailers[fixed];
+							};
+							changed[fixed] = null;
+						});
+						const changedKeys = types.keys(changed);
+						if (changedKeys.length) {
+							this.onHeadersChanged(new doodad.Event({headers: changedKeys, areTrailers: true}));
+						};
+					}),
+
+					clearHeaders: doodad.PUBLIC(function clearHeaders(/*optional*/names) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};							
+						if (this.headersSent) {
+							throw new types.Error("Can't clear headers because they have been sent to the client.");
+						};
+						let changedHeaders;
+						let changedTrailers;
+						if (names) {
+							if (!types.isArray(names)) {
+								names = [names];
+							};
+							changedHeaders = [];
+							changedTrailers = [];
+							for (let i = 0; i < names.length; i++) {
+								let fixed = tools.title(tools.trim(names[i]), '-');
+								if (fixed in this.headers) {
+									changedHeaders.push(fixed);
+									if (fixed === 'Content-Type') {
+										_shared.setAttribute(this, 'contentType', null);
+									};
+									delete this.headers[fixed];
+								};
+								if (fixed in this.trailers) {
+									changedTrailers.push(fixed);
+									delete this.trailers[fixed];
+								};
+							};
+						} else {
+							changedHeaders = types.keys(this.headers);
+							changedTrailers = types.keys(this.tailers);
+							_shared.setAttributes(this, {
+								headers: types.nullObject(),
+								trailers: types.nullObject(),
+								contentType: null,
+							});
+						};
+						if (changedHeaders.length) {
+							this.onHeadersChanged(new doodad.Event({headers: changedHeaders}));
+						};
+						if (changedTrailers.length) {
+							this.onHeadersChanged(new doodad.Event({headers: changedTrailers, areTrailers: true}));
+						};
+					}),
+
+					setStatus: doodad.PUBLIC(function setStatus(status, /*optional*/message) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};							
+
+						if (this.headersSent) {
+							throw new types.Error("Can't respond with a new status because the headers have already been sent to the client.");
+						};
+
+						_shared.setAttributes(this, {
+							status: status,
+							message: message,
+						});
+					}),
+
+					addPipe: doodad.PUBLIC(function addPipe(stream, /*optional*/options) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};							
+
+						if (this.stream || !this.__pipes) {
+							throw new types.NotAvailable();
+						};
+						// TODO: Assert on "stream"
+						// NOTE: Pipes are made at "getStream".
+						options = types.nullObject(options);
+						const pipe = types.nullObject({stream: stream, options: options});
+						if (options.unshift) {
+							this.__pipes.unshift(pipe);
+						} else {
+							this.__pipes.push(pipe);
+						};
+					}),
+					
+					hasStream: doodad.PUBLIC(function hasStream() {
+						return !!this.stream;
+					}),
+
+					hasContent: doodad.PUBLIC(function hasContent() {
+						return this.hasStream() || 
+							!types.isNothing(this.status) || 
+							!types.isEmpty(this.headers) || 
+							!types.isEmpty(this.trailers);
+					}),
+
+				})));
+				
+				http.REGISTER(doodad.EXPANDABLE(doodad.Object.$extend(
+				{
+					$TYPE_NAME: 'HandlerState',
+				})));
+					
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
 									serverMixIns.Request,
 				{
 					$TYPE_NAME: 'Request',
 					
-					onStatus: doodad.EVENT(false),
-					onSendHeaders: doodad.EVENT(false),
+					onCreateStream: doodad.EVENT(false),
 					
-					route: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					ended: doodad.PUBLIC(doodad.READ_ONLY(false)),
+					response: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					verb: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					url: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					requestHeaders: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					headers: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					data: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					clientCrashed: doodad.PUBLIC(doodad.READ_ONLY(false)),
+					clientCrashRecovery: doodad.PUBLIC(doodad.READ_ONLY(false)),
 					
-					startBodyTransfer: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(/*optional*/options)
-					
-					requestStream: doodad.PROTECTED(null),
-					responseStream: doodad.PROTECTED(null),
-					
-					getRequestStream: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(/*optional*/options)
-					getResponseStream: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(/*optional*/options)
-					
-					responseStatus: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					responseMessage: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					responseHeaders: doodad.PROTECTED(null),
-					responseTrailers: doodad.PROTECTED(null),
+					createResponse: doodad.PROTECTED(doodad.MUST_OVERRIDE()), // function createResponse(/*paramarray*/)
 
-					proceed: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function(handler)
+					stream: doodad.PROTECTED(null),
+					__streamOptions: doodad.PROTECTED(null),
+					getStream: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function getStream(/*optional*/options)
 
-					addHeaders: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(headers)
-					addTrailers: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(trailers)
-					clearHeaders: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(/*optional*/names)
-					
-					sendHeaders: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function()
-					sendTrailers: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function()
-					
-					clear: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function clear()
-					respondWithStatus: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function respondWithStatus(/*optional*/status, /*optional*/message, /*optional*/headers, /*optional*/data)
-					close: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function close()
-					
-					redirectClient: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function redirectClient(url, /*optional*/isPermanent)
-					redirectServer: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function redirectServer(url)
-					//reject: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function reject()
+					__pipes: doodad.PROTECTED(null),
 
-					hasRequestStream: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function hasRequestStream()
-					hasResponseStream: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function hasResponseStream()
-					isFullfilled: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function isFullfilled()
+					__waitQueue: doodad.PROTECTED(null), // before 'close'
 
-					getRequestHeader: doodad.PUBLIC(function getRequestHeader(name) {
-						var fixed = tools.title(name, '-');
-						return this.requestHeaders[fixed];
-					}),
+					__redirectsCount: doodad.PROTECTED(0),
+
+					__parsedAccept: doodad.PROTECTED(null),
+
+					id: doodad.PUBLIC(doodad.READ_ONLY(null)), // ease debugging
+
+					__handlersStates: doodad.PROTECTED(null),
+					currentHandler: doodad.PUBLIC(doodad.READ_ONLY(null)),
+
+					$__actives: doodad.PROTECTED(doodad.TYPE(0)),
 					
-					getRequestHeaders: doodad.PUBLIC(function getRequestHeaders(names) {
-						if (!types.isArray(names)) {
-							names = [names];
-						};
-						const headers = {};
-						tools.forEach(names, function(name) {
-							const fixed = tools.title(name, '-');
-							headers[name] = this.requestHeaders[fixed];
-							if (name !== fixed) {
-								headers[fixed] = this.requestHeaders[fixed];
-							};
+					$__total: doodad.PROTECTED(doodad.TYPE(0)),
+					$__successful: doodad.PROTECTED(doodad.TYPE(0)),
+					$__redirected: doodad.PROTECTED(doodad.TYPE(0)),
+					$__failed: doodad.PROTECTED(doodad.TYPE(null)),
+					$__aborted: doodad.PROTECTED(doodad.TYPE(0)),
+
+					$getStats: doodad.PUBLIC(doodad.TYPE(function $getStats() {
+						return types.nullObject({
+							actives: this.$__actives,
+							total: this.$__total,
+							successful: this.$__successful,
+							redirected: this.$__redirected,
+							failed: this.$__failed,
+							aborted: this.$__aborted,
 						});
-						return headers;
+					})),
+					
+					$clearStats: doodad.PUBLIC(doodad.TYPE(function $clearStats() {
+						this.$__total = 0;
+						this.$__successful = 0;
+						this.$__redirected = 0;
+						this.$__failed = types.nullObject();
+						this.$__aborted = 0;
+					})),
+					
+					$create: doodad.OVERRIDE(function $create() {
+						this._super();
+
+						this.$clearStats();
 					}),
 					
-					getResponseHeader: doodad.PUBLIC(function getResponseHeader(name) {
-						var fixed = tools.title(name, '-');
-						return this.responseHeaders[fixed];
-					}),
-					
-					getResponseHeaders: doodad.PUBLIC(function getResponseHeaders(names) {
-						if (!types.isArray(names)) {
-							names = [names];
+					// TODO: Validate
+					reset: doodad.PUBLIC(function reset() {
+						if (this.__handlersStates) {
+							const handlers = this.getHandlers().filter(function(handler) {return !types.isFunction(handler)});
+							this.clearEvents(handlers);
 						};
-						const headers = {};
-						tools.forEach(names, function(name) {
-							const fixed = tools.title(name, '-');
-							headers[name] = this.responseHeaders[fixed];
-							if (name !== fixed) {
-								headers[fixed] = this.responseHeaders[fixed];
-							};
-						});
-						return headers;
+						if (!this.ended) {
+							this.__pipes = [];
+							this.__streamOptions = types.nullObject();
+							this.__waitQueue = [];
+							this.__handlersStates = new types.Map();
+							this.stream = null;
+						};
 					}),
-					
-					parseAccept: doodad.PUBLIC(function parseAccept(mimeTypes, /*optional*/options) {
-						let accept = this.getRequestHeader('Accept');
-						if (accept) {
-							accept = http.parseAcceptHeader(accept);
+
+					create: doodad.OVERRIDE(function create(server, verb, url, headers, /*optional*/responseArgs) {
+						const type = types.getType(this);
+						
+						if (type.$__total >= types.getSafeIntegerLen().max) {
+							type.$clearStats();
 						};
 						
+						type.$__total++;
+						type.$__actives++;
+						
+						if (types.isString(url)) {
+							url = files.Url.parse(url);
+						};
+					
+						if (root.DD_ASSERT) {
+							root.DD_ASSERT && root.DD_ASSERT(types._implements(server, httpMixIns.Server), "Invalid server.");
+							root.DD_ASSERT(types.isString(verb), "Invalid verb.");
+							root.DD_ASSERT((url instanceof files.Url), "Invalid URL.");
+							root.DD_ASSERT(types.isObject(headers), "Invalid headers.");
+						};
+
+						this._super();
+						
+						const fixedHeaders = types.nullObject();
+						tools.forEach(headers, function(value, name) {
+							const fixed = tools.title(name, '-');
+							fixedHeaders[fixed] = value;
+						});
+						
+						// TODO: Validate Host header with a server setting (can allow multiple host names)
+						let host = fixedHeaders['Host'];
+						if (host) {
+							host = files.Url.parse(server.protocol + '://' + host + '/');
+						};
+						
+						url = files.Url.parse(url);
+						if (host) {
+							url = host.combine(url);
+						};
+						
+						this.__redirectsCount = types.toInteger(url.args.get('redirects', true));
+						if (!types.isFinite(this.__redirectsCount) || (this.__redirectsCount < 0)) {
+							this.__redirectsCount = 0;
+						};
+
+						const clientCrashed = types.toBoolean(url.args.get('crashReport', false));
+						const clientCrashRecovery = types.toBoolean(url.args.get('crashRecovery', false));
+						
+						url = url.removeArgs(['redirects', 'crashReport', 'crashRecovery'])
+
+						this.reset();
+
+						_shared.setAttributes(this, {
+							response: this.createResponse.apply(this, responseArgs || []),
+							server: server,
+							verb: verb.toUpperCase(),
+							url: url,
+							headers: fixedHeaders,
+							data: types.nullObject(),
+							clientCrashed: clientCrashed,
+							clientCrashRecovery: (clientCrashRecovery && !clientCrashed),
+							id: tools.generateUUID(),
+						});
+
+						this.__parsedAccept = http.parseAcceptHeader(this.getHeader('Accept') || '*/*');
+					}),
+
+					destroy: doodad.OVERRIDE(function destroy() {
+						if (!this.ended) {
+							this.end(true);
+						};
+
+						this.sanitize();
+
+						tools.forEach(this.__handlersStates, function(state, handler) {
+							if (state.mustDestroy && !handler.isDestroyed()) {
+								handler.destroy();
+								state.destroy();
+							};
+						});
+
+						this.response.destroy();
+
+						this._super();
+					}),
+
+					hasHandler: doodad.PUBLIC(function hasHandler(handler) {
+						return tools.some(this.__handlersStates.keys(), function someHandler(hdl) {
+							return (types.isJsFunction(hdl) ? (hdl === handler) : types.isLike(hdl, handler));
+						});
+					}),
+
+					getHandlers: doodad.PUBLIC(function getHandlers() {
+						return types.toArray(this.__handlersStates.keys());
+					}),
+
+					getHandlerState: doodad.PUBLIC(function getHandlerState(/*optional*/handler) {
+						root.DD_ASSERT && root.DD_ASSERT(types.isNothing(handler) || types.isJsFunction(handler) || types._implements(handler, httpMixIns.Handler), "Invalid handler.");
+						if (!handler) {
+							handler = this.currentHandler;
+						};
+						let state = this.__handlersStates.get(handler);
+						if (!state) {
+							this.applyHandlerState(handler);
+							state = this.__handlersStates.get(handler);
+						};
+						return state;
+					}),
+
+					applyHandlerState: doodad.PUBLIC(function applyHandlerState(/*optional*/handler, /*optional*/newState, /*optional*/options) {
+						if (types.isNothing(handler)) {
+							handler = this.currentHandler;
+						} else if (types.isString(handler)) {
+							handler = namespaces.get(handler);
+						};
+						options = types.nullObject(options);
+						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(handler) || types._implements(handler, httpMixIns.Handler), "Invalid handler.");
+						if (!options.globalState && types.isType(handler)) {
+							handler = tools.filter(this.__handlersStates.keys(), function(hndlr) {
+								return types.isLike(hndlr, handler);
+							});
+						} else {
+							handler = [handler];
+						};
+						tools.forEach(handler, function(hndlr) {
+							const protos = [];
+							let state = null;
+							if (!options.globalState && this.__handlersStates.has(hndlr)) {
+								state = this.__handlersStates.get(hndlr);
+							} else {
+								state = new http.HandlerState();
+								if (!options.globalState) {
+									const handlerType = types.getType(hndlr);
+									const globalState = this.__handlersStates.get(handlerType);
+									if (globalState && !state._implements(globalState)) {
+										protos.push(globalState);
+									};
+								};
+								this.__handlersStates.set(hndlr, state);
+							};
+							if (newState && !state._implements(newState)) {
+								protos.push(newState);
+							};
+							if (protos.length) {
+								state.extend.apply(state, protos).create();
+							};
+						}, this);
+					}),
+
+					getHeader: doodad.PUBLIC(function getHeader(name) {
+						var fixed = tools.title(name, '-');
+						return this.headers[fixed];
+					}),
+					
+					getHeaders: doodad.PUBLIC(function getHeaders(names) {
+						if (!types.isArray(names)) {
+							names = [names];
+						};
+						const headers = {};
+						tools.forEach(names, function(name) {
+							const fixed = tools.title(name, '-');
+							headers[name] = this.headers[fixed];
+							if (name !== fixed) {
+								headers[fixed] = this.headers[fixed];
+							};
+						});
+						return headers;
+					}),
+					
+					getAcceptables: doodad.PUBLIC(function getAcceptables(/*optional*/contentTypes, /*optional*/options) {
+						options = types.nullObject(options);
+
+						// Get negociated mime types between the handler and the client
+						const handlerState = this.getHandlerState(options.handler);
+						let handlerTypes = handlerState && handlerState.mimeTypes || this.__parsedAccept;
+
+						if (!contentTypes) {
+							return handlerTypes;
+						};
+
+						if (!types.isArray(contentTypes)) {
+							contentTypes = [contentTypes];
+						};
+
 						let acceptedTypes = [];
 						
-						for (let i = 0; i < mimeTypes.length; i++) {
-							let type = mimeTypes[i].split('/', 2);
-							const subtype = type[1];
-							type = type[0];
+						for (let i = 0; i < contentTypes.length; i++) {
+							let contentType = contentTypes[i];
+							if (types.isString(contentType)) {
+								contentType = http.parseContentTypeHeader(contentType);
+							};
 							
-							let ok = false,
+							let score = 0,
+								ok = false,
 								weight = 1.0;
 								
-							if (accept) {
-								for (let j = 0; j < accept.length; j++) {
-									const entry = accept[j];
-									if ((entry.type === '*') || (entry.type === type)) {
-										if ((entry.subtype === '*') || (entry.subtype === subtype)) {
-											ok = true;
-											weight = entry.weight;
-											break;
-										};
+							if (handlerTypes) {
+								for (let j = 0; j < handlerTypes.length; j++) {
+									const entry = handlerTypes[j];
+									const newScore = http.compareMimeTypes(entry, contentType);
+									if (newScore > score) {
+										score = newScore;
+										weight = entry.weight;
+										ok = true;
 									};
 								};
 							} else {
 								ok = true;
 							};
 							
-							if (ok) {
-								acceptedTypes.push({
-									name: type + (subtype ? '/' + subtype : ''),
-									type: type,
-									subtype: subtype,
-									weight: weight,
-								});
+							if (ok && (weight > 0.0)) {
+								contentType = contentType.set({weight: weight});
+								if (handlerTypes) {
+									// Get mime type parameters from the handler options (typicaly 'charset')
+									const result = tools.reduce(handlerTypes, function(result, handlerType) {
+										const score = http.compareMimeTypes(handlerType, contentType);
+										if (score > result.score) {
+											result.score = score;
+											result.mimeType = handlerType;
+										};
+										return result;
+									}, {mimeType: null, score: 0});
+									if (result.mimeType) {
+										const newParams = types.complete({}, contentType.params, result.mimeType.params);
+										contentType = contentType.set({params: newParams});
+									};
+								};
+								acceptedTypes.push(contentType);
 							};
 						};
 						
@@ -504,102 +1183,320 @@
 							};
 						});
 						
-						if (!acceptedTypes.length && !types.get(options, 'dontThrow', false)) {
-							throw new types.HttpError(types.HttpStatus.NotAcceptable, "Content refused by the client.");
-						};
-						
 						return acceptedTypes;
 					}),
-					
-					create: doodad.OVERRIDE(function create(server, verb, url, headers) {
-						if (types.isString(url)) {
-							url = files.Url.parse(url);
+
+					redirectClient: doodad.PUBLIC(doodad.ASYNC(function redirectClient(url, /*optional*/isPermanent) {
+						// NOTE: Must always throw an error.
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};							
+						const maxRedirects = this.server.options.maxRedirects || 5;
+						if (this.response.headersSent) {
+							throw new types.Error("Unable to redirect because HTTP headers are already sent.");
+						} else if (this.__redirectsCount >= maxRedirects) {
+							//return this.response.respondWithStatus(types.HttpStatus.NotFound);
+							return this.end();
+						} else {
+							//this.response.clear();
+							this.__redirectsCount++;
+							url = this.url.set({file: null}).combine(url);
+							const status = (isPermanent ? types.HttpStatus.MovedPermanently : types.HttpStatus.TemporaryRedirect);
+							return this.response.respondWithStatus(status, null, {
+								'Location': url.toString({
+									args: {
+										redirects: this.__redirectsCount,
+									},
+								}),
+							});
 						};
+					})),
 					
-						if (root.DD_ASSERT) {
-							root.DD_ASSERT && root.DD_ASSERT(types._implements(server, httpInterfaces.Server), "Invalid server.");
-							root.DD_ASSERT(types.isString(verb), "Invalid verb.");
-							root.DD_ASSERT((url instanceof files.Url), "Invalid URL.");
-							root.DD_ASSERT(types.isObject(headers), "Invalid headers.");
+					redirectServer: doodad.PUBLIC(doodad.ASYNC(function redirectServer(url, /*optional*/options) {
+						// NOTE: Must always throw an error.
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};
+						options = types.nullObject(options);
+						const maxRedirects = this.server.options.maxRedirects || 5;
+						if (this.response.headersSent) {
+							throw new types.Error("Unable to redirect because HTTP headers are already sent.");
+						} else if (this.__redirectsCount >= maxRedirects) {
+							return this.end();
+						} else {
+							this.response.clear();
+							this.__redirectsCount++;
+							url = this.url.set({file: null}).combine(url);
+							_shared.setAttribute(this, 'url', url);
+							const verb = options.verb;
+							if (verb) {
+								_shared.setAttribute(this, 'verb', verb);
+							};
+							const data = options.data;
+							if (data) {
+								types.extend(this.data, data);
+							};
+							this.reset();
+							this.response.reset();
+							// NOTE: See "Request.catchError"
+							throw new http.ProceedNewHandlers(this.server.handlersOptions);
+						};
+					})),
+
+					addPipe: doodad.PUBLIC(function addPipe(stream, /*optional*/options) {
+						if (this.stream || !this.__pipes) {
+							throw new types.NotAvailable();
+						};
+						// TODO: Assert on "stream"
+						// NOTE: Don't immediatly do pipes to not start the transfer. Pipes and transfer are made at "getStream".
+						options = types.nullObject(options);
+						const pipe = {stream: stream, options: options};
+						if (options.unshift) {
+							this.__pipes.unshift(pipe);
+						} else {
+							this.__pipes.push(pipe);
+						};
+					}),
+					
+					setStreamOptions: doodad.PUBLIC(function setStreamOptions(options) {
+						types.extend(this.__streamOptions, options);
+					}),
+
+					hasStream: doodad.PUBLIC(function hasStream() {
+						return !!this.stream;
+					}),
+					
+					isFullfilled: doodad.PUBLIC(function isFullfilled() {
+						return this.hasStream() || 
+							this.response.hasContent();
+					}),
+
+					proceed: doodad.PUBLIC(doodad.ASYNC(function proceed(handlersOptions) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};
+						
+						if (!types.isArray(handlersOptions)) {
+							handlersOptions = [handlersOptions];
 						};
 
-						this._super();
+						const Promise = types.getPromise();
+
+						const runHandler = function runHandler(options) {
+							options = types.nullObject(options);
+
+							let handler = options.handler,
+								mustDestroy = false;
+
+							if (types.isType(handler)) {
+								// TODO: Reuse objects on "redirectServer"
+								handler = handler.$createInstance(options);
+								mustDestroy = true;
+							};
+
+							if (!this.__handlersStates.has(handler)) {
+								this.applyHandlerState(handler, {
+									mustDestroy: doodad.PUBLIC(doodad.READ_ONLY(mustDestroy)),
+								});
+							};
+
+							tools.forEach(options.states, function(newState, handler) {
+								this.applyHandlerState(handler, newState);
+							}, this);
+							
+//console.log(types.getTypeName(handler) + ": " + this.url.toString() + "   " + this.id);
+
+							_shared.setAttribute(this, 'currentHandler', handler);
+
+							if (types._implements(handler, httpMixIns.Handler)) {
+								return handler.execute(this);
+							} else if (types.isJsFunction(handler)) {
+								return Promise.resolve(handler(this)); // "handler" is "function(request) {...}"
+							} else {
+								throw new types.Error("Invalid handler.");
+							};
+						};
 						
-						const fixedHeaders = {};
-						tools.forEach(headers, function(value, name) {
-							const fixed = tools.title(name, '-');
-							fixedHeaders[fixed] = value;
-						});
+						const proceedHandler = function proceedHandler(index) {
+							if ((index < handlersOptions.length) && (!this.ended)) {
+								const options = handlersOptions[index];
+								return runHandler.call(this, options)
+									.then(function proceedGivenHandlers(newHandlersOptions) {
+										if (newHandlersOptions) {
+											return this.proceed(newHandlersOptions);
+										};
+									}, null, this)
+									.catch(this.catchError, this)
+									.then(function proceedCatchOrNext() {
+										return proceedHandler.call(this, index + 1);
+									}, null, this);
+							} else {
+								return Promise.resolve();
+							};
+						};
 						
-						_shared.setAttributes(this, {
-							server: server,
-							verb: verb.toUpperCase(),
-							url: url,
-							requestHeaders: fixedHeaders,
-							responseHeaders: {},
-							responseTrailers: {},
+						return proceedHandler.call(this, 0);
+					})),
+					
+					catchError: doodad.OVERRIDE(function catchError(ex) {
+						const max = 5; // prevents infinite loop
+						let count = 0;
+
+						const _catchError = function _catchError(ex) {
+							if (count >= max) {
+								// Failed to respond with internal error.
+								try {
+									doodad.trapException(ex);
+								} catch(o) {
+								};
+							} else if (this.isDestroyed()) {
+								if (ex.critical) {
+									throw ex;
+								} else if (ex.bubble) {
+									// Do nothing
+								} else {
+									try {
+										doodad.trapException(ex);
+									} catch(o) {
+									};
+								};
+							} else {
+								count++;
+								if (types._instanceof(ex, types.HttpError)) {
+									return this.response.respondWithStatus(ex.code)
+										.catch(_catchError, this);
+								} else if (types._instanceof(ex, http.ProceedNewHandlers)) {
+									return this.proceed(ex.handlersOptions)
+										.catch(_catchError, this);
+								} else if (types._instanceof(ex, http.StreamAborted)) {
+									// Do nothing
+								} else if (types._instanceof(ex, server.EndOfRequest)) {
+									// Do nothing
+								} else if (ex.critical) {
+									throw ex;
+								} else if (ex.bubble) {
+									return this.end(true)
+										.catch(_catchError, this);
+								} else {
+									// Internal error.
+									return this.response.respondWithError(ex)
+										.catch(_catchError, this);
+								};
+							};
+						};
+
+						return _catchError.call(this, ex);
+					}),
+/*					
+					pauseUntil: doodad.PUBLIC(doodad.ASYNC(function pauseUntil(promise) {
+						root.DD_ASSERT && root.DD_ASSERT(types.isPromise(promise), "Invalid promise.");
+
+						return Promise.create(function(resolve, reject) {
+							function __waitFor() {
+								const pauseQueue = this.__waitQueue;
+								if (pauseQueue.length) {
+									this.__waitQueue = [];
+									return Promise.all(pauseQueue)
+										.then(__waitFor, null, this);
+								};
+							};
+
+							if (this.nodejsStream.isPaused()) {
+								this.__waitQueue.push(
+									promise
+										.then(__waitFor, null, this)
+										.then(resolve)
+										.catch(reject)
+								);
+							} else {
+								this.nodejsStream.pause();
+								promise
+									.then(__waitFor, null, this)
+									.then(function() {
+										this.nodejsStream.resume();
+									}, null, this)
+									.then(resolve)
+									.catch(reject);
+							};
 						});
+					})),
+*/
+					// NOTE: Experimental
+					waitFor: doodad.PUBLIC(function waitFor(/*optional*/promise) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};
+
+						root.DD_ASSERT && root.DD_ASSERT(types.isPromise(promise), "Invalid promise.");
+
+						this.__waitQueue.push(promise);
 					}),
 				})));
 				
-				httpInterfaces.REGISTER(doodad.INTERFACE(serverInterfaces.Server.$extend(
+				httpMixIns.REGISTER(doodad.MIX_IN(serverMixIns.Server.$extend(
 				{
 					$TYPE_NAME: 'Server',
 
-					protocol: doodad.PUBLIC(doodad.READ_ONLY()),
-					routes: doodad.PUBLIC(doodad.READ_ONLY()),
-					options:  doodad.PUBLIC(doodad.READ_ONLY()),
+					protocol: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					handlersOptions: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					options:  doodad.PUBLIC(doodad.READ_ONLY(null)),
 				})));
 				
 				httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
-									serverInterfaces.Response,
+									mixIns.Creatable,
+									serverMixIns.Response,
 				{
 					$TYPE_NAME: 'Handler',
 
 					$prepare: doodad.PUBLIC(function $prepare(options) {
-						let val, newVal;
-						
-						val = types.get(options, 'depth');
-						options.depth = types.toInteger(val) || 0;
+						options = types.nullObject(options);
 
-						val = types.get(options, 'mimeTypes');
-						newVal = null;
+						let val;
+						
+						options.depth = types.toInteger(options.depth);
+
+						val = options.mimeTypes;
 						if (!types.isNothing(val)) {
 							if (!types.isArray(val)) {
 								val = [val];
 							};
-							newVal = tools.map(val, function(typ) {
-								return types.toString(typ).toLowerCase();
+							val = tools.map(val, function(typ) {
+								return http.parseContentTypeHeader(typ);
 							});
 						};
-						options.mimeTypes = newVal;
+						options.mimeTypes = val;
 						
-						val = types.get(options, 'extensions');
-						newVal = null;
+						val = options.extensions;
 						if (!types.isNothing(val)) {
 							if (!types.isArray(val)) {
 								val = [val];
 							};
-							newVal = tools.map(val, function(ext) {
+							val = tools.map(val, function(ext) {
 								return types.toString(ext).toLowerCase();
 							});
 						};
-						options.extensions = newVal;
+						options.extensions = val;
 						
-						val = types.get(options, 'verbs');
-						newVal = null;
+						val = options.verbs;
 						if (!types.isNothing(val)) {
 							if (!types.isArray(val)) {
 								val = [val];
 							};
-							newVal = tools.map(val, function(verb) {
+							val = tools.map(val, function(verb) {
 								return types.toString(verb).toUpperCase();
 							});
 						};
-						options.verbs = newVal;
+						options.verbs = val;
 						
-						val = types.get(options, 'caseSensitive', false);
-						options.caseSensitive = types.toBoolean(val);
+						options.caseSensitive = types.toBoolean(options.caseSensitive);
+
+						return options;
+					}),
+
+					create: doodad.OVERRIDE(function create(options) {
+						this._super();
+
+						_shared.setAttribute(this, 'options', options);
 					}),
 				})));
 				
@@ -608,7 +1505,7 @@
 				{
 					$TYPE_NAME: 'Routes',
 					
-					createHandler: doodad.PUBLIC(doodad.RETURNS(function(val) {return types.isNothing(val) || types.isFunction(val) || types._implements(val, httpMixIns.Handler)})), // function(request)
+					createHandlers: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request)
 				})));
 				
 				
@@ -634,7 +1531,7 @@
 							allowed = tools.filter(this.__knownVerbs, this.isAllowed, this);
 							_shared.setAttribute(this, '__allowedVerbs', allowed);
 						};
-						request.addHeaders({Allow: allowed.join(',')});
+						request.response.addHeaders({Allow: allowed.join(',')});
 					})),
 
 					execute: doodad.OVERRIDE(function execute(request) {
@@ -642,7 +1539,7 @@
 						if (types.isImplemented(this, method)) {
 							return this[method](request);
 						} else {
-							request.respondWithStatus(types.HttpStatus.NotImplemented);
+							return request.response.respondWithStatus(types.HttpStatus.NotImplemented);
 						};
 					}),
 
@@ -664,23 +1561,20 @@
 					$TYPE_NAME: 'StatusPage',
 					
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
-						this._super(options);
+						options = this._super(options);
 						
-						var val;
+						let val;
 						
-						val = types.get(options, 'status');
-						val = types.toInteger(val);
-						if (types.isNaN(val)) {
-							val = types.HttpStatus.InternalError;
-						};
-						options.status = val;
+						options.status = types.toInteger(options.status);
+
+						return options;
 					}),
 					
 					execute_HEAD: doodad.OVERRIDE(function execute_HEAD(request) {
-						request.respondWithStatus(request.route.status);
+						return request.response.respondWithStatus(this.options.status);
 					}),
 					execute_GET: doodad.OVERRIDE(function execute_GET(request) {
-						request.respondWithStatus(request.route.status);
+						return request.response.respondWithStatus(this.options.status);
 					}),
 				}));
 
@@ -702,7 +1596,7 @@
 					execute_GET: doodad.OVERRIDE(function(request) {
 						const result = this.show(request);
 						if (result !== false) {
-							const stream = request.getResponseStream();
+							const stream = request.response.getStream();
 							request.writeHeader();
 							this.render(stream);
 							request.writeFooter();
@@ -711,7 +1605,7 @@
 					execute_POST: doodad.OVERRIDE(function(request) {
 						const result = this.load(request);
 						if (result !== false) {
-							const stream = request.getResponseStream();
+							const stream = request.response.getStream();
 							request.writeHeader();
 							this.render(stream);
 							request.writeFooter();
@@ -729,31 +1623,30 @@
 					$TYPE_NAME: 'RedirectHandler',
 					
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
-						this._super(options);
+						options = this._super(options);
 						
 						let val;
 						
-						val = types.get(options, 'targetUrl');
-						if (!types.isNothing(val)) {
-							if (types.isString(val)) {
-								val = files.Url.parse(val);
-							};
+						val = options.targetUrl;
+						if (types.isString(val)) {
+							val = files.Url.parse(val);
 						};
 						options.targetUrl = val;
 						
-						val = types.get(options, 'internal', false);
-						options.internal = types.toBoolean(val);
+						options.internal = types.toBoolean(options.internal);
 						
-						val = types.get(options, 'permanent', false);
-						options.permanent = types.toBoolean(val);
+						options.permanent = types.toBoolean(options.permanent);
+
+						return options;
 					}),
 					
 					execute: doodad.OVERRIDE(function(request) {
-						const url = request.route.url.combine(request.route.targetUrl);
-						if (request.route.internal) {
-							request.redirectServer(url);
+						const handlerState = request.getHandlerState(this);
+						const url = handlerState.url.combine(this.options.targetUrl).set({isRelative: false});
+						if (this.options.internal) {
+							return request.redirectServer(url);
 						} else {
-							request.redirectClient(url, request.route.permanent);
+							return request.redirectClient(url, this.options.permanent);
 						};
 					}),
 				}));
@@ -765,73 +1658,75 @@
 					$TYPE_NAME: 'CrossOriginHandler',
 					
 					$prepare: doodad.OVERRIDE(function(options) {
-						this._super(options);
+						types.getDefault(options, 'depth', Infinity);
+
+						options = this._super(options);
 						
-						let val, newVal;
+						let val;
 						
-						val = types.get(options, 'allowedOrigins');
-						newVal = null;
+						val = options.allowedOrigins;
 						if (!types.isNothing(val)) {
 							if (!types.isArray(val)) {
 								val = [val];
 							};
-							newVal = tools.map(val, tools.toString);
+							val = tools.map(val, tools.toString);
 						};
-						options.allowedOrigins = newVal || [];
+						options.allowedOrigins = val || [];
 						
-						val = types.get(options, 'allowedHeaders');
+						val = options.allowedHeaders;
 						if (!types.isNothing(val)) {
 							if (!types.isArray(val)) {
 								val = [val];
 							};
-							newVal = tools.map(val, tools.toString);
+							val = tools.map(val, tools.toString);
 						};
-						options.allowedHeaders = newVal || [];
+						options.allowedHeaders = val || [];
 						
-						val = types.get(options, 'exposedHeaders');
+						val = options.exposedHeaders;
 						if (!types.isNothing(val)) {
 							if (!types.isArray(val)) {
 								val = [val];
 							};
-							newVal = tools.map(val, tools.toString);
+							val = tools.map(val, tools.toString);
 						};
-						options.exposedHeaders = newVal || [];
+						options.exposedHeaders = val || [];
 						
-						val = types.get(options, 'allowCredentials', false);
-						options.allowCredentials = types.toBoolean(val);
+						options.allowCredentials = types.toBoolean(options.allowCredentials);
 						
-						val = types.get(options, 'maxAge');
+						val = options.maxAge;
 						options.maxAge = (types.isNothing(val) ? null : types.toInteger(val) || null);
+
+						return options;
 					}),
 
 					execute_OPTIONS: doodad.PROTECTED(doodad.ASYNC(function execute_OPTIONS(request) {
-						const cors = request.getRequestHeader('Origin');
+						const cors = request.getHeader('Origin');
 						if (cors) {
 							// Preflight CORS
 							
-							const allowedOrigins = request.route.allowedOrigins;
+							const allowedOrigins = this.options.allowedOrigins;
 							if (allowedOrigins.length && (tools.indexOf(allowedOrigins, cors) < 0))
 								{ // Case sensitive
 								// Invalid origin
-								request.end();
+								return request.end();
 							};
 
-							const allowCredentials = request.route.allowCredentials;
+							const allowCredentials = this.options.allowCredentials;
 							
-							const wantedMethod = request.getRequestHeader('Access-Control-Request-Method');
+							const wantedMethod = request.getHeader('Access-Control-Request-Method');
 							if (!wantedMethod) {
 								// No method
-								request.end();
+								return request.end();
 							};
 							
-							const allowedMethods = request.route.verbs || ['HEAD', 'GET', 'POST'];
+							const allowedMethods = this.options.verbs || ['HEAD', 'GET', 'POST'];
 							if (tools.indexOf(allowedMethods, wantedMethod) < 0) { // Case sensitive
 								// Invalid method
-								request.end();
+								return request.end();
 							};
 							
-							let wantedHeaders = request.getRequestHeader('Access-Control-Request-Headers');
-							const allowedHeaders = request.route.allowedHeaders;
+							let wantedHeaders = request.getHeader('Access-Control-Request-Headers');
+							const allowedHeaders = this.options.allowedHeaders;
 							if (wantedHeaders) {
 								wantedHeaders = wantedHeaders.split(',').map(function(val) {
 										return val.trim().toLowerCase();
@@ -843,12 +1738,12 @@
 											return (tools.indexOf(allowedHeadersLC, val) >= 0)  // Case insensitive
 										})) {
 									// Invalid header
-									request.end();
+									return request.end();
 								};
 							};
 							
-							request.addHeaders({
-								'Access-Control-Max-Age': (types.isNothing(request.route.maxAge) ? '' : types.toString(request.route.maxAge)),
+							request.response.addHeaders({
+								'Access-Control-Max-Age': (types.isNothing(this.options.maxAge) ? '' : types.toString(this.options.maxAge)),
 								'Access-Control-Allow-Origin': (allowCredentials || allowedOrigins.length ? cors : '*'),
 								'Access-Control-Allow-Credentials': (allowCredentials ? 'true' : 'false'),
 								'Access-Control-Allow-Methods': allowedMethods.join(', '),
@@ -863,25 +1758,25 @@
 							return this[method](request);
 							
 						} else {
-							const cors = request.getRequestHeader('Origin');
+							const cors = request.getHeader('Origin');
 							if (cors) {
-								const allowedOrigins = request.route.allowedOrigins;
+								const allowedOrigins = this.options.allowedOrigins;
 								if (allowedOrigins.length && (tools.indexOf(allowedOrigins, cors) < 0)) { // Case sensitive
 									// Invalid origin
-									request.end();
+									return request.end();
 								};
 								
-								const allowedMethods = request.route.verbs || ['HEAD', 'GET', 'POST'];
+								const allowedMethods = this.options.verbs || ['HEAD', 'GET', 'POST'];
 								if (tools.indexOf(allowedMethods, request.verb) < 0) { // Case sensitive
 									// Invalid method
-									request.end();
+									return request.end();
 								};
 								
-								const allowCredentials = request.route.allowCredentials;
+								const allowCredentials = this.options.allowCredentials;
 								
-								const exposedHeaders = request.route.exposedHeaders;
+								const exposedHeaders = this.options.exposedHeaders;
 								
-								request.addHeaders({
+								request.response.addHeaders({
 									'Access-Control-Allow-Origin': (allowCredentials || allowedOrigins.length ? cors : '*'),
 									'Access-Control-Allow-Credentials': (allowCredentials ? 'true' : 'false'),
 									'Access-Control-Expose-Headers': exposedHeaders.join(', '),
@@ -898,57 +1793,87 @@
 					$TYPE_NAME: 'UpgradeInsecureRequestsHandler',
 					
 					$prepare: doodad.OVERRIDE(function(options) {
-						this._super(options);
+						options = this._super(options);
 
 						var val;
 						
-						val = types.get(options, 'sslPort');
-						options.sslPort = (types.toInteger(val) || 443);
+						options.sslPort = (types.toInteger(options.sslPort) || 443);
 
-						val = types.get(options, 'sslDomain');
+						val = options.sslDomain;
 						options.sslDomain = (types.isNothing(val) ? null : types.toString(val));
 
-						val = types.get(options, 'hstsSafe', false);
-						options.hstsSafe = types.toBoolean(val);
+						options.hstsSafe = types.toBoolean(options.hstsSafe);
 
-						val = types.get(options, 'hstsMaxAge');
-						options.hstsMaxAge = (types.toInteger(val) || 10886400);
+						options.hstsMaxAge = (types.toInteger(options.hstsMaxAge) || 10886400);
+
+						return options;
 					}),
 
 					execute: doodad.OVERRIDE(function execute(request) {
-						const uirs = request.getRequestHeader('Upgrade-Insecure-Requests');
+						const uirs = request.getHeader('Upgrade-Insecure-Requests');
 
-						if (request.route.hstsSafe) {
-							request.addHeaders({
-								'Strict-Transport-Security': 'max-age=' + types.toString(request.route.hstsMaxAge) + '; preload',
+						if (this.options.hstsSafe) {
+							request.response.addHeaders({
+								'Strict-Transport-Security': 'max-age=' + types.toString(this.options.hstsMaxAge) + '; preload',
 								'Content-Security-Policy': 'block-all-mixed-content;',
 							});
 						} else {
-							request.addHeaders({
+							request.response.addHeaders({
 								'Content-Security-Policy': 'upgrade-insecure-requests;',
 							});
 						};
 						
 						if (uirs === '1') {
-							request.addHeaders({
+							request.response.addHeaders({
 								'Vary': 'Upgrade-Insecure-Requests',
 							});
 							
-							if (!request.route.hstsSafe) {
-								request.addHeaders({
-									'Strict-Transport-Security': 'max-age=' + types.toString(request.route.hstsMaxAge),
+							if (!this.options.hstsSafe) {
+								request.response.addHeaders({
+									'Strict-Transport-Security': 'max-age=' + types.toString(this.options.hstsMaxAge),
 								});
 							};
 						};
 						
-						if (request.route.hstsSafe || (uirs === '1')) {
-							if ((request.url.protocol !== 'https') && (request.url.domain || request.route.sslDomain)) {
-								const opts = {protocol: 'https', port: request.route.sslPort};
-								if (request.route.sslDomain) {
-									opts.domain = request.route.sslDomain;
+						if (this.options.hstsSafe || (uirs === '1')) {
+							if ((request.url.protocol !== 'https') && (request.url.domain || this.options.sslDomain)) {
+								const opts = {protocol: 'https', port: this.options.sslPort};
+								if (this.options.sslDomain) {
+									opts.domain = this.options.sslDomain;
 								};
 								const url = request.url.set(opts);
-								request.redirectClient(url);
+								return request.redirectClient(url);
+							};
+						};
+					}),
+				}));
+
+
+				http.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'ClientCrashHandler',
+					
+					$prepare: doodad.OVERRIDE(function(options) {
+						types.getDefault(options, 'depth', Infinity);
+
+						options = this._super(options);
+
+						var val;
+						
+						val = options.reportUrl;
+						options.reportUrl = (val ? files.Url.parse(val) : null);
+
+						return options;
+					}),
+
+					execute: doodad.OVERRIDE(function execute(request) {
+						if (request.clientCrashed) {
+							if (this.options.reportUrl) {
+								return request.redirectClient(request.url.combine(this.options.reportUrl));
+							} else {
+								// TODO: Use "crashRecovery"
+								return request.redirectClient(request.url.setArgs({crashRecovery: true})); // NOTE: "?crashReport=true" is removed by the "Request" object
 							};
 						};
 					}),
@@ -956,18 +1881,26 @@
 
 
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
-									httpInterfaces.Server,
+									httpMixIns.Server,
 				{
 					$TYPE_NAME: 'Server',
 
-					create: doodad.OVERRIDE(function create(routes, /*optional*/options) {
-						root.DD_ASSERT && root.DD_ASSERT(types._implements(routes, httpMixIns.Routes), "Invalid page factory.");
-						
+					create: doodad.OVERRIDE(function create(handlersOptions, /*optional*/serverOptions) {
 						this._super();
+
+						serverOptions = types.nullObject(serverOptions);
+
+						var val;
 						
+						val = serverOptions.validHosts;
+						if (!types.isNothing(val) && !types.isArray(val)) {
+							val = [val];
+						};
+						serverOptions.validHosts = val;
+
 						_shared.setAttributes(this, {
-							routes: routes, 
-							options: options,
+							handlersOptions: http.prepareHandlersOptions(handlersOptions),
+							options: serverOptions,
 						});
 					}),
 				})));
@@ -977,7 +1910,7 @@
 				{
 					$TYPE_NAME: 'RequestMatcher',
 					
-					match: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, route)
+					match: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, url, handlerOptions)
 				})));
 				
 				
@@ -996,14 +1929,11 @@
 						this.baseUrl = baseUrl;
 					}),
 					
-					match: doodad.OVERRIDE(function match(request, route) {
+					match: doodad.OVERRIDE(function match(request, requestUrl, handlerOptions) {
 						// TODO: Query string matching and extraction in "request.data.query" : ex. "/invoice/edit?id&details=1" will match "/invoice$edit?id=194&details=1"
 						// TODO: Url arguments matching and extraction in "request.data.args" : ex. "/invoice/id:/edit" will match "/invoice/194/edit"
 						// TODO: RegExp between parentheses in patterns : ex. "/invoice$edit?id=(\\d+)&details=1"   ,   "/invoice/id:(\\d+)/edit", ...
 						
-						this._super(request, route);
-						
-						const requestUrl = (route.parent ? route.parent.matcherResult.urlRemaining : request.url);
 						const urlPath = tools.trim(requestUrl.toArray(), '');
 						const urlPathLen = urlPath.length;
 
@@ -1021,12 +1951,12 @@
 								starStarWeight = 0,
 								i = 0;
 							
-							const maxDepth = route.depth;
+							const maxDepth = handlerOptions.depth;
 						
 							while (urlLevel < urlPathLen) {
 								let name1 = (i < basePathLen ? basePath[i] : null),
 									name2 = urlPath[urlLevel];
-								if (!route.caseSensitive) {
+								if (!handlerOptions.caseSensitive) {
 									name1 = name1 && name1.toUpperCase();
 									name2 = name2 && name2.toUpperCase();
 								};
@@ -1067,12 +1997,12 @@
 							});
 						};
 
-						return {
+						return types.nullObject({
 							weight: weight,
 							full: full,
 							url: url,
 							urlRemaining: urlRemaining,
-						};
+						});
 					}),
 					
 					toString: doodad.OVERRIDE(function toString() {
@@ -1091,226 +2021,215 @@
 					$TYPE_NAME: 'Routes',
 
 					routes: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					options: doodad.PUBLIC(doodad.READ_ONLY(null)),
-	
+
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						types.getDefault(options, 'depth', Infinity);
 
-						this._super(options);
-					}),
-	
-					create: doodad.OVERRIDE(function create(routes, /*optional*/options) {
-						this._super();
-						
-						_shared.setAttributes(this, {
-							options: options
-						});
+						options = this._super(options);
 
+						return options;
+					}),
+
+					create: doodad.OVERRIDE(function create(routes) {
+						this._super(routes);
+
+						_shared.setAttributes(this, {
+							routes: new types.Map(),
+						});
+						
 						this.addRoutes(routes);
 					}),
 					
-					addRoutes: doodad.PUBLIC(function addRoutes(routes) {
-						root.DD_ASSERT && root.DD_ASSERT((routes instanceof types.Map) || types.isObject(routes), "Invalid routes.");
+					addRoutes: doodad.PUBLIC(function addRoutes(newRoutes) {
+						root.DD_ASSERT && root.DD_ASSERT((newRoutes instanceof types.Map) || types.isObject(newRoutes), "Invalid routes.");
 
-						const parsedRoutes = (this.routes || new types.Map());
-						
-						tools.forEach(routes, function(route, matcher) {
-							root.DD_ASSERT && root.DD_ASSERT(types.isObject(route), "Invalid route.");
+						const routes = this.routes;
+
+						tools.forEach(newRoutes, function(route, matcher) {
+							root.DD_ASSERT && root.DD_ASSERT(types.isJsObject(route), "Invalid route.");
 							
+							route = types.nullObject(route);
+
 							if (types.isString(matcher)) {
 								matcher = new http.UrlMatcher(matcher);
 							};
 							root.DD_ASSERT && root.DD_ASSERT((matcher instanceof http.RequestMatcher), "Invalid request matcher.");
 							
-							route = types.extend({}, route);
-							route.matcher = matcher;
+							let handlersOptions = route.handlers || [];
 							
-							let handlers = types.get(route, 'handlers', []);
-							delete route.handlers;
-							if (!types.isArray(handlers)) {
-								handlers = [handlers];
-							};
+							handlersOptions = http.prepareHandlersOptions(handlersOptions, route);
 							
-							const newHandlers = [];
-							tools.forEach(handlers, function(handlerOpts) {
-								handlerOpts = types.extend({}, handlerOpts);
-								
-								types.complete(handlerOpts, route);
-								
-								let handler = types.get(handlerOpts, 'handler');
-								if (types.isString(handler)) {
-									handlerOpts.handler = handler = namespaces.get(handler);
-								};
-								
-								if (types.isJsFunction(handler)) {
-									httpMixIns.Handler.$prepare(handlerOpts);
-								} else if (types._implements(handler, httpMixIns.Handler)) {
-									types.getType(handler).$prepare(handlerOpts);
-								} else {
-									throw new types.TypeError("Invalid handler type '~0~' in Url matcher '~1~'.", [types.getTypeName(handler), matcher.toString()]);
-								};
-								
-								newHandlers.push(handlerOpts);
-							});
-							
-							if (newHandlers.length) {
-								route.handlers = newHandlers;
-								parsedRoutes.set(matcher, route);
+							if (handlersOptions.length) {
+								routes.set(matcher, handlersOptions);
 							};
 						});
 
-						_shared.setAttributes(this, {
-							routes: parsedRoutes,
-						});
 					}),
 					
-					createHandler: doodad.OVERRIDE(function createHandler(request) {
-						let routes = tools.reduce(this.routes, function(routes, route) {
-							const handlers = route.handlers;
-							for (let i = 0; i < handlers.length; i++) {
-								let handler = handlers[i];
+					createHandlers: doodad.OVERRIDE(function createHandlers(request) {
+						let handlers = tools.reduce(this.routes, function(handlers, handlersOptions, matcher) {
+							const routeId = types.getSymbolFor("routeId"); // takes less resources than using "handlersOptions"
+
+							for (let i = 0; i < handlersOptions.length; i++) {
+								let options = handlersOptions[i];
+
+								options = types.nullObject(options);
 								
-								if (handler.verbs && (tools.indexOf(handler.verbs, request.verb) === -1)) {
+								if (options.verbs && (tools.indexOf(options.verbs, request.verb) === -1)) {
 									continue;
 								};
 								
-								if (handler.extensions && !types.isNothing(request.url.extension)) {
-									if (tools.indexOf(handler.extensions, request.url.extension) === -1) {
+								if (options.extensions && !types.isNothing(request.url.extension)) {
+									if (tools.indexOf(options.extensions, request.url.extension) === -1) {
 										continue;
 									};
 								};
-								
-								handler = types.extend({}, handler);
-								handler.parent = request.route;
-								handler.mimeTypes = handler.mimeTypes && request.parseAccept(handler.mimeTypes, {dontThrow: true});
-								handler.mimeWeight = tools.reduce(handler.mimeTypes, function(result, mimeType) {
-									if (mimeType.weight > result) {
-										return mimeType.weight;
-									} else {
-										return result;
-									};
-								}, 0.0);
 
-								handler.matcherResult = handler.matcher.match(request, handler);
-								if ((handler.matcherResult.weight > 0) || handler.matcherResult.full) {
-									handler.url = (handler.parent ? handler.parent.url.combine(handler.matcherResult.url, {isRelative: true}) : handler.matcherResult.url);
-									routes.push(handler);
+								const parent = request.currentHandler;
+								const parentState = request.getHandlerState(parent);
+								const url = (parentState && parentState.matcherResult ? parentState.matcherResult.urlRemaining : request.url);
+
+								const matcherResult = matcher.match(request, url, options);
+
+								if ((matcherResult.weight > 0) || matcherResult.full) {
+									//options.route = handlersOptions;
+									options.routeId = routeId;
+									options.routeIndex = i;
+
+									const mimeTypes = request.getAcceptables(options.mimeTypes);
+
+									const state = types.extend({}, options.state, {
+										parent: doodad.PUBLIC(doodad.READ_ONLY(parent)),
+										matcherResult: doodad.PUBLIC(doodad.READ_ONLY(matcherResult)),
+										mimeTypes: doodad.PUBLIC(doodad.READ_ONLY(mimeTypes)),
+										mimeWeight: doodad.PUBLIC(doodad.READ_ONLY(tools.reduce(mimeTypes, function(mimeWeight, mimeType) {
+												if (mimeType.weight > mimeWeight) {
+													return mimeType.weight;
+												} else {
+													return mimeWeight;
+												};
+											}, 0.0))),
+										url: doodad.PUBLIC(doodad.READ_ONLY(parentState && parentState.url ? parentState.url.combine(matcherResult.url, {isRelative: true}) : matcherResult.url)),
+									});
+
+									request.applyHandlerState(options.handler, state, {globalState: true});
+
+									handlers.push(options);
 								};
 							};
 							
-							return routes;
+							return handlers;
 						}, []);
 
 						// NOTE: Sort descending
-						routes = routes.sort(function(route1, route2) {
-							if (route1.matcherResult.full && !route2.matcherResult.full) {
+						handlers = handlers.sort(function(handler1, handler2) {
+							//if (handler1.route === handler2.route) {
+							if (handler1.routeId === handler2.routeId) {
+								return (handler1.routeIndex > handler2.routeIndex ? 1 : -1);
+							} else if (handler1.state.matcherResult.full && !handler2.state.matcherResult.full) {
 								return -1;
-							} else if (!route1.matcherResult.full && route2.matcherResult.full) {
+							} else if (!handler1.state.matcherResult.full && handler2.state.matcherResult.full) {
 								return 1;
-							} else if (route1.matcherResult.weight > route2.matcherResult.weight) {
+							} else if (handler1.state.matcherResult.weight > handler2.state.matcherResult.weight) {
 								return -1;
-							} else if (route1.matcherResult.weight < route2.matcherResult.weight) {
+							} else if (handler1.state.matcherResult.weight < handler2.state.matcherResult.weight) {
 								return 1;
-							} else if (route1.mimeWeight > route2.mimeWeight) {
+							} else if (handler1.state.mimeWeight > handler2.state.mimeWeight) {
 								return -1;
-							} else if (route1.mimeWeight < route2.mimeWeight) {
+							} else if (handler1.state.mimeWeight < handler2.state.mimeWeight) {
 								return 1;
 							} else {
 								return 0;
 							};
 						});
 
-						const self = this;
-						
-						const __getSibling = function __getSibling(index) {
-							if ((index < 0) || (index >= routes.length)) {
-								return null;
-							};
-							
-							let route = routes[index];
-
-							route.index = index;
-							
-							route.previousSibling = function previousSibling() {
-								if (this.noSibling || types.get(self.options, 'noSibling', false)) {
-									return null;
-								};
-								return __getSibling(this.index - 1);
-							};
-							
-							route.nextSibling = function nextSibling() {
-								if (this.noSibling || types.get(self.options, 'noSibling', false)) {
-									return null;
-								};
-								return __getSibling(this.index + 1);
-							};
-							
-							route.getSibling = function getSibling(index) {
-								if (this.noSibling || types.get(self.options, 'noSibling', false)) {
-									return null;
-								};
-								return __getSibling(index);
-							};
-							
-							_shared.setAttribute(request, 'route', route)
-
-							let handler = route.handler;
-							if (types.isType(handler)) {
-								handler = handler.$createInstance();
-							};
-							
-							return handler;
-						};
-						
-						return __getSibling(0);
+						return handlers;
 					}),
 					
+					execute: doodad.OVERRIDE(function execute(request) {
+						const handlers = this.createHandlers(request);
+						return request.proceed(handlers);
+					}),
+				}));
+
+
+				http.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'JsonBodyHandler',
+					
+					/*
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						options = this._super(options);
+
+						return options;
+					}),
+					*/
+					
 					execute: doodad.OVERRIDE(function(request) {
-						const handler = this.createHandler(request);
-						if (handler) {
-							return request.proceed(handler)
-								.nodeify(function requestCleanup(err, result) {
-									if (request.route.handler !== handler) {
-										if (types._implements(handler, mixIns.Creatable) && !handler.isDestroyed()) {
-											handler.destroy();
-										};
-									};
-									if (err) {
-										throw err;
-									};
-									return result;
-								});
+						if (request.getHeader('Content-Type') === 'application/json') {
+							request.setStreamOptions({
+								accept: 'application/json', 
+								encoding: 'utf-8',
+							});
+							
+							const stream = new ioJson.Stream();
+							request.addPipe(stream);
 						};
 					}),
 				}));
-				
-				http.ProceedNewHandler = types.createErrorType("ProceedNewHandler", types.ScriptInterruptedError, function _new(handler, /*optional*/message, /*optional*/params) {
-					this.handler = handler;
+
+
+				// TODO: Test me
+		/*
+				http.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'XmlBodyHandler',
+					
+					/ *
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						options = this._super(options);
+
+						return options;
+					}),
+					* /
+					
+					execute: doodad.OVERRIDE(function(request) {
+						const contentType = request.getHeader('Content-Type');
+						if ((contentType === 'application/xml') || (contentType === 'text/xml')) {
+							request.setStreamOptions({
+								accept: ['application/xml', 'text/xml'], 
+								encoding: 'utf-8',
+							});
+							
+							const stream = new ioXml.Stream();
+							request.addPipe(stream);
+						};
+					}),
+				}));
+		*/
+
+
+				http.REGISTER(types.createErrorType("ProceedNewHandlers", types.ScriptInterruptedError, function _new(handlersOptions, /*optional*/message, /*optional*/params) {
+					this.handlersOptions = handlersOptions;
 					return types.ScriptInterruptedError.call(this, message || "Will proceed with a new Handler object.", params);
-				});
+				}));
+				
+				
+				http.REGISTER(types.createErrorType("StreamAborted", types.ScriptInterruptedError, function _new(/*optional*/message, /*optional*/params) {
+					return types.ScriptInterruptedError.call(this, message || "'getStream' has been aborted.", params);
+				}));
+				
+				
+				return function init(/*optional*/options) {
+					return locale.load('en_US').then(function loadLocaleCallback(locale) {
+						__Internal__.enUSLocale = locale;
+					});
+				};
 			},
 		};
-		
 		return DD_MODULES;
-	};
-	
-	//! BEGIN_REMOVE()
-	if ((typeof process !== 'object') || (typeof module !== 'object')) {
-	//! END_REMOVE()
-		//! IF_UNDEF("serverSide")
-			// <PRB> export/import are not yet supported in browsers
-			global.DD_MODULES = exports.add(global.DD_MODULES);
-		//! END_IF()
-	//! BEGIN_REMOVE()
-	};
-	//! END_REMOVE()
-}).call(
-	//! BEGIN_REMOVE()
-	(typeof window !== 'undefined') ? window : ((typeof global !== 'undefined') ? global : this)
-	//! END_REMOVE()
-	//! IF_DEF("serverSide")
-	//! 	INJECT("global")
-	//! ELSE()
-	//! 	INJECT("window")
-	//! END_IF()
-);
+	},
+};
+//! END_MODULE()

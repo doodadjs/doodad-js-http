@@ -10,9 +10,9 @@
 	type="Doodad.NodeJs.Server.Http.FolderPageTemplate"
 >
 <!--
-	 dOOdad - Object-oriented programming framework
+	 doodad-js  -  Object-oriented programming framework
 	 File: Folder.ddt - Folder page template
-	 Project home: https://sourceforge.net/projects/doodad-js/
+	 Project home: https://github.com/doodadjs/
 	 Trunk: svn checkout svn://svn.code.sf.net/p/doodad-js/code/trunk doodad-js-code
 	 Author: Claude Petit, Quebec city
 	 Contact: doodadjs [at] gmail.com
@@ -47,40 +47,44 @@
 		</head>
 		
 		<body>
-			<header>
-				<t:include src="Header.ddi" />
-				<!--<t:script>
-					page.asyncWrite('ALLO');
-				</t:script>-->
+			<t:cache id="content">
+				<header>
+					<t:include src="Header.ddi" />
+					<!--<t:script>
+						page.asyncWrite('ALLO');
+					</t:script>-->
 
-				<h3 class="current"><span>Content of <a href="./"><t:eval>url</t:eval></a></span></h3>
-			</header>
-
-			<section>
-				<span class="parent">Jump to <a t:href="url.moveUp()">parent</a></span>
-				<ul class="content">
-					<t:for-each items="page.files" item="file">
-						<li t:class="'item ' + (file.isFolder ? 'folder' : 'file')">
-							<div class="cell icon"/>
-							<div class="cell space"/>
-							<div class="cell name">
-								<div class="flex">
+					<h3 class="current">
+						<span>
+							Content of <a href="./"><t:eval>url</t:eval></a>
+						</span>
+					</h3>
+				</header>
+				<section>
+					<span class="parent">Jump to <a t:href="url.moveUp()">parent</a></span>
+					<ul class="content">
+						<t:for-each items="page.files" item="file">
+							<li t:class="'item ' + (file.isFolder ? 'folder' : 'file')">
+								<div class="cell icon"/>
+								<div class="cell space"/>
+								<div class="cell name">
+									<div class="flex">
 									<a class="value" t:href="url.combine(file.name + (file.isFolder ? '/' : ''))">
 										<t:eval>file.name</t:eval>
 									</a>
 									<div class="cell space"/>
-									<div class="filler">&nbsp;</div>
+										<div class="filler">&nbsp;</div>
+									</div>
 								</div>
-							</div>
-							<div class="cell space"/>
-							<div class="cell size">
-								<div class="value"><t:eval>file.size</t:eval></div>
-							</div>
-						</li>
-					</t:for-each>
-				</ul>
-			</section>
-		
+								<div class="cell space"/>
+								<div class="cell size">
+									<div class="value"><t:eval>file.size</t:eval></div>
+								</div>
+							</li>
+						</t:for-each>
+					</ul>
+				</section>
+			</t:cache>
 			<footer>
 				<t:include src="Footer.ddi" />
 			</footer>
