@@ -92,8 +92,6 @@ module.exports = {
 
 					__ending: doodad.PROTECTED(false),
 
-					//__streamPromise: doodad.PROTECTED(null),
-
 					nodeJsStreamOnError: doodad.NODE_EVENT('error', function nodeJsStreamOnError(context, err) {
 						// When 'error' is raised ?
 						debugger;
@@ -246,10 +244,6 @@ module.exports = {
 							return this.stream;
 						};
 
-						//if (this.__streamPromise) {
-						//	return this.__streamPromise;
-						//};
-
 						if (options.contentType) {
 							this.setContentType(options.contentType, options.encoding);
 						} else if (options.encoding) {
@@ -269,11 +263,9 @@ module.exports = {
 						});
 						this.onCreateStream(ev);
 						
-						//return this.__streamPromise = Promise.resolve(ev.data.stream)
 						return Promise.resolve(ev.data.stream)
 							.then(function(responseStream) {
 								if (types.isNothing(responseStream)) {
-									//this.__streamPromise = null;
 									throw new http.StreamAborted();
 								};
 
@@ -310,7 +302,6 @@ module.exports = {
 								};
 
 								this.stream = responseStream;
-								//this.__streamPromise = null;
 
 								return responseStream;
 							}, null, this);
@@ -474,8 +465,6 @@ module.exports = {
 
 					//__ending: doodad.PROTECTED(false),
 
-					//__streamPromise: doodad.PROTECTED(null),
-					
 					startTime: doodad.PROTECTED(null),
 
 					$__timeStartSecond: doodad.PROTECTED(doodad.TYPE(null)),
@@ -633,6 +622,7 @@ module.exports = {
 								const type = types.getType(this);
 								type.$__actives--;
 								if (forceDisconnect || this.isDestroyed() || this.response.isDestroyed()) {
+//console.log((this.url && this.url.toString()) + ": " + this.response.isDestroyed());
 									type.$__aborted++;
 								} else {
 									const status = this.response.status;
@@ -675,10 +665,6 @@ module.exports = {
 							return this.stream;
 						};
 
-						//if (this.__streamPromise) {
-						//	return this.__streamPromise;
-						//};
-
 						let requestStream = new nodejsIO.BinaryInputStream({nodeStream: this.nodeJsStream});
 
 						const ev = new doodad.Event({
@@ -686,11 +672,9 @@ module.exports = {
 						});
 						this.onCreateStream(ev);
 						
-						//return this.__streamPromise = Promise.resolve(ev.data.stream)
 						return Promise.resolve(ev.data.stream)
 							.then(function(requestStream) {
 								if (types.isNothing(requestStream)) {
-									//this.__streamPromise = null;
 									throw new http.StreamAborted();
 								};
 
@@ -748,7 +732,8 @@ module.exports = {
 								};
 
 								this.stream = requestStream;
-								//this.__streamPromise = null;
+
+								return requestStream;
 							}, null, this);
 					}),
 					
