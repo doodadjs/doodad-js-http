@@ -954,8 +954,8 @@ module.exports = {
 					path: doodad.PROTECTED(null),
 					files: doodad.PROTECTED(null),
 					
-					create: doodad.OVERRIDE(function create(request, path, files) {
-						this._super(request);
+					create: doodad.OVERRIDE(function create(request, cacheHandler, path, files) {
+						this._super(request, cacheHandler);
 						this.path = path;
 						this.files = files;
 					}),
@@ -1114,7 +1114,7 @@ module.exports = {
 						function sendHtml(filesList) {
 							return templatesHtml.getTemplate(this.options.folderTemplate)
 								.then(function renderTemplate(templType) {
-									const templ = new templType(request, data.path, filesList);
+									const templ = new templType(request, request.getHandlers(nodejsHttp.CacheHandler).slice(-1)[0], data.path, filesList);
 									return request.response.getStream({encoding: templType.$ddt.options.encoding})
 										.then(function(stream) {
 											templ.setStream(stream);
@@ -1253,6 +1253,7 @@ module.exports = {
 					__status: doodad.PROTECTED(null),
 					__message: doodad.PROTECTED(null),
 					__key: doodad.PROTECTED(null),
+					__section: doodad.PROTECTED(null),
 
 					onHeaders: doodad.EVENT(false),
 
@@ -1263,12 +1264,20 @@ module.exports = {
 					}),
 					
 					getStatus: doodad.PUBLIC(function getStatus() {
-						return [this.__status || 200, this.__message || ''];
+						if (this.__headersCompiled && this.__status) {
+							return [this.__status, this.__message || ''];
+						};
 					}),
 
 					getHeaders: doodad.PUBLIC(function getHeaders() {
-						if (this.__headersCompiled) {
+						if (this.__headersCompiled && this.__headers) {
 							return this.__headers;
+						};
+					}),
+
+					getSection: doodad.PUBLIC(function getHeaders() {
+						if (this.__headersCompiled && this.__section) {
+							return this.__section;
 						};
 					}),
 
@@ -1332,20 +1341,24 @@ module.exports = {
 										};
 										const str = buf.slice(lastIndex, index).toString('utf-8');
 										const header = tools.split(str, ':', 2);
-										const name = header[0] = tools.trim(header[0]);
-										header[1] = tools.trim(header[1] || '');
-										if ((name === 'Key') && (this.__key === null)) {
-											this.__key = header[1];
-										} else if ((name === 'File') && (this.__file === null)) {
-											const val = tools.split(header[1], ' ', 2);
+										const name = tools.trim(header[0] || '');
+										const value = tools.trim(header[1] || '');
+										if (name === 'X-Cache-Key') {
+											this.__key = value;
+										} else if (name === 'X-Cache-File') {
+											const val = tools.split(value, ' ', 2);
 											this.__verb = val[0] || '';
 											this.__file = val[1] || '';
-										} else if ((name === 'Status') && (this.__status === null)) {
-											const val = tools.split(header[1], ' ', 2);
+										} else if (name === 'X-Cache-Status') {
+											const val = tools.split(value, ' ', 2);
 											this.__status = parseInt(val[0]) || 200;
 											this.__message = val[1] || '';
-										} else {
-											this.__headers[name] = header[1];
+										} else if (name === 'X-Cache-Section') {
+											this.__section = value;
+										} else if (name.slice(0, 8) === 'X-Cache-') {
+											// Ignored
+										} else if (name) {
+											this.__headers[name] = value;
 										};
 										lastIndex = index + 1;
 									};
@@ -1415,8 +1428,12 @@ module.exports = {
 							// No cache
 							return null;
 						};
+						const section = types.get(options, 'section');
+						if (section) {
+							key += '|' + section;
+						};
 						const type = types.getType(this);
-						let cached = state.cached;
+						let cached = (section ? null : state.cached);
 						let writing = false;
 						if (!cached || (cached.key !== key)) {
 							if (cached) {
@@ -1431,6 +1448,8 @@ module.exports = {
 								writing: writing,
 								aborted: false,
 								ready: false,
+								section: section,
+								disabled: false,
 							});
 							type.$__cache.set(key, cached);
 						};
@@ -1438,7 +1457,7 @@ module.exports = {
 						return cached;
 					}),
 					
-					sendFile: doodad.PROTECTED(doodad.ASYNC(function sendFile(request, cached, output) {
+					openFile: doodad.PUBLIC(doodad.ASYNC(function openFile(request, cached) {
 						const Promise = types.getPromise();
 
 						if (!cached.ready) {
@@ -1446,80 +1465,70 @@ module.exports = {
 						};
 
 						return Promise.create(function(resolve, reject) {
-								const stream = nodeFs.createReadStream(cached.path.toString());
+								const fileStream = nodeFs.createReadStream(cached.path.toString());
 								let openCb = null,
 									errorCb = null;
-								stream.once('open', openCb = new doodad.Callback(this, function streamOnOpen(fd) {
-									stream.removeListener('error', errorCb);
+								fileStream.once('open', openCb = new doodad.Callback(this, function onOpen(fd) {
+									fileStream.removeListener('error', errorCb);
 									request.onSanitize.attachOnce(this, function sanitize() {
-										stream.close();
+										fileStream.close();
 									});
-									resolve(stream);
+									resolve(fileStream);
 								}, reject));
-								stream.once('error', errorCb = new doodad.Callback(this, function streamOnError(err) {
-									stream.removeListener('open', openCb);
+								fileStream.once('error', errorCb = new doodad.Callback(this, function onError(err) {
+									fileStream.removeListener('open', openCb);
 									reject(err);
 								}, reject));
 							}, this)
 							.catch(function catchOpen(err) {
-								if ((err.code === 'ENOENT') || (err.code === 'EPERM')) {
+								cached.ready = false;
+								if (cached.section) {
+									return null;
+								} else if ((err.code === 'ENOENT') || (err.code === 'EPERM')) {
 									// Cache file has been deleted or is not accessible, will restart the request and try to generate a new cache file
-									cached.ready = false;
 									return request.redirectServer(request.url); // will throw
 								} else {
-									return request.response.respondWithStatus(types.HttpStatus.NotFound); // will throw
+									throw err;
 								};
 							}, this)
-							.thenCreate(function sendCache(inputStream, resolve, reject) {
-								const stream = new nodejsHttp.CacheStream({autoFlush: false, headersOnly: (request.verb === 'HEAD')});
-								request.onSanitize.attachOnce(this, function sanitize(ev) {
-									stream.destroy();
-								});
-								let closeCb = null,
-									errorCb = null;
-								stream.onHeaders.attachOnce(this, new doodad.Callback(this, function streamOnHeaders(ev) {
-									const status = stream.getStatus();
-									const headers = stream.getHeaders();
-									request.response.clearHeaders();
-									request.response.addHeaders(headers);
-									request.response.setStatus(status[0], status[1]);
-									stream.pipe(output);
-									stream.flush();
-								}, reject));
-								stream.onError.attachOnce(this, function streamOnError(ev) {
-									stream.unpipe(output);
-									reject(ev.error);
-								});
-								stream.onStopListening.attachOnce(this, function streamOnStopListening(ev) {
-									inputStream.close();
-								});
-								stream.onEOF.attachOnce(this, function onEOF(ev) {
-									resolve();
-								});
-								stream.listen();
-								inputStream
-									.once('close', closeCb = new doodad.Callback(this, function inputOnClose() {
-										// Cache file and headers have been sent
-										inputStream.removeListener('error', errorCb);
-										stream.flush();
-									}, reject))
-									.once('error', errorCb = new doodad.Callback(this, function inputOnError(err) {
-										inputStream.removeListener('close', closeCb);
-										reject(err);
-									}, reject))
-									.pipe(stream.getInterface(nodejsIOInterfaces.IWritable));
-							}, this)
-							.then(function() {
-								return request.end();
+							.then(function(fileStream) {
+								if (fileStream) {
+									const cache = new nodejsHttp.CacheStream({autoFlush: false, headersOnly: (request.verb === 'HEAD')});
+									request.onSanitize.attachOnce(this, function sanitize(ev) {
+										cache.destroy();
+									});
+									var promise = cache.onHeaders.promise()
+										.then(function onHeaders(ev) {
+											const status = cache.getStatus();
+											const headers = cache.getHeaders();
+											if (!cached.section) {
+												request.response.clearHeaders();
+												headers && request.response.addHeaders(headers);
+												status && request.response.setStatus(status[0], status[1]);
+											};
+											return cache;
+										}, null, this);
+									cache.listen();
+									fileStream.pipe(cache.getInterface(nodejsIOInterfaces.IWritable));
+									return promise;
+								};
 							}, null, this);
 					})),
 
-					createFile: doodad.PROTECTED(doodad.ASYNC(function createFile(request, cached, output) {
+					createFile: doodad.PUBLIC(doodad.ASYNC(function createFile(request, cached, /*optional*/options) {
 						const Promise = types.getPromise();
 						
+						if (cached.disabled) {
+							return null;
+						};
+
 						if (cached.ready || cached.writing) {
 							throw new types.Error("Cache is ready or writing.");
 						};
+
+						options = types.nullObject(options);
+
+						const encoding = options.encoding;
 
 						function loopOpenFile(count) {
 							cached.path = this.options.cachePath.combine(null, {file: tools.generateUUID()});
@@ -1537,18 +1546,20 @@ module.exports = {
 									}, reject));
 									stream.once('open', openCb = new doodad.Callback(this, function streamOnOpen(fd) {
 										stream.removeListener('error', errorCb);
+										var ddStream = (encoding ? new nodejsIO.TextOutputStream({nodeStream: stream, encoding: encoding}) : new nodejsIO.BinaryOutputStream({nodeStream: stream}));
 										request.onSanitize.attachOnce(this, function sanitize() {
 											if (!cached.ready) {
 												cached.aborted = true;
 											};
 											stream.destroy();
+											ddStream.destroy();
 											cached.writing = false;
 											if (cached.aborted) {
 												nodeFs.unlink(cached.path.toString()); // no need to trap errors
 												cached.path = null;
 											};
 										});
-										resolve(stream);
+										resolve(ddStream);
 									}, reject));
 								}, this)
 								.catch(function catchOpen(err) {
@@ -1557,44 +1568,28 @@ module.exports = {
 									} else {
 										throw err;
 									};
-								}, this)
-								.then(function afterOpen(stream) {
-									request.waitFor(Promise.create(function(resolve, reject) {
-											stream.once('destroy', resolve);
-											stream.once('close', resolve);
-											stream.once('error', reject);
-										})
-									);
-									return stream;
-								});
+								}, this);
 						};
 						
 						cached.writing = true;
+
 						return loopOpenFile.call(this, 10)
-							.then(function(fileStream) {
+							.then(function afterOpen(stream) {
+								request.waitFor(stream.onEOF.promise());
 								let headers = '';
-								headers += 'Key: ' + cached.key.toString() + '\n';
-								headers += 'File: ' + request.verb + ' ' + request.url.toString() + '\n';
-								headers += 'Status: ' + types.toString(request.response.status || '200') + ' ' + (request.response.message || '') + '\n';
-								tools.forEach(request.response.getHeaders(), function(value, name) {
-									headers += (name + ': ' + value + '\n');
-								});
-								fileStream.write(headers + '\n', 'utf-8');
-								request.waitFor(output.onEOF.promise()
-									.then(function outputOnEOF(ev) {
-										// File is closed, either it has been successfully sent, or it has been aborted. Either ways, the client should get the response.
-										cached.writing = false;
-										cached.ready = !cached.aborted;
-										//fileStream.end();
-									}, this)
-									.catch(function(err) {
-										cached.aborted = true;
-										cached.writing = false;
-										fileStream.close();
-										throw err;
-									}, this));
-								output.pipe(fileStream);
-								return output;
+								headers += 'X-Cache-Key: ' + cached.key + '\n';
+								headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toString() + '\n';
+								if (cached.section) {
+									headers += 'X-Cache-Section: ' + cached.section + '\n';
+								} else {
+									const status = request.response.status || 200;
+									headers += 'X-Cache-Status: ' + types.toString(status) + ' ' + (request.response.message || nodeHttp.STATUS_CODES[status] || '') + '\n';
+									tools.forEach(request.response.getHeaders(), function(value, name) {
+										headers += (name + ': ' + value + '\n');
+									});
+								};
+								stream.write(headers + '\n', 'utf-8');
+								return stream;
 							}, null, this)
 							.catch(function(err) {
 								cached.aborted = true;
@@ -1607,14 +1602,40 @@ module.exports = {
 						const request = ev.handlerData[0];
 						const cached = this.getCached(request);
 						if (cached) {
-							if (cached.ready) {
-								const output = ev.data.stream;
-								ev.data.stream = this.sendFile(request, cached, output)
+							const output = ev.data.stream;
+							if (!cached.disabled && cached.ready) {
+								ev.data.stream = this.openFile(request, cached)
+									.then(function sendCache(cache) {
+										if (cache) {
+											const promise = cache.onEOF.promise();
+											cache.pipe(output);
+											cache.flush({output: false});
+											return promise;
+										};
+									}, null, this)
 									.then(function() {
-										return null; // abort "getStream"
+										return request.end();
+									}, null, this);
+							} else if (!cached.disabled && !cached.writing && (request.verb !== 'HEAD')) {
+								ev.data.stream = this.createFile(request, cached)
+									.then(function(cacheStream) {
+										if (cacheStream) {
+											request.waitFor(output.onEOF.promise()
+												.then(function outputOnEOF(ev) {
+													cached.writing = false;
+													cached.ready = !cached.aborted;
+												}, this)
+												.catch(function(err) {
+													cached.aborted = true;
+													cached.writing = false;
+													cacheStream.write(io.EOF);
+													throw err;
+												}, this)
+											);
+											output.pipe(cacheStream);
+										};
+										return output;
 									});
-							} else if (!cached.writing && (request.verb !== 'HEAD')) {
-								ev.data.stream = this.createFile(request, cached, ev.data.stream);
 							};
 						};
 					}),
