@@ -1034,8 +1034,14 @@ module.exports = {
 						});
 					}),
 
-					getHandlers: doodad.PUBLIC(function getHandlers() {
-						return types.toArray(this.__handlersStates.keys());
+					getHandlers: doodad.PUBLIC(function getHandlers(/*optional*/handler) {
+						if (handler) {
+							return tools.filter(this.__handlersStates.keys(), function someHandler(hdl) {
+								return (types.isJsFunction(hdl) ? (hdl === handler) : types.isLike(hdl, handler));
+							});
+						} else {
+							return types.toArray(this.__handlersStates.keys());
+						};
 					}),
 
 					getHandlerState: doodad.PUBLIC(function getHandlerState(/*optional*/handler) {
