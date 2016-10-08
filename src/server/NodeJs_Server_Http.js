@@ -144,14 +144,14 @@ module.exports = {
 												this.nodeJsStream.once('finish', resolve);
 												this.nodeJsStream.once('error', reject);
 											}, this);
-									};
-									if (this.stream) {
-										// EOF
-										this.stream.write(io.EOF);
-										this.stream.flush()
-									} else {
-										// EOF
-										this.nodeJsStream.end();
+										if (this.stream) {
+											// EOF
+											this.stream.write(io.EOF);
+											this.stream.flush()
+										} else {
+											// EOF
+											this.nodeJsStream.end();
+										};
 									};
 									return promise;
 								};
