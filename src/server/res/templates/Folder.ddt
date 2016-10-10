@@ -47,11 +47,12 @@
 		</head>
 		
 		<body>
+			<!--<t:cache id="content" duration="PT5M">-->
 			<t:cache id="content">
 				<header>
 					<t:include src="Header.ddi" />
 					<!--<t:script>
-						page.asyncWrite('ALLO');
+					page.asyncWrite('ALLO');
 					</t:script>-->
 
 					<h3 class="current">

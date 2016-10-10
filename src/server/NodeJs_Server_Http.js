@@ -62,6 +62,8 @@ module.exports = {
 					minifiers = io.Minifiers,
 					templates = doodad.Templates,
 					templatesHtml = templates.Html,
+					dates = tools.Dates,
+					moment = dates.Moment, // Optional
 					
 					nodeFs = require('fs'),
 					nodeZlib = require('zlib'),
@@ -954,10 +956,16 @@ module.exports = {
 					path: doodad.PROTECTED(null),
 					files: doodad.PROTECTED(null),
 					
-					create: doodad.OVERRIDE(function create(request, cacheHandler, path, files) {
+					create: doodad.OVERRIDE(function create(request, cacheHandler, path, fils) {
 						this._super(request, cacheHandler);
+
 						this.path = path;
-						this.files = files;
+						this.files = fils;
+
+						var cached = cacheHandler.getCached(request);
+						files.watch(this.path.toString(), function() {
+							cached.invalidate();
+						});
 					}),
 				})));
 				
@@ -1409,6 +1417,12 @@ module.exports = {
 						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(val), "Invalid key generator.");
 						options.keyGenerator = val;
 
+						val = moment && options.duration;
+						if (val && !moment.isDuration(val)) {
+							val = moment.duration(types.toString(val)); // ISO 8601 / ASP.NET style TimeSpans (see Moment doc)
+						};
+						options.duration = val;
+
 						options.state = {
 							cached: doodad.PUBLIC(false),
 							generateKey: doodad.PUBLIC(doodad.METHOD(options.keyGenerator)),
@@ -1418,6 +1432,7 @@ module.exports = {
 					}),
 
 					getCached: doodad.PUBLIC(function getCached(request, /*optional*/options) {
+						const type = types.getType(this);
 						let create = types.get(options, 'create', true);
 						let key = types.get(options, 'key');
 						const state = request.getHandlerState(this);
@@ -1428,11 +1443,12 @@ module.exports = {
 							// No cache
 							return null;
 						};
+						let parent = key;
 						const section = types.get(options, 'section');
 						if (section) {
+							parent = this.getCached(request, {key: key});
 							key += '|' + section;
 						};
-						const type = types.getType(this);
 						let cached = (section ? null : state.cached);
 						let writing = false;
 						if (!cached || (cached.key !== key)) {
@@ -1443,17 +1459,39 @@ module.exports = {
 						};
 						if (!cached && create) {
 							cached = types.nullObject({
-								key: key,
-								path: null,
-								writing: writing,
-								aborted: false,
-								ready: false,
-								section: section,
-								disabled: false,
+								key: key, // String
+								path: null, // Path
+								writing: writing, // Bool
+								aborted: false, // Bool
+								ready: false, // Bool
+								section: section, // String
+								disabled: false, // Bool
+								duration: null, // Moment Duration
+								expiration: null, // Date
+								parent: parent, // Cached object
+								children: {}, // objectof(Cached objects)
+								invalidate: function() {
+									if (this.path) {
+										nodeFs.unlink(this.path.toString(), function(err) {}); // no need to get error feedbacks
+									};
+									this.ready = false;
+									tools.forEach(this.children, function(child) {
+										child.invalidate();
+									});
+								},
 							});
 							type.$__cache.set(key, cached);
 						};
-						state.cached = cached;
+						if (cached.expiration && cached.ready) {
+							if (moment.create().isSameOrAfter(cached.expiration)) {
+								cached.invalidate();
+							};
+						};
+						if (section) {
+							parent.children[section] = cached;
+						} else {
+							state.cached = cached;
+						};
 						return cached;
 					}),
 					
@@ -1530,6 +1568,18 @@ module.exports = {
 
 						const encoding = options.encoding;
 
+						let duration = options.duration || cached.duration || this.options.duration;
+						if (duration) {
+							if (!moment) {
+								throw new types.NotAvailable("Cache durations are not available because 'moment' is not installed.");
+							};
+							if (!moment.isDuration(duration)) {
+								duration = moment.duration(types.toString(duration)); // ISO 8601 / ASP.NET style TimeSpans (see Moment doc)
+							};
+							cached.duration = duration;
+							cached.expiration = moment.create().add(duration);
+						};
+
 						function loopOpenFile(count) {
 							cached.path = this.options.cachePath.combine(null, {file: tools.generateUUID()});
 							return Promise.create(function tryOpen(resolve, reject) {
@@ -1555,7 +1605,7 @@ module.exports = {
 											ddStream.destroy();
 											cached.writing = false;
 											if (cached.aborted) {
-												nodeFs.unlink(cached.path.toString()); // no need to trap errors
+												nodeFs.unlink(cached.path.toString(), function(err) {}); // no need to trap errors
 												cached.path = null;
 											};
 										});
@@ -1587,6 +1637,9 @@ module.exports = {
 									tools.forEach(request.response.getHeaders(), function(value, name) {
 										headers += (name + ': ' + value + '\n');
 									});
+								};
+								if (cached.expiration) {
+									headers += 'X-Cache-Expiration: ' + http.toRFC1123Date(cached.expiration) + '\n'; // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
 								};
 								stream.write(headers + '\n', 'utf-8');
 								return stream;

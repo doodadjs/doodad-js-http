@@ -54,6 +54,7 @@ module.exports = {
 					httpMixIns = http.MixIns,
 					ioJson = io.Json,
 					ioXml = io.Xml,
+					moment = dates.Moment, // optional
 					
 					Promise = types.getPromise();
 					
@@ -507,6 +508,9 @@ module.exports = {
 				
 				http.toRFC1123Date = function(date) {
 					// ex.:   Fri, 10 Jul 2015 03:16:55 GMT
+					if (moment && moment.isMoment(date)) {
+						date = date.toDate();
+					};
 					return dates.strftime('%a, %d %b %Y %H:%M:%S GMT', date, __Internal__.enUSLocale, true);
 				};
 				
