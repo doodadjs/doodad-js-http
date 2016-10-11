@@ -169,14 +169,13 @@ module.exports = {
 							}, null, this);
 					})),
 
-					sendHeaders: doodad.PROTECTED(function sendHeaders() {
+					sendHeaders: doodad.PUBLIC(function sendHeaders() {
 						//if (this.ended) {
 						//	throw new server.EndOfRequest();
 						//};
 
 						if (this.headersSent) {
-							//throw new types.Error("Can't respond with a new status or new headers because the headers have already been sent to the client.");
-							return;
+							throw new types.Error("Can't respond with a new status or new headers because the headers have already been sent to the client.");
 						};
 
 						if (this.nodeJsStream.headersSent) {
@@ -1470,11 +1469,38 @@ module.exports = {
 								expiration: null, // Date
 								parent: parent, // Cached object
 								children: {}, // objectof(Cached objects)
-								invalidate: function() {
-									if (this.path) {
-										nodeFs.unlink(this.path.toString(), function(err) {}); // no need to get error feedbacks
+								isInvalid: function() {
+									return !this.disabled && !this.ready && !this.writing && (request.verb !== 'HEAD');
+								},
+								isPending: function() {
+									return !this.disabled && !this.ready && this.writing;
+								},
+								isValid: function() {
+									return !this.disabled && this.ready && !this.writing;
+								},
+								validate: function() {
+									if (!this.ready && this.writing) {
+										this.writing = false;
+										this.ready = !this.aborted;
+										if (this.aborted && this.path) {
+											nodeFs.unlink(this.path.toString(), function(err) {}); // no need to get error feedbacks
+											this.path = null;
+										};
+										this.aborted = false;
 									};
-									this.ready = false;
+								},
+								abort: function() {
+									if (!this.ready && this.writing && !this.aborted) {
+										this.aborted = true;
+										this.validate();
+									};
+								},
+								invalidate: function() {
+									if (this.ready && !this.writing) {
+										this.ready = false;
+										this.writing = true;
+										this.abort();
+									};
 									tools.forEach(this.children, function(child) {
 										child.invalidate();
 									});
@@ -1519,7 +1545,8 @@ module.exports = {
 								}, reject));
 							}, this)
 							.catch(function catchOpen(err) {
-								cached.ready = false;
+								cached.path = null;
+								cached.invalidate();
 								if (cached.section) {
 									return null;
 								} else if ((err.code === 'ENOENT') || (err.code === 'EPERM')) {
@@ -1531,23 +1558,23 @@ module.exports = {
 							}, this)
 							.then(function(fileStream) {
 								if (fileStream) {
-									const cache = new nodejsHttp.CacheStream({autoFlush: false, headersOnly: (request.verb === 'HEAD')});
+									const cacheStream = new nodejsHttp.CacheStream({autoFlush: false, headersOnly: (request.verb === 'HEAD')});
 									request.onSanitize.attachOnce(this, function sanitize(ev) {
-										cache.destroy();
+										cacheStream.destroy();
 									});
-									var promise = cache.onHeaders.promise()
+									var promise = cacheStream.onHeaders.promise()
 										.then(function onHeaders(ev) {
-											const status = cache.getStatus();
-											const headers = cache.getHeaders();
+											const status = cacheStream.getStatus();
+											const headers = cacheStream.getHeaders();
 											if (!cached.section) {
 												request.response.clearHeaders();
 												headers && request.response.addHeaders(headers);
 												status && request.response.setStatus(status[0], status[1]);
 											};
-											return cache;
+											return cacheStream;
 										}, null, this);
-									cache.listen();
-									fileStream.pipe(cache.getInterface(nodejsIOInterfaces.IWritable));
+									cacheStream.listen();
+									fileStream.pipe(cacheStream.getInterface(nodejsIOInterfaces.IWritable));
 									return promise;
 								};
 							}, null, this);
@@ -1589,25 +1616,17 @@ module.exports = {
 									stream.once('error', errorCb = new doodad.Callback(this, function streamOnError(err) {
 										stream.removeListener('open', openCb);
 										// Abort writing of cache file, but give the response to the client
-										cached.aborted = true;
-										cached.writing = false;
 										cached.path = null;
+										cached.abort();
 										reject(err);
 									}, reject));
 									stream.once('open', openCb = new doodad.Callback(this, function streamOnOpen(fd) {
 										stream.removeListener('error', errorCb);
 										var ddStream = (encoding ? new nodejsIO.TextOutputStream({nodeStream: stream, encoding: encoding}) : new nodejsIO.BinaryOutputStream({nodeStream: stream}));
 										request.onSanitize.attachOnce(this, function sanitize() {
-											if (!cached.ready) {
-												cached.aborted = true;
-											};
+											cached.abort();
 											stream.destroy();
 											ddStream.destroy();
-											cached.writing = false;
-											if (cached.aborted) {
-												nodeFs.unlink(cached.path.toString(), function(err) {}); // no need to trap errors
-												cached.path = null;
-											};
 										});
 										resolve(ddStream);
 									}, reject));
@@ -1615,6 +1634,8 @@ module.exports = {
 								.catch(function catchOpen(err) {
 									if ((err.code === 'EEXIST') && (count > 1)) {
 										return loopOpenFile.call(this, count - 1);
+									} else if (err.code === 'EPERM') {
+										return null;
 									} else {
 										throw err;
 									};
@@ -1625,28 +1646,33 @@ module.exports = {
 
 						return loopOpenFile.call(this, 10)
 							.then(function afterOpen(stream) {
-								request.waitFor(stream.onEOF.promise());
-								let headers = '';
-								headers += 'X-Cache-Key: ' + cached.key + '\n';
-								headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toString() + '\n';
-								if (cached.section) {
-									headers += 'X-Cache-Section: ' + cached.section + '\n';
-								} else {
-									const status = request.response.status || 200;
-									headers += 'X-Cache-Status: ' + types.toString(status) + ' ' + (request.response.message || nodeHttp.STATUS_CODES[status] || '') + '\n';
-									tools.forEach(request.response.getHeaders(), function(value, name) {
-										headers += (name + ': ' + value + '\n');
-									});
+								if (stream) {
+									request.waitFor(stream.onEOF.promise());
+									let headers = '';
+									headers += 'X-Cache-Key: ' + cached.key + '\n';
+									headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toString() + '\n';
+									if (cached.section) {
+										headers += 'X-Cache-Section: ' + cached.section + '\n';
+									} else {
+										// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
+										if (!request.response.headersSent) {
+											request.response.sendHeaders();
+										};
+										const status = request.response.status || 200;
+										headers += 'X-Cache-Status: ' + types.toString(status) + ' ' + (request.response.message || nodeHttp.STATUS_CODES[status] || '') + '\n';
+										tools.forEach(request.response.getHeaders(), function(value, name) {
+											headers += (name + ': ' + value + '\n');
+										});
+									};
+									if (cached.expiration) {
+										headers += 'X-Cache-Expiration: ' + http.toRFC1123Date(cached.expiration) + '\n'; // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
+									};
+									stream.write(headers + '\n', 'utf-8');
+									return stream;
 								};
-								if (cached.expiration) {
-									headers += 'X-Cache-Expiration: ' + http.toRFC1123Date(cached.expiration) + '\n'; // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
-								};
-								stream.write(headers + '\n', 'utf-8');
-								return stream;
 							}, null, this)
 							.catch(function(err) {
-								cached.aborted = true;
-								cached.writing = false;
+								cached.abort();
 								throw err;
 							}, this);
 					})),
@@ -1656,34 +1682,33 @@ module.exports = {
 						const cached = this.getCached(request);
 						if (cached) {
 							const output = ev.data.stream;
-							if (!cached.disabled && cached.ready) {
+							if (cached.isValid()) {
 								ev.data.stream = this.openFile(request, cached)
-									.then(function sendCache(cache) {
-										if (cache) {
-											const promise = cache.onEOF.promise();
-											cache.pipe(output);
-											cache.flush({output: false});
+									.then(function sendCache(cacheStream) {
+										if (cacheStream) {
+											const promise = cacheStream.onEOF.promise();
+											cacheStream.pipe(output);
+											cacheStream.flush({output: false});
 											return promise;
 										};
 									}, null, this)
 									.then(function() {
 										return request.end();
 									}, null, this);
-							} else if (!cached.disabled && !cached.writing && (request.verb !== 'HEAD')) {
+							} else if (cached.isInvalid()) {
 								ev.data.stream = this.createFile(request, cached)
 									.then(function(cacheStream) {
 										if (cacheStream) {
-											request.waitFor(output.onEOF.promise()
-												.then(function outputOnEOF(ev) {
-													cached.writing = false;
-													cached.ready = !cached.aborted;
-												}, this)
-												.catch(function(err) {
-													cached.aborted = true;
-													cached.writing = false;
-													cacheStream.write(io.EOF);
-													throw err;
-												}, this)
+											request.waitFor(
+												cacheStream.onEOF.promise()
+													.then(function onEOF(ev) {
+														cached.validate();
+													}, this)
+													.catch(function(err) {
+														cacheStream.write(io.EOF);
+														cached.abort();
+														throw err;
+													}, this)
 											);
 											output.pipe(cacheStream);
 										};
