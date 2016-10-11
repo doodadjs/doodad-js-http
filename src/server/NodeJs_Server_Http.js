@@ -1508,15 +1508,17 @@ module.exports = {
 							});
 							type.$__cache.set(key, cached);
 						};
-						if (cached.expiration && cached.ready) {
-							if (moment.create().isSameOrAfter(cached.expiration)) {
-								cached.invalidate();
+						if (cached) {
+							if (cached.expiration && cached.ready) {
+								if (moment.create().isSameOrAfter(cached.expiration)) {
+									cached.invalidate();
+								};
 							};
-						};
-						if (section) {
-							parent.children[section] = cached;
-						} else {
-							state.cached = cached;
+							if (section) {
+								parent.children[section] = cached;
+							} else {
+								state.cached = cached;
+							};
 						};
 						return cached;
 					}),
@@ -1758,13 +1760,21 @@ module.exports = {
 						// TODO: Default options
 						options.optionsPerEncoding = types.nullObject(options.optionsPerEncoding);
 
+						options.state = {
+							contentEncoding: doodad.PUBLIC(null),
+						};
+
+						var type = this;
 						options.states = types.extend({}, options.states, {
 							'Doodad.NodeJs.Server.Http.CacheHandler': {
 								generateKey: doodad.OVERRIDE(function(request, handler) {
 									let key = this._super(request, handler);
 									if (key) {
-										const encoding = request.response.getHeader("Content-Encoding") || 'identity';
-										key += '|' + encoding;
+										const compressionHandler = request.getHandlers(type)[-1];
+										if (compressionHandler) {
+											const encoding = request.getHandlerState(compressionHandler).contentEncoding || 'identity';
+											key += '|' + encoding;
+										};
 									};
 									return key;
 								}),
@@ -1777,7 +1787,7 @@ module.exports = {
 					__onCreateStream: doodad.PROTECTED(function __onCreateStream(ev) {
 						const request = ev.handlerData[0];
 
-						const encoding = request.response.getHeader('Content-Encoding');
+						const encoding = request.getHandlerState(this).contentEncoding;
 						const optionsPerEncoding = this.options.optionsPerEncoding;
 
 						let stream = null;
@@ -1795,13 +1805,16 @@ module.exports = {
 						if (stream) {
 							const type = request.response.getHeader('Content-Type');
 							if (!type || request.getAcceptables(type, {handler: this}).length) {
+								// NOTE: Server MUST NOT include 'identity' in the 'Content-Encoding' header
+								request.response.addHeaders({
+									'Content-Encoding': encoding,
+								});
+
 								request.response.addPipe(stream, {unshift: true});
 
 								request.response.onSendHeaders.attachOnce(this, function(ev) {
 									request.response.clearHeaders('Content-Length');
 								});
-							} else {
-								request.response.clearHeaders('Content-Encoding');
 							};
 						};
 					}),
@@ -1839,10 +1852,7 @@ module.exports = {
 							};
 						
 							if (ok) {
-								// NOTE: Server MUST NOT include 'identity' in the 'Content-Encoding' header
-								request.response.addHeaders({
-									'Content-Encoding': encoding,
-								});
+								request.getHandlerState(this).contentEncoding = encoding;
 
 								request.response.onCreateStream.attachOnce(this, this.__onCreateStream, null, [request]);
 							};
