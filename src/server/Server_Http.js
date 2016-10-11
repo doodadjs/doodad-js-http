@@ -622,7 +622,9 @@ module.exports = {
 						this._super();
 					}),
 
-					setContentType: doodad.PUBLIC(function setContentType(mimeTypes, /*optional*/encoding) {
+					setContentType: doodad.PUBLIC(function setContentType(mimeTypes, /*optional*/options) {
+						options = types.nullObject(options);
+
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};							
@@ -630,18 +632,19 @@ module.exports = {
 							throw new types.Error("Can't add new headers because headers have been sent to the client.");
 						};
 
-						let contentType = this.request.getAcceptables(mimeTypes)[0];
+						let contentType = this.request.getAcceptables(mimeTypes, options)[0];
 						if (!contentType) {
 							throw new types.HttpError(types.HttpStatus.NotAcceptable);
 						};
 
+						const encoding = options.encoding;
 						if (encoding) {
 							contentType = contentType.set({params: {charset: encoding}});
 						};
 
 						_shared.setAttribute(this, 'contentType', contentType);
 
-						this.headers['Content-Type'] = this.contentType.toString();
+						this.headers['Content-Type'] = contentType.toString();
 						this.onHeadersChanged(new doodad.Event({headers: ['Content-Type']}));
 
 						return this.contentType;
@@ -1126,7 +1129,7 @@ module.exports = {
 
 						// Get negociated mime types between the handler and the client
 						const handlerState = this.getHandlerState(options.handler);
-						let handlerTypes = handlerState && handlerState.mimeTypes || this.__parsedAccept;
+						let handlerTypes = !options.force && handlerState && handlerState.mimeTypes || this.__parsedAccept;
 
 						if (!contentTypes) {
 							return handlerTypes;
@@ -1397,40 +1400,7 @@ module.exports = {
 
 						return _catchError.call(this, ex);
 					}),
-/*					
-					pauseUntil: doodad.PUBLIC(doodad.ASYNC(function pauseUntil(promise) {
-						root.DD_ASSERT && root.DD_ASSERT(types.isPromise(promise), "Invalid promise.");
 
-						return Promise.create(function(resolve, reject) {
-							function __waitFor() {
-								const pauseQueue = this.__waitQueue;
-								if (pauseQueue.length) {
-									this.__waitQueue = [];
-									return Promise.all(pauseQueue)
-										.then(__waitFor, null, this);
-								};
-							};
-
-							if (this.nodejsStream.isPaused()) {
-								this.__waitQueue.push(
-									promise
-										.then(__waitFor, null, this)
-										.then(resolve)
-										.catch(reject)
-								);
-							} else {
-								this.nodejsStream.pause();
-								promise
-									.then(__waitFor, null, this)
-									.then(function() {
-										this.nodejsStream.resume();
-									}, null, this)
-									.then(resolve)
-									.catch(reject);
-							};
-						});
-					})),
-*/
 					// NOTE: Experimental
 					waitFor: doodad.PUBLIC(function waitFor(/*optional*/promise) {
 						if (this.ended) {

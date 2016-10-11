@@ -79,8 +79,8 @@ module.exports = {
 
 				// TODO: 
 				// 1) (todo) Setup page: IPs, Ports, Base URLs, Fall-back Pages (html status), Max number of processes, Storage Manager location
-				// 3) (working on) Static files : Base URL (done), file(done)/folder(done), alias (done), Verbs (done), in/out process option (todo), mime type (auto or custom) (done), charset (todo), metadata (if text/html) (todo)
-				// 4) (todo) Dynamic files : Base URL, Page class, Verbs, in/out process option, mime type ('text/html' or custom), charset, metadata (if text/html)
+				// 3) (working on) Static files : Base URL (done), file(done)/folder(done), alias (done), Verbs (done), in/out process option (todo), mime type (auto or custom) (done), charset (done), metadata (if text/html) (todo)
+				// 4) (todo) Dynamic files : Base URL (done), Page class (done), Verbs (done), in/out process option, mime type ('text/html' or custom) (done), charset (done), metadata (if text/html) (todo)
 				// 5) (todo) Session and Shared Data Storage: Storage Manager Server, Storage Type Class (Pipes (Streams), RAM, Files, DB, ...), Data passed with JSON
 				// 6) (todo) User/Password/Permissions
 
@@ -102,7 +102,7 @@ module.exports = {
 					
 					nodeJsStreamOnClose: doodad.NODE_EVENT(['close'], function nodeJsStreamOnClose(context) {
 						// Response stream has been closed
-						if (!this.ended) {
+						if (!this.ended) {  // && !this.__ending
 							this.end(true);
 						};
 					}),
@@ -246,9 +246,9 @@ module.exports = {
 						};
 
 						if (options.contentType) {
-							this.setContentType(options.contentType, options.encoding);
+							this.setContentType(options.contentType, {encoding: options.encoding});
 						} else if (options.encoding) {
-							this.setContentType(this.contentType || 'text/plain', options.encoding);
+							this.setContentType(this.contentType || 'text/plain', {encoding: options.encoding, force: true});
 						};
 						
 						if (!this.contentType) {
@@ -606,11 +606,11 @@ module.exports = {
 						};
 						
 						return Promise.try(function() {
+								_shared.setAttribute(this, 'ended', true);
+
 								if (forceDisconnect) {
 									this.nodeJsStream.destroy();
 								};
-
-								_shared.setAttribute(this, 'ended', true);
 
 								if (!this.response.ended) {
 									return this.response.end(forceDisconnect)
@@ -799,9 +799,12 @@ module.exports = {
 										};
 									})
 									.catch(request.catchError)
-									.then(function() {
+									.nodeify(function(err, result) {
 										if (!request.isDestroyed()) {
 											request.destroy();
+										};
+										if (err) {
+											throw err;
 										};
 									})
 									.catch(tools.catchAndExit, tools); // fatal error
@@ -1055,14 +1058,22 @@ module.exports = {
 									return null;
 								};
 								
-								let contentTypes;
+								let contentTypes,
+									force = false;
 								if (stats.isFile()) {
 									contentTypes = mime.getTypes(path.file);
 								} else {
 									contentTypes = ['text/html; charset=utf-8', 'application/json; charset=utf-8'];
+									force = true;
 								};
 								
-								const contentType = request.getAcceptables(contentTypes)[0];
+								let contentType;
+								if (request.url.args.has('res')) {
+									contentType = contentTypes[0];
+									force = true;
+								} else {
+									contentType = request.getAcceptables(contentTypes, {force: force})[0];
+								};
 								if (!contentType) {
 									return request.response.respondWithStatus(types.HttpStatus.NotAcceptable);
 								};
@@ -1074,15 +1085,11 @@ module.exports = {
 								if (stats.isFile()) {
 									request.response.addHeaders({
 										'Content-Length': stats.size,
-										'Content-Type': contentType.toString(),
 										'Content-Disposition': 'filename="' + path.file.replace(/\"/g, '\\"') + '"',
 									});
-								} else {
-									// NOTE: Response get chunked (if request is HTTP/1.1).
-									request.response.addHeaders({
-										'Content-Type': contentType.toString(),
-									});
 								};
+
+								request.response.setContentType(contentType, {force: force});
 
 								return types.nullObject({
 									contentType: contentType,
@@ -1102,6 +1109,9 @@ module.exports = {
 									const iwritable = outputStream.getInterface(nodejsIOInterfaces.IWritable);
 									return Promise.create(function(resolve, reject) {
 										const inputStream = nodeFs.createReadStream(data.path.toString());
+										request.onEnd.attachOnce(null, function() {
+											reject(new server.EndOfRequest);
+										});
 										inputStream
 											.once('close', resolve)
 											.once('end', resolve)
@@ -1118,6 +1128,8 @@ module.exports = {
 						if (request.url.file) {
 							return request.redirectClient(request.url.pushFile());
 						};
+						// Get negociated mime types between the handler and the client
+						const options = this.options;
 						function sendHtml(filesList) {
 							return templatesHtml.getTemplate(this.options.folderTemplate)
 								.then(function renderTemplate(templType) {
@@ -1163,21 +1175,36 @@ module.exports = {
 						function readDir() {
 							return files.readdir(data.path, {async: true})
 								.then(function sortFiles(filesList) {
-									filesList.sort(function(file1, file2) {
-										const n1 = file1.name.toUpperCase(),
-											n2 = file2.name.toUpperCase();
-										if ((!file1.isFolder && file2.isFolder)) {
-											return 1;
-										} else if (file1.isFolder && !file2.isFolder) {
-											return -1;
-										} else if (n1 > n2) {
-											return 1;
-										} else if (n1 < n2) {
-											return -1;
-										} else {
-											return 0;
-										};
-									});
+									filesList = filesList
+										.filter(function(file) {
+											if (file.isFolder) {
+												return true;
+											};
+											if (!options.mimeTypes) {
+												return true;
+											};
+											var types = mime.getTypes(file.name);
+											return tools.some(options.mimeTypes, function(mimeType) {
+												return (tools.findItem(types, function(type) {
+														return type === mimeType.name;
+													}) !== null);
+											});
+										})
+										.sort(function(file1, file2) {
+											const n1 = file1.name.toUpperCase(),
+												n2 = file2.name.toUpperCase();
+											if ((!file1.isFolder && file2.isFolder)) {
+												return 1;
+											} else if (file1.isFolder && !file2.isFolder) {
+												return -1;
+											} else if (n1 > n2) {
+												return 1;
+											} else if (n1 < n2) {
+												return -1;
+											} else {
+												return 0;
+											};
+										});
 						//console.log(require('util').inspect(filesList));
 									return filesList;
 								}, null, this);
@@ -1410,7 +1437,8 @@ module.exports = {
 						val = options.keyGenerator;
 						if (!val) {
 							val = function defaultKeyGenerator(request, handler) {
-								return request.url.set({domain: null, args: null}).toString();
+								return request.url.set({domain: null, args: null}).toString() + 
+									'|' + (request.response.getHeader('Content-Type') || '*/*');
 							};
 						};
 						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(val), "Invalid key generator.");
@@ -1625,10 +1653,10 @@ module.exports = {
 									stream.once('open', openCb = new doodad.Callback(this, function streamOnOpen(fd) {
 										stream.removeListener('error', errorCb);
 										var ddStream = (encoding ? new nodejsIO.TextOutputStream({nodeStream: stream, encoding: encoding}) : new nodejsIO.BinaryOutputStream({nodeStream: stream}));
-										request.onSanitize.attachOnce(this, function sanitize() {
-											cached.abort();
+										request.onSanitize.attachOnce(null, function sanitize() {
 											stream.destroy();
 											ddStream.destroy();
+											cached.abort();
 										});
 										resolve(ddStream);
 									}, reject));
@@ -1770,7 +1798,7 @@ module.exports = {
 								generateKey: doodad.OVERRIDE(function(request, handler) {
 									let key = this._super(request, handler);
 									if (key) {
-										const compressionHandler = request.getHandlers(type)[-1];
+										const compressionHandler = request.getHandlers(type).slice(-1)[0];
 										if (compressionHandler) {
 											const encoding = request.getHandlerState(compressionHandler).contentEncoding || 'identity';
 											key += '|' + encoding;
