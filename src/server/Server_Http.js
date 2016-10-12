@@ -2156,12 +2156,18 @@ module.exports = {
 					execute: doodad.OVERRIDE(function(request) {
 						const contentType = http.parseContentTypeHeader(request.getHeader('Content-Type'));
 						if (contentType && (contentType.name === 'application/json')) {
+							const encoding = contentType.params.charset || 'utf-8';
+
+							if (!ioJson.Stream.$isValidEncoding(encoding)) {
+								return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+							};
+
 							request.setStreamOptions({
 								accept: 'application/json', 
-								encoding: contentType.params.charset || 'utf-8',
+								//encoding: encoding,
 							});
-							
-							const stream = new ioJson.Stream();
+
+							const stream = new ioJson.Stream({encoding: encoding});
 							request.addPipe(stream);
 						};
 					}),
