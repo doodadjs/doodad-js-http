@@ -693,7 +693,7 @@ module.exports = {
 								};
 								this.__pipes = null;   // no more pipes allowed
 							
-								const accept = http.parseAcceptHeader(options.accept);  // content-types expected by the page
+								const accept = options.accept && http.parseAcceptHeader(options.accept);  // content-types expected by the page
 								if (!accept) {
 									throw new types.Error("Option 'accept' is missing or invalid.");
 								};
@@ -1754,6 +1754,71 @@ module.exports = {
 				}));
 				
 				
+				nodejsHttp.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'CompressionBodyHandler',
+					
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						types.getDefault(options, 'depth', Infinity);
+
+						options = this._super(options);
+
+						var val;
+						
+						val = options.encodings;
+						if (types.isNothing(val)) {
+							val = ['gzip', 'deflate', 'identity'];
+						} else {
+							if (!types.isArray(val)) {
+								val = [val];
+							};
+							val = tools.map(val, function(c) {
+								return types.toString(c).toLowerCase(); // codings are case-insensitive
+							});
+						};
+						if (tools.indexOf(val, 'identity') < 0) {
+							val = types.append([], val, ['identity']);
+						};
+						options.encodings = val;
+						
+						// TODO: Options per mime types per encoding
+						// TODO: Default options
+						options.optionsPerEncoding = types.nullObject(options.optionsPerEncoding);
+
+						return options;
+					}),
+					
+					execute: doodad.OVERRIDE(function(request) {
+						const encoding = (request.getHeader('Content-Encoding') || 'identity').toLowerCase(); // case insensitive
+
+						if (tools.indexOf(this.options.encodings, encoding) < 0) {
+							return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+						};
+
+						const optionsPerEncoding = this.options.optionsPerEncoding;
+
+						let stream = null;
+						switch (encoding) {
+							case 'identity':
+								break;
+							case 'gzip':
+								stream = nodeZlib.createGunzip(optionsPerEncoding.gzip);
+								break;
+							case 'deflate':
+								stream = nodeZlib.createInflate(optionsPerEncoding.deflate);
+								break;
+							default:
+								return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+						};
+
+						if (stream) {
+							request.addPipe(stream);
+						};
+					}),
+				}));
+
+
 				nodejsHttp.REGISTER(doodad.Object.$extend(
 									httpMixIns.Handler,
 				{
