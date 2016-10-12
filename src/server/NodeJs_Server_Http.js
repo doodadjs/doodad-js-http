@@ -666,6 +666,10 @@ module.exports = {
 							return this.stream;
 						};
 
+						if ((this.__contentEncoding || 'identity').toLowerCase() !== (this.getHeader('Content-Encoding') || 'identity').toLowerCase()) { // case-insensitive
+							this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+						};
+
 						let requestStream = new nodejsIO.BinaryInputStream({nodeStream: this.nodeJsStream});
 
 						const ev = new doodad.Event({
@@ -695,7 +699,7 @@ module.exports = {
 							
 								const accept = options.accept && http.parseAcceptHeader(options.accept);  // content-types expected by the page
 								if (!accept) {
-									throw new types.Error("Option 'accept' is missing or invalid.");
+									return this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								};
 							
 								const requestType = http.parseContentTypeHeader(this.getHeader('Content-Type'));
@@ -1754,6 +1758,7 @@ module.exports = {
 				}));
 				
 				
+				// Request input
 				nodejsHttp.REGISTER(doodad.Object.$extend(
 									httpMixIns.Handler,
 				{
@@ -1812,6 +1817,8 @@ module.exports = {
 								return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 						};
 
+						request.acceptEncoding(encoding);
+
 						if (stream) {
 							request.addPipe(stream);
 						};
@@ -1819,6 +1826,7 @@ module.exports = {
 				}));
 
 
+				// Response output
 				nodejsHttp.REGISTER(doodad.Object.$extend(
 									httpMixIns.Handler,
 				{

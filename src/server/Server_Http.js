@@ -901,6 +901,8 @@ module.exports = {
 					__handlersStates: doodad.PROTECTED(null),
 					currentHandler: doodad.PUBLIC(doodad.READ_ONLY(null)),
 
+					__contentEncoding: doodad.PROTECTED(null),
+
 					$__actives: doodad.PROTECTED(doodad.TYPE(0)),
 					
 					$__total: doodad.PROTECTED(doodad.TYPE(0)),
@@ -1410,6 +1412,11 @@ module.exports = {
 						root.DD_ASSERT && root.DD_ASSERT(types.isPromise(promise), "Invalid promise.");
 
 						this.__waitQueue.push(promise);
+					}),
+
+					acceptEncoding: doodad.PUBLIC(function acceptEncoding(encoding) {
+						// To validate later on getStream
+						this.__contentEncoding = encoding;
 					}),
 				})));
 				
@@ -2147,10 +2154,11 @@ module.exports = {
 					*/
 					
 					execute: doodad.OVERRIDE(function(request) {
-						if (request.getHeader('Content-Type') === 'application/json') {
+						const contentType = http.parseContentTypeHeader(request.getHeader('Content-Type'));
+						if (contentType && (contentType.name === 'application/json')) {
 							request.setStreamOptions({
 								accept: 'application/json', 
-								encoding: 'utf-8',
+								encoding: contentType.params.charset || 'utf-8',
 							});
 							
 							const stream = new ioJson.Stream();
