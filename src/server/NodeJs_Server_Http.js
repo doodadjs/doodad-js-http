@@ -159,10 +159,12 @@ module.exports = {
 								};
 							}, this)
 							.then(function() {
-								_shared.setAttribute(this, 'ended', true);
+								if (!this.isDestroyed()) {
+									_shared.setAttribute(this, 'ended', true);
 
-								if (!this.request.ended) {
-									return this.request.end(forceDisconnect);
+									if (!this.request.ended) {
+										return this.request.end(forceDisconnect);
+									};
 								};
 
 								throw new server.EndOfRequest();
