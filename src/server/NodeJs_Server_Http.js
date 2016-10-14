@@ -218,6 +218,17 @@ module.exports = {
 						};
 					}),
 					
+					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
+						if (!ev.prevent) {
+							this.onError(ev);
+							if (!ev.prevent) {
+								if (!this.ended) {
+									this.request.end(true);
+								};
+							};
+						};
+					}),
+					
 					getStream: doodad.OVERRIDE(function getStream(/*optional*/options) {
 						const Promise = types.getPromise();
 
@@ -259,6 +270,7 @@ module.exports = {
 
 						let responseStream = new nodejsIO.BinaryOutputStream({nodeStream: this.nodeJsStream}); // , autoFlush: !options.postpone
 						responseStream.onWrite.attachOnce(this, this.__streamOnWrite, 10);
+						responseStream.onError.attachOnce(this, this.__streamOnError, 10);
 
 						const ev = new doodad.Event({
 							stream: responseStream,
@@ -655,6 +667,17 @@ module.exports = {
 							}, this);
 					}),
 
+					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
+						if (!ev.prevent) {
+							this.onError(ev);
+							if (!ev.prevent) {
+								if (!this.ended) {
+									this.end(true);
+								};
+							};
+						};
+					}),
+					
 					getStream: doodad.OVERRIDE(function getStream(/*optional*/options) {
 						const Promise = types.getPromise();
 
@@ -673,6 +696,7 @@ module.exports = {
 						};
 
 						let requestStream = new nodejsIO.BinaryInputStream({nodeStream: this.nodeJsStream});
+						requestStream.onError.attachOnce(this, this.__streamOnError, 10);
 
 						const ev = new doodad.Event({
 							stream: requestStream,
