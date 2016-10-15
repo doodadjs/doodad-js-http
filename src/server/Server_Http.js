@@ -615,7 +615,7 @@ module.exports = {
 					}),
 
 					destroy: doodad.OVERRIDE(function destroy() {
-						if (!this.ended) {
+						if (!this.ended && !this.__ending) {
 							this.end(true);
 						};
 
@@ -2055,7 +2055,7 @@ module.exports = {
 					
 					createHandlers: doodad.OVERRIDE(function createHandlers(request) {
 						let handlers = tools.reduce(this.routes, function(handlers, handlersOptions, matcher) {
-							const routeId = types.getSymbolFor("routeId"); // takes less resources than using "handlersOptions"
+							const routeId = types.getSymbol()(); // takes less resources than using "handlersOptions"
 
 							for (let i = 0; i < handlersOptions.length; i++) {
 								let options = handlersOptions[i];
@@ -2085,21 +2085,26 @@ module.exports = {
 
 									const mimeTypes = request.getAcceptables(options.mimeTypes);
 
+									const mimeWeight = tools.reduce(mimeTypes, function(mimeWeight, mimeType) {
+										if (mimeType.weight > mimeWeight) {
+											return mimeType.weight;
+										} else {
+											return mimeWeight;
+										};
+									}, 0.0);
+
 									const state = types.extend({}, options.state, {
 										parent: doodad.PUBLIC(doodad.READ_ONLY(parent)),
 										matcherResult: doodad.PUBLIC(doodad.READ_ONLY(matcherResult)),
 										mimeTypes: doodad.PUBLIC(doodad.READ_ONLY(mimeTypes)),
-										mimeWeight: doodad.PUBLIC(doodad.READ_ONLY(tools.reduce(mimeTypes, function(mimeWeight, mimeType) {
-												if (mimeType.weight > mimeWeight) {
-													return mimeType.weight;
-												} else {
-													return mimeWeight;
-												};
-											}, 0.0))),
+										mimeWeight: doodad.PUBLIC(doodad.READ_ONLY(mimeWeight)),
 										url: doodad.PUBLIC(doodad.READ_ONLY(parentState && parentState.url ? parentState.url.combine(matcherResult.url, {isRelative: true}) : matcherResult.url)),
 									});
 
 									request.applyHandlerState(options.handler, state, {globalState: true});
+
+									options.matcherResult = matcherResult;
+									options.mimeWeight = mimeWeight;
 
 									handlers.push(options);
 								};
@@ -2110,20 +2115,21 @@ module.exports = {
 
 						// NOTE: Sort descending
 						handlers = handlers.sort(function(handler1, handler2) {
-							//if (handler1.route === handler2.route) {
-							if (handler1.routeId === handler2.routeId) {
-								return (handler1.routeIndex > handler2.routeIndex ? 1 : -1);
-							} else if (handler1.state.matcherResult.full && !handler2.state.matcherResult.full) {
-								return -1;
-							} else if (!handler1.state.matcherResult.full && handler2.state.matcherResult.full) {
+							if ((handler1.routeId === handler2.routeId) && (handler1.routeIndex > handler2.routeIndex)) {
 								return 1;
-							} else if (handler1.state.matcherResult.weight > handler2.state.matcherResult.weight) {
+							} else if ((handler1.routeId === handler2.routeId) && (handler1.routeIndex < handler2.routeIndex)) {
 								return -1;
-							} else if (handler1.state.matcherResult.weight < handler2.state.matcherResult.weight) {
+							} else if (handler1.matcherResult.full && !handler2.matcherResult.full) {
+								return -1;
+							} else if (!handler1.matcherResult.full && handler2.matcherResult.full) {
 								return 1;
-							} else if (handler1.state.mimeWeight > handler2.state.mimeWeight) {
+							} else if (handler1.matcherResult.weight > handler2.matcherResult.weight) {
 								return -1;
-							} else if (handler1.state.mimeWeight < handler2.state.mimeWeight) {
+							} else if (handler1.matcherResult.weight < handler2.matcherResult.weight) {
+								return 1;
+							} else if (handler1.mimeWeight > handler2.mimeWeight) {
+								return -1;
+							} else if (handler1.mimeWeight < handler2.mimeWeight) {
 								return 1;
 							} else {
 								return 0;
