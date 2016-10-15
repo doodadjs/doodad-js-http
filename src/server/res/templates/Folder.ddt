@@ -64,7 +64,7 @@
 				<section>
 					<span class="parent">Jump to <a t:href="url.moveUp()">parent</a></span>
 					<ul class="content">
-						<t:for-each items="page.files" item="file">
+						<t:for-each items="page.readDir()" item="file">
 							<li t:class="'item ' + (file.isFolder ? 'folder' : 'file')">
 								<div class="cell icon"/>
 								<div class="cell space"/>

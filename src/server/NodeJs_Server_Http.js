@@ -986,19 +986,59 @@ module.exports = {
 					$TYPE_NAME: 'FolderPageTemplate',
 
 					path: doodad.PROTECTED(null),
-					files: doodad.PROTECTED(null),
 					
-					create: doodad.OVERRIDE(function create(request, cacheHandler, path, fils) {
+					$readDir: doodad.PUBLIC(doodad.ASYNC(function $readDir(handler, path) {
+						return files.readdir(path, {async: true})
+							.then(function sortFiles(filesList) {
+								filesList = filesList
+									.filter(function(file) {
+										if (file.isFolder) {
+											return true;
+										};
+										if (!handler.options.mimeTypes) {
+											return true;
+										};
+										var types = mime.getTypes(file.name);
+										return tools.some(handler.options.mimeTypes, function(mimeType) {
+											return (tools.findItem(types, function(type) {
+													return type === mimeType.name;
+												}) !== null);
+										});
+									})
+									.sort(function(file1, file2) {
+										const n1 = file1.name.toUpperCase(),
+											n2 = file2.name.toUpperCase();
+										if ((!file1.isFolder && file2.isFolder)) {
+											return 1;
+										} else if (file1.isFolder && !file2.isFolder) {
+											return -1;
+										} else if (n1 > n2) {
+											return 1;
+										} else if (n1 < n2) {
+											return -1;
+										} else {
+											return 0;
+										};
+									});
+					//console.log(require('util').inspect(filesList));
+								return filesList;
+							}, null, this);
+					})),
+
+					create: doodad.OVERRIDE(function create(request, cacheHandler, path) {
 						this._super(request, cacheHandler);
 
 						this.path = path;
-						this.files = fils;
 
 						var cached = cacheHandler.getCached(request);
 						files.watch(this.path.toString(), function() {
 							cached.invalidate();
 						});
 					}),
+
+					readDir: doodad.PUBLIC(doodad.ASYNC(function readDir() {
+						return types.getType(this).$readDir(this.request.currentHandler, this.path);
+					})),
 				})));
 				
 				nodejsHttp.REGISTER(http.StaticPage.$extend(
@@ -1148,7 +1188,10 @@ module.exports = {
 											.once('error', reject)
 											.pipe(iwritable, {end: true});
 									}, this);
-								}, null, this);
+								}, null, this)
+								.then(function() {
+									return request.end();
+								});
 						};
 					})),
 					
@@ -1159,11 +1202,10 @@ module.exports = {
 							return request.redirectClient(request.url.pushFile());
 						};
 						// Get negociated mime types between the handler and the client
-						const options = this.options;
 						function sendHtml(filesList) {
 							return templatesHtml.getTemplate(this.options.folderTemplate)
 								.then(function renderTemplate(templType) {
-									const templ = new templType(request, request.getHandlers(nodejsHttp.CacheHandler).slice(-1)[0], data.path, filesList);
+									const templ = new templType(request, request.getHandlers(nodejsHttp.CacheHandler).slice(-1)[0], data.path);
 									return request.response.getStream({encoding: templType.$ddt.options.encoding})
 										.then(function(stream) {
 											templ.setStream(stream);
@@ -1179,20 +1221,23 @@ module.exports = {
 										});
 								}, null, this);
 						};
-						function sendJson(filesList) {
+						function sendJson() {
 							// TODO: Create helper functions in the request object, with an option to use a specific format handler
 							// TODO: JSON Stream (instead of global.JSON)
-							filesList = tools.map(filesList, function(file) {
-								return types.nullObject({
-									isFolder: file.isFolder,
-									name: file.name,
-									size: file.size,
-								});
-							});
-							const json = _shared.Natives.windowJSON.stringify(filesList);
-							return request.response.getStream()
-								.then(function(stream) {
-									return stream.writeAsync(json);
+							return nodejsHttp.FolderPageTemplate.$readDir(this, data.path)
+								.then(function stringifyDir(filesList) {
+									filesList = tools.map(filesList, function(file) {
+										return types.nullObject({
+											isFolder: file.isFolder,
+											name: file.name,
+											size: file.size,
+										});
+									});
+									const json = _shared.Natives.windowJSON.stringify(filesList);
+									return request.response.getStream()
+										.then(function(stream) {
+											return stream.writeAsync(json);
+										}, null, this);
 								}, null, this);
 						};
 						function send(filesList) {
@@ -1202,48 +1247,10 @@ module.exports = {
 								return sendJson.call(this, filesList);
 							};
 						};
-						function readDir() {
-							return files.readdir(data.path, {async: true})
-								.then(function sortFiles(filesList) {
-									filesList = filesList
-										.filter(function(file) {
-											if (file.isFolder) {
-												return true;
-											};
-											if (!options.mimeTypes) {
-												return true;
-											};
-											var types = mime.getTypes(file.name);
-											return tools.some(options.mimeTypes, function(mimeType) {
-												return (tools.findItem(types, function(type) {
-														return type === mimeType.name;
-													}) !== null);
-											});
-										})
-										.sort(function(file1, file2) {
-											const n1 = file1.name.toUpperCase(),
-												n2 = file2.name.toUpperCase();
-											if ((!file1.isFolder && file2.isFolder)) {
-												return 1;
-											} else if (file1.isFolder && !file2.isFolder) {
-												return -1;
-											} else if (n1 > n2) {
-												return 1;
-											} else if (n1 < n2) {
-												return -1;
-											} else {
-												return 0;
-											};
-										});
-						//console.log(require('util').inspect(filesList));
-									return filesList;
-								}, null, this);
-						};
 						
-						
-						return readDir.call(this)
-							.then(function(filesList) {
-								return send.call(this, filesList);
+						return send.call(this)
+							.then(function() {
+								return request.end();
 							}, null, this);
 					})),
 					
