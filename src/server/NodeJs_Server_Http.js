@@ -69,12 +69,21 @@ module.exports = {
 					nodeZlib = require('zlib'),
 					nodeHttp = require('http');
 
+
+				let nodeIConv = null;
+				try {
+					nodeIConv = require('iconv-lite');
+				} catch(ex) {
+				};
 				
 				const __Internal__ = {
 				};
 				
 				types.complete(_shared.Natives, {
 					windowJSON: global.JSON,
+					
+					windowUnescape: global.unescape,
+					globalBuffer: global.Buffer,
 				});
 
 				// TODO: 
@@ -1398,7 +1407,7 @@ module.exports = {
 									let remaining = this.__remaining;
 									if (remaining) {
 										this.__remaining = remaining = null;
-										buf = Buffer.concat([remaining, buf], remaining.length + buf.length);
+										buf = _shared.Natives.globalBuffer.concat([remaining, buf], remaining.length + buf.length);
 									};
 									let index,
 										lastIndex = 0;
@@ -1996,6 +2005,152 @@ module.exports = {
 					}),
 				}));
 
+				nodejsHttp.REGISTER(io.Stream.$extend(
+									io.TextInputStream,
+									io.TextOutputStream,
+				{
+					$TYPE_NAME: 'UrlStream',
+
+					__listening: doodad.PROTECTED(false),
+					__remaining: doodad.PROTECTED(null),
+					__mode: doodad.PROTECTED(0),
+
+					$Modes: doodad.PUBLIC(doodad.READ_ONLY(types.freezeObject({
+						Key: 0,
+						Value: 1,
+					}))),
+
+					reset: doodad.OVERRIDE(function reset() {
+						this._super();
+
+						this.__listening = false;
+						this.__remaining = '';
+						this.__mode = 0;
+					}),
+
+					isListening: doodad.OVERRIDE(function isListening() {
+						return this.__listening;
+					}),
+					
+					listen: doodad.OVERRIDE(function listen(/*optional*/options) {
+						options = types.nullObject(options);
+						if (!this.__listening) {
+							this.__listening = true;
+							this.onListen(new doodad.Event());
+						};
+					}),
+					
+					stopListening: doodad.OVERRIDE(function stopListening() {
+						if (this.__listening) {
+							this.__listening = false;
+							this.onStopListening(new doodad.Event());
+						};
+					}),
+
+					onWrite: doodad.OVERRIDE(function onWrite(ev) {
+						const retval = this._super(ev);
+						if (!ev.prevent) {
+							ev.preventDefault();
+
+							const data = ev.data;
+
+							const Modes = types.getType(this).$Modes;
+
+							const type = types.getType(this);
+							const encoding = this.options.encoding;
+							const decode = function decode(value) {
+								value = _shared.Natives.windowUnescape(value);
+								value = _shared.Natives.globalBuffer.from(value, 'binary');
+								value = type.$decode(value, encoding);
+								return value;
+							};
+
+							const url = this.__remaining + ((data.raw === io.EOF) ? '' : data.valueOf());
+							const delimiters = /\=|\&/g;
+							let last = 0,
+								result;
+							while (result = delimiters.exec(url)) {
+								const chr = result[0];
+								if ((this.__mode === Modes.Value) && (chr === '=')) {
+									continue;
+								};
+								let value = url.slice(last, result.index);
+								value = decode(value);
+								this.push({
+									mode: this.__mode, 
+									Modes: Modes, 
+									text: value, 
+									valueOf: function() {
+										return this.text;
+									}
+								}, {output: false});
+								if (this.__mode === Modes.Key) {
+									this.__mode = Modes.Value;
+								} else {
+									this.__mode = Modes.Key;
+								};
+								last = result.index + chr.length;
+							};
+
+							if (data.raw === io.EOF) {
+								let value = url.slice(last);
+								if (value) {
+									value = decode(value);
+									this.push({
+										mode: this.__mode, 
+										Modes: Modes, 
+										text: value, 
+										valueOf: function() {
+											return this.text;
+										}
+									}, {output: false});
+								};
+								this.push(data, {output: false});
+							} else {
+								this.__remaining = url.slice(last);
+							};
+						};
+						return retval;
+					}),
+
+					write: doodad.OVERRIDE(function write(chunk, options) {
+						this._super(chunk, options);
+					}),
+				}));
+			
+
+				nodejsHttp.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'UrlBodyHandler',
+					
+					/*
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						options = this._super(options);
+
+						return options;
+					}),
+					*/
+					
+					execute: doodad.OVERRIDE(function(request) {
+						const contentType = http.parseContentTypeHeader(request.getHeader('Content-Type'));
+						if (contentType && (contentType.name === 'application/x-www-form-urlencoded')) {
+							const encoding = contentType.params.charset || 'utf-8';
+
+							if (!nodejsHttp.UrlStream.$isValidEncoding(encoding)) {
+								return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+							};
+
+							request.setStreamOptions({
+								accept: 'application/x-www-form-urlencoded', 
+								//encoding: encoding,
+							});
+
+							const stream = new nodejsHttp.UrlStream({encoding: encoding});
+							request.addPipe(stream);
+						};
+					}),
+				}));
 
 			},
 		};
