@@ -524,7 +524,7 @@ module.exports = {
 					}),
 					
 					nodeJsStreamOnClose: doodad.NODE_EVENT(['close'], function nodeJsStreamOnClose(context) {
-						if (!this.ended) {
+						if (!this.ended) { // && !this.__ending
 							this.end(true);
 						};
 					}),
@@ -1294,7 +1294,9 @@ module.exports = {
 						const jsStream = new minifiers.Javascript();
 
 						request.onSanitize.attachOnce(this, function sanitize() {
-							jsStream.destroy(); // stops the stream in case of abort
+							if (!jsStream.isDestroyed()) {
+								jsStream.destroy(); // stops the stream in case of abort
+							};
 						});
 
 						tools.forEach(this.options.variables, function forEachVar(value, name) {
@@ -1691,6 +1693,7 @@ module.exports = {
 										stream.removeListener('error', errorCb);
 										var ddStream = (encoding ? new nodejsIO.TextOutputStream({nodeStream: stream, encoding: encoding}) : new nodejsIO.BinaryOutputStream({nodeStream: stream}));
 										request.onSanitize.attachOnce(null, function sanitize() {
+											//stream.close();
 											stream.destroy();
 											ddStream.destroy();
 											cached.abort();
@@ -1772,7 +1775,6 @@ module.exports = {
 														cached.validate();
 													}, this)
 													.catch(function(err) {
-														cacheStream.write(io.EOF);
 														cached.abort();
 														throw err;
 													}, this)
