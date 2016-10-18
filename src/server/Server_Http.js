@@ -2180,8 +2180,7 @@ module.exports = {
 				}));
 
 
-				// TODO: Test me
-		/*
+		/* TODO: Test me
 				http.REGISTER(doodad.Object.$extend(
 									httpMixIns.Handler,
 				{
@@ -2198,17 +2197,89 @@ module.exports = {
 					execute: doodad.OVERRIDE(function(request) {
 						const contentType = request.getHeader('Content-Type');
 						if ((contentType === 'application/xml') || (contentType === 'text/xml')) {
+							const encoding = contentType.params.charset || 'utf-8';
+
+							if (!ioXml.Stream.$isValidEncoding(encoding)) {
+								return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+							};
+
 							request.setStreamOptions({
 								accept: ['application/xml', 'text/xml'], 
-								encoding: 'utf-8',
+								//encoding: encoding,
 							});
 							
-							const stream = new ioXml.Stream();
+							const stream = new ioXml.Stream({encoding: encoding});
 							request.addPipe(stream);
 						};
 					}),
 				}));
 		*/
+
+				http.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'UrlBodyHandler',
+					
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						options = this._super(options);
+
+						let val;
+
+						val = options.maxStringLength;
+						if (!types.isNothing(val)) {
+							val = types.toInteger(val);
+						};
+						options.maxStringLength = val;
+
+						return options;
+					}),
+					
+					execute: doodad.OVERRIDE(function(request) {
+						const contentType = http.parseContentTypeHeader(request.getHeader('Content-Type'));
+						if (contentType && (contentType.name === 'application/x-www-form-urlencoded')) {
+							const encoding = contentType.params.charset || 'utf-8';
+
+							if (!io.UrlDecoderStream.$isValidEncoding(encoding)) {
+								return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+							};
+
+							request.setStreamOptions({
+								accept: 'application/x-www-form-urlencoded', 
+								//encoding: encoding,
+							});
+
+							const options = {encoding: encoding};
+							if (this.options.maxStringLength) {
+								options.maxStringLength = this.options.maxStringLength;
+							};
+							const stream = new io.UrlDecoderStream(options);
+							request.addPipe(stream);
+						};
+					}),
+				}));
+
+
+				http.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'Base64BodyHandler',
+					
+					//$prepare: doodad.OVERRIDE(function $prepare(options) {
+					//	options = this._super(options);
+					//
+					//	let val;
+					//
+					//	return options;
+					//}),
+					
+					execute: doodad.OVERRIDE(function(request) {
+						const contentEncoding = request.getHeader('Content-Transfer-Encoding');
+						if (contentEncoding === 'base64') {
+							const stream = new io.Base64DecoderStream();
+							request.addPipe(stream);
+						};
+					}),
+				}));
 
 
 				http.REGISTER(types.createErrorType("ProceedNewHandlers", types.ScriptInterruptedError, function _new(handlersOptions, /*optional*/message, /*optional*/params) {
