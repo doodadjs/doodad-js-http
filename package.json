@@ -11,9 +11,6 @@
     "http",
     "server"
   ],
-  "optionalDependencies": {
-    "jsonparse": "^1.2.0"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/doodadjs/doodad-js-http.git"
