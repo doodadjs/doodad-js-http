@@ -82,7 +82,6 @@ module.exports = {
 				types.complete(_shared.Natives, {
 					windowJSON: global.JSON,
 					
-					windowUnescape: global.unescape,
 					globalBuffer: global.Buffer,
 				});
 
