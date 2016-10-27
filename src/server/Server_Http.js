@@ -2529,7 +2529,7 @@ module.exports = {
 
 						const contentType = request.contentType;
 						if (!mpStream || (contentType.name === 'multipart/mixed')) {
-							mpStream = new io.FormMultipartDecoderStream({boundary: contentType.params.boundary, bufferSize: 20});
+							mpStream = new io.FormMultipartDecoderStream({boundary: contentType.params.boundary, autoFlush: false, bufferSize: 400});
 							request.addPipe(mpStream);
 
 							mpStream.onBOF.attach(this, this.__onBOF, 10, [request, mpStream])
