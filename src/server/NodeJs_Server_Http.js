@@ -93,14 +93,12 @@ module.exports = {
 				// 6) (todo) User/Password/Permissions
 
 
-				nodejsHttp.REGISTER(http.Response.$extend(
+				nodejsHttp.REGISTER(doodad.EXPANDABLE(http.Response.$extend(
 										mixIns.NodeEvents,
 				{
 					$TYPE_NAME: 'Response',
 
 					nodeJsStream: doodad.PROTECTED(null),
-
-					__ending: doodad.PROTECTED(false),
 
 					nodeJsStreamOnError: doodad.NODE_EVENT('error', function nodeJsStreamOnError(context, err) {
 						// When 'error' is raised ?
@@ -110,7 +108,7 @@ module.exports = {
 					
 					nodeJsStreamOnClose: doodad.NODE_EVENT(['close'], function nodeJsStreamOnClose(context) {
 						// Response stream has been closed
-						if (!this.ended) {  // && !this.__ending
+						if (!this.ended) {
 							this.end(true);
 						};
 					}),
@@ -131,18 +129,20 @@ module.exports = {
 					}),
 					
 					end: doodad.PUBLIC(doodad.ASYNC(function end(forceDisconnect) {
-						if (this.ended || this.__ending) {
+						const Promise = types.getPromise();
+
+						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
 
-						this.__ending = true;
-						
 						return Promise.try(function() {
 								if (forceDisconnect) {
 									if (this.stream) {
 										this.stream.destroy();
+										this.stream = null;
 									};
 									this.nodeJsStream.destroy();
+									_shared.setAttribute(this, 'ended', true);
 								} else {
 									if (!this.trailersSent) {
 										this.sendTrailers();
@@ -163,13 +163,12 @@ module.exports = {
 											this.nodeJsStream.end();
 										};
 									};
+									_shared.setAttribute(this, 'ended', true);
 									return promise;
 								};
 							}, this)
 							.then(function() {
 								if (!this.isDestroyed()) {
-									_shared.setAttribute(this, 'ended', true);
-
 									if (!this.request.ended) {
 										return this.request.end(forceDisconnect);
 									};
@@ -219,21 +218,15 @@ module.exports = {
 					}),
 					
 					__streamOnWrite: doodad.PROTECTED(function __streamOnWrite(ev) {
-						if (!ev.prevent) {
-							if (!this.ended && !this.headersSent) {
-								this.sendHeaders();
-							};
+						if (!this.ended && !this.headersSent) {
+							this.sendHeaders();
 						};
 					}),
 					
 					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
-						if (!ev.prevent) {
-							this.onError(ev);
-							if (!ev.prevent) {
-								if (!this.ended) {
-									this.request.end(true);
-								};
-							};
+						this.onError(ev);
+						if (!this.ended) {
+							this.request.end(true);
 						};
 					}),
 					
@@ -242,7 +235,8 @@ module.exports = {
 
 						if (this.ended) {
 							throw new server.EndOfRequest();
-						};							
+						};
+
 
 						options = types.nullObject(options);
 
@@ -262,8 +256,21 @@ module.exports = {
 							};
 						};
 
+						let ev = null;
+
 						if (this.stream) {
-							return this.stream;
+							ev = new doodad.Event({
+								stream: this.stream,
+								options: options,
+							});
+							this.onGetStream(ev);
+
+							if (ev.prevent) {
+								this.stream = null;
+							} else {
+								this.stream = ev.data.stream;
+								return ev.data.stream;
+							};
 						};
 
 						if (options.contentType) {
@@ -276,15 +283,17 @@ module.exports = {
 							throw new types.Error("'Content-Type' has not been set.");
 						};
 
-						let responseStream = new nodejsIO.BinaryOutputStream({nodeStream: this.nodeJsStream}); // , autoFlush: !options.postpone
-						responseStream.onWrite.attachOnce(this, this.__streamOnWrite, 10);
-						responseStream.onError.attachOnce(this, this.__streamOnError, 10);
+						if (!ev) {
+							const responseStream = new nodejsIO.BinaryOutputStream({nodeStream: this.nodeJsStream}); // , autoFlush: !options.postpone
+							responseStream.onWrite.attachOnce(this, this.__streamOnWrite, 10);
+							responseStream.onError.attachOnce(this, this.__streamOnError, 10);
 
-						const ev = new doodad.Event({
-							stream: responseStream,
-							options: options,
-						});
-						this.onCreateStream(ev);
+							ev = new doodad.Event({
+								stream: responseStream,
+								options: options,
+							});
+							this.onGetStream(ev);
+						};
 						
 						return Promise.resolve(ev.data.stream)
 							.then(function(responseStream) {
@@ -292,19 +301,17 @@ module.exports = {
 									throw new http.StreamAborted();
 								};
 
-								if (!ev.prevent) {
-									tools.forEach(this.__pipes, function(pipe) {
-										pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
-										if (!types._implements(pipe.stream, io.Stream) && types._implements(responseStream, io.Stream)) {
-											const iwritable = responseStream.getInterface(nodejsIOInterfaces.IWritable);
-											pipe.stream.pipe(iwritable, pipe.options.pipeOptions);
-										} else {
-											pipe.stream.pipe(responseStream, pipe.options.pipeOptions);
-										};
-										responseStream = pipe.stream;
-									});
-								};
-								this.__pipes = null;   // no more pipes allowed
+								tools.forEach(this.__pipes, function(pipe) {
+									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
+									if (!types._implements(pipe.stream, io.Stream) && types._implements(responseStream, io.Stream)) {
+										const iwritable = responseStream.getInterface(nodejsIOInterfaces.IWritable);
+										pipe.stream.pipe(iwritable, pipe.options.pipeOptions);
+									} else {
+										pipe.stream.pipe(responseStream, pipe.options.pipeOptions);
+									};
+									responseStream = pipe.stream;
+								});
+								this.__pipes = [];
 
 								const encoding = this.contentType.params.charset;
 								if (types._implements(responseStream, io.Stream)) {
@@ -359,7 +366,8 @@ module.exports = {
 					clear: doodad.OVERRIDE(function clear() {
 						if (this.ended) {
 							throw new server.EndOfRequest();
-						};							
+						};
+
 						if (this.nodeJsStream) {
 							if (!this.headersSent) {
 								this.clearHeaders();
@@ -375,6 +383,7 @@ module.exports = {
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
+
 
 						if (this.headersSent) {
 							throw new types.Error("Can't respond with a new status or new headers because the headers have already been sent to the client.");
@@ -399,7 +408,8 @@ module.exports = {
 						// NOTE: Must always throw an error.
 						if (this.ended) {
 							throw new server.EndOfRequest();
-						};							
+						};
+
 						if (ex.critical) {
 							throw ex;
 						} else if (ex.bubble) {
@@ -422,6 +432,10 @@ module.exports = {
 
 					sendFile: doodad.PUBLIC(doodad.ASYNC(function sendFile(path) {
 						const Promise = types.getPromise();
+
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};
 
 						if (!(path instanceof files.Path)) {
 							path = files.Path.parse(path);
@@ -477,16 +491,14 @@ module.exports = {
 								};
 							}, this);
 					})),
-				}));
+				})));
 
-				nodejsHttp.REGISTER(http.Request.$extend(
+				nodejsHttp.REGISTER(doodad.EXPANDABLE(http.Request.$extend(
 										mixIns.NodeEvents,
 				{
 					$TYPE_NAME: 'Request',
 					
 					nodeJsStream: doodad.PROTECTED(null),
-
-					//__ending: doodad.PROTECTED(false),
 
 					startTime: doodad.PROTECTED(null),
 
@@ -532,7 +544,7 @@ module.exports = {
 					}),
 					
 					nodeJsStreamOnClose: doodad.NODE_EVENT(['close'], function nodeJsStreamOnClose(context) {
-						if (!this.ended) { // && !this.__ending
+						if (!this.ended) {
 							this.end(true);
 						};
 					}),
@@ -610,12 +622,10 @@ module.exports = {
 						
 						const Promise = types.getPromise();
 
-						if (this.ended) { // || this.__ending) {
+						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
 
-						//this.__ending = true;
-						
 						function wait() {
 							if (!forceDisconnect && !this.isDestroyed()) {
 								const queue = this.__waitQueue;
@@ -676,13 +686,9 @@ module.exports = {
 					}),
 
 					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
-						if (!ev.prevent) {
-							this.onError(ev);
-							if (!ev.prevent) {
-								if (!this.ended) {
-									this.end(true);
-								};
-							};
+						this.onError(ev);
+						if (!this.ended) {
+							this.end(true);
 						};
 					}),
 					
@@ -695,21 +701,39 @@ module.exports = {
 
 						options = types.nullObject(this.__streamOptions, options);
 
+						let ev = null;
+
 						if (this.stream) {
-							return this.stream;
+							ev = new doodad.Event({
+								stream: this.stream,
+								options: options,
+							});
+							this.onGetStream(ev);
+		
+							if (ev.prevent) {
+								this.stream = null;
+							} else {
+								this.stream = ev.data.stream;
+								return ev.data.stream;
+							};
 						};
 
-						if ((this.__contentEncoding || 'identity').toLowerCase() !== (this.getHeader('Content-Encoding') || 'identity').toLowerCase()) { // case-insensitive
-							this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+						const acceptContentEncodings = this.__contentEncodings || ['identity'];
+						const contentEncoding = (this.getHeader('Content-Encoding') || 'identity').toLowerCase(); // case-insensitive
+						if (acceptContentEncodings.indexOf(contentEncoding) < 0) { 
+							return this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 						};
 
-						let requestStream = new nodejsIO.BinaryInputStream({nodeStream: this.nodeJsStream});
-						requestStream.onError.attachOnce(this, this.__streamOnError, 10);
+						if (!ev) {
+							const requestStream = new nodejsIO.BinaryInputStream({nodeStream: this.nodeJsStream});
+							requestStream.onError.attachOnce(this, this.__streamOnError, 10);
 
-						const ev = new doodad.Event({
-							stream: requestStream,
-						});
-						this.onCreateStream(ev);
+							ev = new doodad.Event({
+								stream: requestStream,
+								options: options,
+							});
+							this.onGetStream(ev);
+						};
 						
 						return Promise.resolve(ev.data.stream)
 							.then(function(requestStream) {
@@ -717,26 +741,27 @@ module.exports = {
 									throw new http.StreamAborted();
 								};
 
-								if (!ev.prevent) {
-									tools.forEach(this.__pipes, function forEachPipe(pipe) {
-										pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
-										if (!types._implements(requestStream, io.Stream) && types._implements(pipe.stream, io.Stream)) {
-											const iwritable = pipe.stream.getInterface(nodejsIOInterfaces.IWritable);
-											requestStream.pipe(iwritable, pipe.options.pipeOptions);
-										} else {
-											requestStream.pipe(pipe.stream, pipe.options.pipeOptions);
-										};
-										requestStream = pipe.stream;
-									});
-								};
-								this.__pipes = null;   // no more pipes allowed
+								tools.forEach(this.__pipes, function forEachPipe(pipe) {
+									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
+									if (!types._implements(requestStream, io.Stream) && types._implements(pipe.stream, io.Stream)) {
+										const iwritable = pipe.stream.getInterface(nodejsIOInterfaces.IWritable);
+										requestStream.pipe(iwritable, pipe.options.pipeOptions);
+									} else {
+										requestStream.pipe(pipe.stream, pipe.options.pipeOptions);
+									};
+									requestStream = pipe.stream;
+								});
+								this.__pipes = [];
 							
-								const accept = options.accept && http.parseAcceptHeader(options.accept);  // content-types expected by the page
-								if (!accept) {
+								let accept = options.accept;  // content-types expected by the page
+								if (types.isString(accept)) {
+									accept = [http.parseAcceptHeader(accept)];
+								};
+								if (!accept || !accept.length) {
 									return this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								};
 							
-								const requestType = http.parseContentTypeHeader(this.getHeader('Content-Type'));
+								const requestType = this.contentType;
 								if (!requestType) {
 									return this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								};
@@ -793,7 +818,7 @@ module.exports = {
 							address: this.nodeJsStream.socket.remoteAddress,
 						});
 					}),
-				}));
+				})));
 				
 				nodejsHttp.REGISTER(http.Server.$extend(
 								mixIns.NodeEvents,
@@ -1394,68 +1419,68 @@ module.exports = {
 
 					onWrite: doodad.OVERRIDE(function onWrite(ev) {
 						const retval = this._super(ev);
-						if (!ev.prevent) {
-							ev.preventDefault();
 
-							if (!this.__headersCompiled || !this.options.headersOnly) {
-								const data = ev.data;
-								if (this.__headersCompiled || (data.raw === io.EOF)) {
-									this.push(data, {output: false});
-								} else {
-									let buf = data.raw;
-									let remaining = this.__remaining;
-									if (remaining) {
-										this.__remaining = remaining = null;
-										buf = _shared.Natives.globalBuffer.concat([remaining, buf], remaining.length + buf.length);
-									};
-									let index,
-										lastIndex = 0;
-									while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { "\n"
-										if (index === lastIndex) {
-											this.__headersCompiled = true;
-											this.onHeaders(new doodad.Event());
-											if (this.options.headersOnly) {
-												this.push({raw: io.EOF, valueOf: function() {return this.raw}}, {output: false});
-												this.stopListening();
-											};
-											break;
+						ev.preventDefault();
+
+						if (!this.__headersCompiled || !this.options.headersOnly) {
+							const data = ev.data;
+							if (this.__headersCompiled || (data.raw === io.EOF)) {
+								this.push(data, {output: false});
+							} else {
+								let buf = data.raw;
+								let remaining = this.__remaining;
+								if (remaining) {
+									buf = _shared.Natives.globalBuffer.concat([remaining, buf], remaining.length + buf.length);
+									this.__remaining = remaining = null;
+								};
+								let index,
+									lastIndex = 0;
+								while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
+									if (index === lastIndex) {
+										this.__headersCompiled = true;
+										this.onHeaders(new doodad.Event());
+										if (this.options.headersOnly) {
+											this.push({raw: io.EOF, valueOf: function() {return this.raw}}, {output: false});
+											this.stopListening();
 										};
-										const str = buf.slice(lastIndex, index).toString('utf-8');
-										const header = tools.split(str, ':', 2);
-										const name = tools.trim(header[0] || '');
-										const value = tools.trim(header[1] || '');
-										if (name === 'X-Cache-Key') {
-											this.__key = value;
-										} else if (name === 'X-Cache-File') {
-											const val = tools.split(value, ' ', 2);
-											this.__verb = val[0] || '';
-											this.__file = val[1] || '';
-										} else if (name === 'X-Cache-Status') {
-											const val = tools.split(value, ' ', 2);
-											this.__status = parseInt(val[0]) || 200;
-											this.__message = val[1] || '';
-										} else if (name === 'X-Cache-Section') {
-											this.__section = value;
-										} else if (name.slice(0, 8) === 'X-Cache-') {
-											// Ignored
-										} else if (name) {
-											this.__headers[name] = value;
-										};
-										lastIndex = index + 1;
+										break;
 									};
-									if ((index >= 0) && (index < buf.length - 1)) {
-										remaining = buf.slice(index + 1);
+									const str = buf.slice(lastIndex, index).toString('utf-8');
+									const header = tools.split(str, ':', 2);
+									const name = tools.trim(header[0] || '');
+									const value = tools.trim(header[1] || '');
+									if (name === 'X-Cache-Key') {
+										this.__key = value;
+									} else if (name === 'X-Cache-File') {
+										const val = tools.split(value, ' ', 2);
+										this.__verb = val[0] || '';
+										this.__file = val[1] || '';
+									} else if (name === 'X-Cache-Status') {
+										const val = tools.split(value, ' ', 2);
+										this.__status = parseInt(val[0]) || 200;
+										this.__message = val[1] || '';
+									} else if (name === 'X-Cache-Section') {
+										this.__section = value;
+									} else if (name.slice(0, 8) === 'X-Cache-') {
+										// Ignored
+									} else if (name) {
+										this.__headers[name] = value;
 									};
-									if (remaining && !this.options.headersOnly) {
-										if (this.__headersCompiled) {
-											this.push({raw: remaining, valueOf: function() {return this.raw}}, {output: false});
-										} else {
-											this.__remaining = remaining;
-										};
+									lastIndex = index + 1;
+								};
+								if ((index >= 0) && (index < buf.length - 1)) {
+									remaining = buf.slice(index + 1);
+								};
+								if (remaining && !this.options.headersOnly) {
+									if (this.__headersCompiled) {
+										this.push({raw: remaining, valueOf: function() {return this.raw}}, {output: false});
+									} else {
+										this.__remaining = remaining;
 									};
 								};
 							};
 						};
+
 						return retval;
 					}),
 				}));
@@ -1745,7 +1770,7 @@ module.exports = {
 									if (cached.expiration) {
 										headers += 'X-Cache-Expiration: ' + http.toRFC1123Date(cached.expiration) + '\n'; // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
 									};
-									stream.write(headers + '\n', 'utf-8');
+									stream.write(headers + '\n', {encoding: 'utf-8'}); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
 									return stream;
 								};
 							}, null, this)
@@ -1755,7 +1780,7 @@ module.exports = {
 							}, this);
 					})),
 
-					__onCreateStream: doodad.PROTECTED(function(ev) {
+					__onGetStream: doodad.PROTECTED(function(ev) {
 						const request = ev.handlerData[0];
 						const cached = this.getCached(request);
 						if (cached) {
@@ -1796,7 +1821,7 @@ module.exports = {
 					}),
 
 					execute: doodad.OVERRIDE(function execute(request) {
-						request.response.onCreateStream.attachOnce(this, this.__onCreateStream, null, [request]);
+						request.response.onGetStream.attachOnce(this, this.__onGetStream, null, [request]);
 					}),
 				}));
 				
@@ -1837,11 +1862,14 @@ module.exports = {
 						return options;
 					}),
 					
-					execute: doodad.OVERRIDE(function(request) {
+					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
+						const request = ev.handlerData[0];
 						const encoding = (request.getHeader('Content-Encoding') || 'identity').toLowerCase(); // case insensitive
 
 						if (tools.indexOf(this.options.encodings, encoding) < 0) {
-							return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+							////////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+							ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+							return;
 						};
 
 						const optionsPerEncoding = this.options.optionsPerEncoding;
@@ -1857,14 +1885,20 @@ module.exports = {
 								stream = nodeZlib.createInflate(optionsPerEncoding.deflate);
 								break;
 							default:
-								return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								///////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								return;
 						};
-
-						request.acceptEncoding(encoding);
 
 						if (stream) {
 							request.addPipe(stream);
 						};
+					}),
+
+					execute: doodad.OVERRIDE(function(request) {
+						request.acceptContentEncodings(this.options.encodings);
+
+						request.onGetStream.attach(this, this.__onGetStream, null, [request]);
 					}),
 				}));
 
@@ -1928,7 +1962,7 @@ module.exports = {
 						return options;
 					}),
 					
-					__onCreateStream: doodad.PROTECTED(function __onCreateStream(ev) {
+					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 						const request = ev.handlerData[0];
 
 						const encoding = request.getHandlerState(this).contentEncoding;
@@ -1998,7 +2032,7 @@ module.exports = {
 							if (ok) {
 								request.getHandlerState(this).contentEncoding = encoding;
 
-								request.response.onCreateStream.attachOnce(this, this.__onCreateStream, null, [request]);
+								request.response.onGetStream.attachOnce(this, this.__onGetStream, null, [request]);
 							};
 						};
 					}),
