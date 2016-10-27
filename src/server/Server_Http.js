@@ -2520,8 +2520,9 @@ module.exports = {
 					}),
 
 					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
-						const request = ev.handlerData[0],
-							mpStream = ev.handlerData[1];
+						const request = ev.handlerData[0];
+						
+						let mpStream = ev.handlerData[1];
 
 						// Prevents the request from returning "this.stream"
 						ev.preventDefault();
@@ -2532,8 +2533,6 @@ module.exports = {
 							request.addPipe(mpStream);
 
 							mpStream.onBOF.attach(this, this.__onBOF, 10, [request, mpStream])
-						} else if (contentType.name === 'multipart/form-data') {
-							ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 						} else {
 							ev.data.stream = mpStream;
 							mpStream.unpipe();
