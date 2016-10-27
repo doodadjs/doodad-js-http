@@ -55,6 +55,7 @@ module.exports = {
 					ioJson = io.Json,
 					ioXml = io.Xml,
 					moment = dates.Moment, // optional
+					unicode = tools.Unicode,
 					
 					Promise = types.getPromise();
 					
@@ -117,7 +118,8 @@ module.exports = {
 		*/
 				
 				__Internal__.isObsText = function isObsText(chrAscii) {
-					return ((chrAscii >= 0x80) && (chrAscii <= 0xFF));
+					//return ((chrAscii >= 0x80) && (chrAscii <= 0xFF));
+					return (chrAscii >= 0x80);
 				};
 				
 				__Internal__.getNextTokenOrString = function getNextTokenOrString(value, /*byref*/pos, /*optional*/token, /*optional byref*/delimiters) {
@@ -131,9 +133,10 @@ module.exports = {
 						// No delimiter encountered
 						delimiters[0] = null;
 					};
-					while (i < value.length) {
-						const chr = value[i],
-							chrAscii = chr.charCodeAt(0);
+					let chr = unicode.nextChar(value, i);
+					while (chr) {
+						const prevI = i,
+							chrAscii = chr.codePoint;
 						if (quoted) {
 							// QUOTED STRING
 							if (chrAscii === 0x5C) {  // '\\'
@@ -145,7 +148,7 @@ module.exports = {
 									((chrAscii >= 0x20) && (chrAscii <= 0x7E)) ||  // US ASCII Visible Chars
 									__Internal__.isObsText(chrAscii)
 								) {
-									str += chr;
+									str += chr.chr;
 								} else {
 									// Invalid string
 									str = null;
@@ -161,7 +164,7 @@ module.exports = {
 								((chrAscii >= 0x5D) && (chrAscii <= 0x7E)) ||
 								__Internal__.isObsText(chrAscii)
 							) {
-								str += chr;
+								str += chr.chr;
 							} else {
 								// Invalid string
 								str = null;
@@ -183,18 +186,18 @@ module.exports = {
 									quoted = true;
 								};
 							} else if ((chrAscii >= 0x20) && (chrAscii <= 0x7E)) {  // US ASCII Visible Chars, excepted delimiters
-								if (delims && (delims.indexOf(chr) >= 0)) {
+								if (delims && (delims.indexOf(chr.chr) >= 0)) {
 									// Delimiter encountered. End of token.
 									if (delimiters) {
-										delimiters[0] = chr;
+										delimiters[0] = chr.chr;
 									};
-									i++;
+									i = chr.index + chr.size;
 									break;
 								} else if (endOfToken) {
-									i--;
+									i = prevI;
 									break;
 								} else {
-									str += chr;
+									str += chr.chr;
 								};
 							} else {
 								// Invalid token
@@ -202,7 +205,8 @@ module.exports = {
 								break;
 							};
 						};
-						i++;
+						i = chr.index + chr.size;
+						chr = chr.nextChar();
 					};
 					if (quoted) {
 						// Unterminated quoted string
@@ -488,6 +492,62 @@ module.exports = {
 					}));
 				};
 
+				http.parseContentDispositionHeader = function parseContentDispositionHeader(contentDisposition) {
+					if (!contentDisposition) {
+						return null;
+					};
+					
+					const pos = [];
+					let delimiters = [];
+					
+					pos[0] = 0; // byref
+					delimiters = [';=']; // byref
+					let media = __Internal__.getNextTokenOrString(contentDisposition, pos, true, delimiters);
+					if (media === null) {
+						return null;
+					};
+					
+					const params = types.nullObject();
+
+					if (delimiters[0] === ';') {
+						media = media.toLowerCase();  // content-dispositions are case-insensitive
+					} else {
+						delimiters = [';']; // byref
+						let value = __Internal__.getNextTokenOrString(contentDisposition, pos, false, delimiters);
+							
+						params[media] = value || '';
+						media = '';
+					};
+					
+					while (pos[0] < contentDisposition.length) {
+						delimiters = ['=']; // byref
+						let name = __Internal__.getNextTokenOrString(contentDisposition, pos, true, delimiters);
+						if (!name) {
+							// Invalid token
+							return null;
+						};
+						name = name.toLowerCase();   // param names are case-insensitive
+							
+						delimiters = [';']; // byref
+						let value = __Internal__.getNextTokenOrString(contentDisposition, pos, false, delimiters);
+							
+						params[name] = value || '';
+					};
+					
+					return types.freezeObject(types.nullObject({
+						name: media,
+						params: types.freezeObject(params),
+						toString: function toString() {
+							return this.name + tools.reduce(this.params, function(result, value, key) {
+								if (!types.isNothing(value)) {
+									result += "; " + types.toString(key) + "=" + types.toString(value);
+								};
+								return result;
+							}, "");
+						},
+					}));
+				};
+
 				http.compareMimeTypes = function compareMimeTypes(mimeType1, mimeType2) {
 					if (mimeType1.name === mimeType2.name) {
 						return 40;
@@ -558,14 +618,159 @@ module.exports = {
 				};
 
 				
-				http.REGISTER(doodad.BASE(doodad.Object.$extend(
+				http.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
 									mixIns.Events,
+				{
+					$TYPE_NAME: 'Headers',
+
+					headers: doodad.PROTECTED(null),
+					contentType: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					contentDisposition: doodad.PUBLIC(doodad.READ_ONLY(null)),
+
+					onHeadersChanged: doodad.EVENT(false),
+
+					getHeader: doodad.PUBLIC(function getHeader(name) {
+						var fixed = tools.title(name, '-');
+						return this.headers[fixed];
+					}),
+					
+					getHeaders: doodad.PUBLIC(function getHeaders(/*optional*/names) {
+						if (names) {
+							if (!types.isArray(names)) {
+								names = [names];
+							};
+							const headers = {};
+							tools.forEach(names, function(name) {
+								const fixed = tools.title(name, '-');
+								headers[name] = this.headers[fixed];
+								if (name !== fixed) {
+									headers[fixed] = this.headers[fixed];
+								};
+							});
+							return headers;
+						} else {
+							return types.extend({}, this.headers);
+						};
+					}),
+					
+					addHeader: doodad.PUBLIC(function addHeader(name, value) {
+						const responseHeaders = this.headers;
+						const fixed = tools.title(tools.trim(name), '-');
+						value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
+						if (fixed === 'Content-Type') {
+							this.setContentType(value);
+						} else if (fixed === 'Content-Disposition') {
+							this.setContentDisposition(value);
+						} else {
+							if (value) {
+								responseHeaders[fixed] = value;
+							} else {
+								delete responseHeaders[fixed];
+							};
+							this.onHeadersChanged(new doodad.Event({headers: [fixed]}));
+						};
+					}),
+					
+					addHeaders: doodad.PUBLIC(function addHeaders(headers) {
+						const responseHeaders = this.headers;
+						const changed = types.nullObject();
+						tools.forEach(headers, function(value, name) {
+							const fixed = tools.title(tools.trim(name), '-');
+							value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
+							if (fixed === 'Content-Type') {
+								this.setContentType(value);
+							} else if (fixed === 'Content-Disposition') {
+								this.setContentDisposition(value);
+							} else {
+								if (value) {
+									responseHeaders[fixed] = value;
+								} else {
+									delete responseHeaders[fixed];
+								};
+								changed[fixed] = null;
+							};
+						}, this);
+						const changedKeys = types.keys(changed);
+						if (changedKeys.length) {
+							this.onHeadersChanged(new doodad.Event({headers: changedKeys}));
+						};
+					}),
+
+					clearHeaders: doodad.PUBLIC(function clearHeaders(/*optional*/names) {
+						let changedHeaders;
+						if (names) {
+							if (!types.isArray(names)) {
+								names = [names];
+							};
+							changedHeaders = [];
+							for (let i = 0; i < names.length; i++) {
+								let fixed = tools.title(tools.trim(names[i]), '-');
+								if (fixed in this.headers) {
+									changedHeaders.push(fixed);
+									if (fixed === 'Content-Type') {
+										_shared.setAttribute(this, 'contentType', null);
+									} else if (fixed === 'Content-Disposition') {
+										_shared.setAttribute(this, 'contentDisposition', null);
+									};
+									delete this.headers[fixed];
+								};
+							};
+						} else {
+							changedHeaders = types.keys(this.headers);
+							_shared.setAttributes(this, {
+								headers: types.nullObject(),
+								contentType: null,
+							});
+						};
+						if (changedHeaders.length) {
+							this.onHeadersChanged(new doodad.Event({headers: changedHeaders}));
+						};
+					}),
+
+					setContentType: doodad.PUBLIC(function setContentType(contentType, /*optional*/options) {
+						options = types.nullObject(options);
+
+						if (types.isString(contentType)) {
+							contentType = http.parseContentTypeHeader(contentType);
+						};
+
+						const encoding = options.encoding;
+						if (encoding) {
+							contentType = contentType.set({params: {charset: encoding}});
+						};
+
+						_shared.setAttribute(this, 'contentType', contentType);
+
+						this.headers['Content-Type'] = contentType.toString();
+						this.onHeadersChanged(new doodad.Event({headers: ['Content-Type']}));
+
+						return this.contentType;
+					}),
+
+					setContentDisposition: doodad.PUBLIC(function setContentDisposition(contentDisposition) {
+						if (types.isString(contentDisposition)) {
+							contentDisposition = http.parseContentDispositionHeader(contentDisposition);
+						};
+
+						_shared.setAttribute(this, 'contentDisposition', contentDisposition);
+
+						this.headers['Content-Disposition'] = (contentDisposition && contentDisposition.toString() || "");
+						this.onHeadersChanged(new doodad.Event({headers: ['Content-Disposition']}));
+
+						return this.contentDisposition;
+					}),
+
+				})));
+
+					
+				http.REGISTER(doodad.BASE(doodad.Object.$extend(
+									http.Headers,
+									//mixIns.Events,
 		//									serverMixIns.Response,
 				{
 					$TYPE_NAME: 'Response',
 					
-					onHeadersChanged: doodad.EVENT(false),
-					onCreateStream: doodad.EVENT(false),
+					onGetStream: doodad.EVENT(false),
 					onError: doodad.EVENT(false),
 					onStatus: doodad.EVENT(false),
 					onSendHeaders: doodad.EVENT(false),
@@ -575,9 +780,7 @@ module.exports = {
 					status: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					message: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					statusData: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					contentType: doodad.PUBLIC(doodad.READ_ONLY(null)),
 
-					headers: doodad.PROTECTED(null),
 					trailers: doodad.PROTECTED(null),
 					headersSent: doodad.PUBLIC(doodad.READ_ONLY(false)),
 					trailersSent: doodad.PUBLIC(doodad.READ_ONLY(false)),
@@ -615,116 +818,58 @@ module.exports = {
 					}),
 
 					destroy: doodad.OVERRIDE(function destroy() {
-						if (!this.ended && !this.__ending) {
+						if (!this.ended) {
 							this.end(true);
 						};
 
 						this._super();
 					}),
 
-					setContentType: doodad.PUBLIC(function setContentType(mimeTypes, /*optional*/options) {
-						options = types.nullObject(options);
-
+					setContentType: doodad.OVERRIDE(function setContentType(contentType, /*optional*/options) {
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};							
 						if (this.headersSent) {
 							throw new types.Error("Can't add new headers because headers have been sent to the client.");
 						};
-
-						let contentType = this.request.getAcceptables(mimeTypes, options)[0];
+						contentType = this.request.getAcceptables(contentType, options)[0];
 						if (!contentType) {
 							throw new types.HttpError(types.HttpStatus.NotAcceptable);
 						};
 
-						const encoding = options.encoding;
-						if (encoding) {
-							contentType = contentType.set({params: {charset: encoding}});
-						};
-
-						_shared.setAttribute(this, 'contentType', contentType);
-
-						this.headers['Content-Type'] = contentType.toString();
-						this.onHeadersChanged(new doodad.Event({headers: ['Content-Type']}));
-
-						return this.contentType;
+						return this._super(contentType, options);
 					}),
 
-					getHeader: doodad.PUBLIC(function getHeader(name) {
-						var fixed = tools.title(name, '-');
-						return this.headers[fixed];
-					}),
-					
-					getHeaders: doodad.PUBLIC(function getHeaders(/*optional*/names) {
-						if (names) {
-							if (!types.isArray(names)) {
-								names = [names];
-							};
-							const headers = {};
-							tools.forEach(names, function(name) {
-								const fixed = tools.title(name, '-');
-								headers[name] = this.headers[fixed];
-								if (name !== fixed) {
-									headers[fixed] = this.headers[fixed];
-								};
-							});
-							return headers;
-						} else {
-							return types.extend({}, this.headers);
-						};
-					}),
-					
-					addHeader: doodad.PUBLIC(function addHeader(name, value) {
+					addHeader: doodad.OVERRIDE(function addHeader(name, value) {
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};							
 						if (this.headersSent) {
 							throw new types.Error("Can't add new headers because headers have been sent to the client.");
 						};
-						const responseHeaders = this.headers;
-						const fixed = tools.title(tools.trim(name), '-');
-						value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
-						if (fixed === 'Content-Type') {
-							this.setContentType(value);
-						} else {
-							if (value) {
-								responseHeaders[fixed] = value;
-							} else {
-								delete responseHeaders[fixed];
-							};
-							this.onHeadersChanged(new doodad.Event({headers: [fixed]}));
-						};
+						this._super(name, value);
 					}),
 					
-					addHeaders: doodad.PUBLIC(function addHeaders(headers) {
+					addHeaders: doodad.OVERRIDE(function addHeaders(headers) {
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};							
 						if (this.headersSent) {
 							throw new types.Error("Can't add new headers because headers have been sent to the client.");
 						};
-						const responseHeaders = this.headers;
-						const changed = types.nullObject();
-						tools.forEach(headers, function(value, name) {
-							const fixed = tools.title(tools.trim(name), '-');
-							value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
-							if (fixed === 'Content-Type') {
-								this.setContentType(value);
-							} else {
-								if (value) {
-									responseHeaders[fixed] = value;
-								} else {
-									delete responseHeaders[fixed];
-								};
-								changed[fixed] = null;
-							};
-						}, this);
-						const changedKeys = types.keys(changed);
-						if (changedKeys.length) {
-							this.onHeadersChanged(new doodad.Event({headers: changedKeys}));
-						};
+						this._super(headers);
 					}),
-					
+
+					clearHeaders: doodad.OVERRIDE(function clearHeaders(/*optional*/names) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};							
+						if (this.headersSent) {
+							throw new types.Error("Can't clear headers because they have been sent to the client.");
+						};
+						this._super(names);
+					}),
+
 					addTrailer: doodad.PUBLIC(function addTrailer(name, value) {
 						if (this.ended) {
 							throw new server.EndOfRequest();
@@ -768,46 +913,25 @@ module.exports = {
 						};
 					}),
 
-					clearHeaders: doodad.PUBLIC(function clearHeaders(/*optional*/names) {
-						if (this.ended) {
-							throw new server.EndOfRequest();
-						};							
-						if (this.headersSent) {
-							throw new types.Error("Can't clear headers because they have been sent to the client.");
-						};
-						let changedHeaders;
+					clearTrailers: doodad.PUBLIC(function clearTrailers(/*optional*/names) {
 						let changedTrailers;
 						if (names) {
 							if (!types.isArray(names)) {
 								names = [names];
 							};
-							changedHeaders = [];
 							changedTrailers = [];
 							for (let i = 0; i < names.length; i++) {
 								let fixed = tools.title(tools.trim(names[i]), '-');
-								if (fixed in this.headers) {
-									changedHeaders.push(fixed);
-									if (fixed === 'Content-Type') {
-										_shared.setAttribute(this, 'contentType', null);
-									};
-									delete this.headers[fixed];
-								};
 								if (fixed in this.trailers) {
 									changedTrailers.push(fixed);
 									delete this.trailers[fixed];
 								};
 							};
 						} else {
-							changedHeaders = types.keys(this.headers);
 							changedTrailers = types.keys(this.tailers);
 							_shared.setAttributes(this, {
-								headers: types.nullObject(),
 								trailers: types.nullObject(),
-								contentType: null,
 							});
-						};
-						if (changedHeaders.length) {
-							this.onHeadersChanged(new doodad.Event({headers: changedHeaders}));
 						};
 						if (changedTrailers.length) {
 							this.onHeadersChanged(new doodad.Event({headers: changedTrailers, areTrailers: true}));
@@ -834,9 +958,6 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};							
 
-						if (this.stream || !this.__pipes) {
-							throw new types.NotAvailable();
-						};
 						// TODO: Assert on "stream"
 						// NOTE: Pipes are made at "getStream".
 						options = types.nullObject(options);
@@ -846,6 +967,14 @@ module.exports = {
 						} else {
 							this.__pipes.push(pipe);
 						};
+					}),
+					
+					clearPipes: doodad.PUBLIC(function clearPipes() {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};
+
+						this.__pipes = [];
 					}),
 					
 					hasStream: doodad.PUBLIC(function hasStream() {
@@ -867,20 +996,21 @@ module.exports = {
 				})));
 					
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
+									http.Headers,
 									serverMixIns.Request,
 				{
 					$TYPE_NAME: 'Request',
 					
-					onCreateStream: doodad.EVENT(false),
+					onGetStream: doodad.EVENT(false),
 					
 					ended: doodad.PUBLIC(doodad.READ_ONLY(false)),
 					response: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					verb: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					url: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					headers: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					data: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					clientCrashed: doodad.PUBLIC(doodad.READ_ONLY(false)),
 					clientCrashRecovery: doodad.PUBLIC(doodad.READ_ONLY(false)),
+					contentType: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					
 					createResponse: doodad.PROTECTED(doodad.MUST_OVERRIDE()), // function createResponse(/*paramarray*/)
 
@@ -901,7 +1031,7 @@ module.exports = {
 					__handlersStates: doodad.PROTECTED(null),
 					currentHandler: doodad.PUBLIC(doodad.READ_ONLY(null)),
 
-					__contentEncoding: doodad.PROTECTED(null),
+					__contentEncodings: doodad.PROTECTED(null),
 
 					$__actives: doodad.PROTECTED(doodad.TYPE(0)),
 					
@@ -943,11 +1073,13 @@ module.exports = {
 							this.clearEvents(handlers);
 						};
 						if (!this.ended) {
-							this.__pipes = [];
-							this.__streamOptions = types.nullObject();
-							this.__waitQueue = [];
-							this.__handlersStates = new types.Map();
-							this.stream = null;
+							_shared.setAttributes(this, {
+								__pipes: [],
+								__streamOptions: types.nullObject(),
+								__waitQueue: [],
+								__handlersStates: new types.Map(),
+								stream: null,
+							});
 						};
 					}),
 
@@ -974,14 +1106,18 @@ module.exports = {
 
 						this._super();
 						
-						const fixedHeaders = types.nullObject();
-						tools.forEach(headers, function(value, name) {
-							const fixed = tools.title(name, '-');
-							fixedHeaders[fixed] = value;
+						_shared.setAttributes(this, {
+							server: server,
+							verb: verb.toUpperCase(),
+							headers: {},
+							data: types.nullObject(),
+							id: tools.generateUUID(),
 						});
-						
+
+						this.addHeaders(headers);
+
 						// TODO: Validate Host header with a server setting (can allow multiple host names)
-						let host = fixedHeaders['Host'];
+						let host = this.getHeader('Host');
 						if (host) {
 							host = files.Url.parse(server.protocol + '://' + host + '/');
 						};
@@ -1004,18 +1140,12 @@ module.exports = {
 						this.reset();
 
 						_shared.setAttributes(this, {
-							response: this.createResponse.apply(this, responseArgs || []),
-							server: server,
-							verb: verb.toUpperCase(),
 							url: url,
-							headers: fixedHeaders,
-							data: types.nullObject(),
 							clientCrashed: clientCrashed,
 							clientCrashRecovery: (clientCrashRecovery && !clientCrashed),
-							id: tools.generateUUID(),
+							__parsedAccept: http.parseAcceptHeader(this.getHeader('Accept') || '*/*'),
+							response: this.createResponse.apply(this, responseArgs || []),
 						});
-
-						this.__parsedAccept = http.parseAcceptHeader(this.getHeader('Accept') || '*/*');
 					}),
 
 					destroy: doodad.OVERRIDE(function destroy() {
@@ -1106,26 +1236,6 @@ module.exports = {
 						}, this);
 					}),
 
-					getHeader: doodad.PUBLIC(function getHeader(name) {
-						var fixed = tools.title(name, '-');
-						return this.headers[fixed];
-					}),
-					
-					getHeaders: doodad.PUBLIC(function getHeaders(names) {
-						if (!types.isArray(names)) {
-							names = [names];
-						};
-						const headers = {};
-						tools.forEach(names, function(name) {
-							const fixed = tools.title(name, '-');
-							headers[name] = this.headers[fixed];
-							if (name !== fixed) {
-								headers[fixed] = this.headers[fixed];
-							};
-						});
-						return headers;
-					}),
-					
 					getAcceptables: doodad.PUBLIC(function getAcceptables(/*optional*/contentTypes, /*optional*/options) {
 						options = types.nullObject(options);
 
@@ -1259,9 +1369,10 @@ module.exports = {
 					})),
 
 					addPipe: doodad.PUBLIC(function addPipe(stream, /*optional*/options) {
-						if (this.stream || !this.__pipes) {
-							throw new types.NotAvailable();
+						if (this.ended) {
+							throw new server.EndOfRequest();
 						};
+
 						// TODO: Assert on "stream"
 						// NOTE: Don't immediatly do pipes to not start the transfer. Pipes and transfer are made at "getStream".
 						options = types.nullObject(options);
@@ -1273,8 +1384,30 @@ module.exports = {
 						};
 					}),
 					
+					clearPipes: doodad.PUBLIC(function clearPipes() {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};
+
+						this.__pipes = [];
+					}),
+					
 					setStreamOptions: doodad.PUBLIC(function setStreamOptions(options) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};
+
+						const accept = types.get(this.__streamOptions, 'accept') || [];
+
 						types.extend(this.__streamOptions, options);
+
+						if (types.get(options, 'accept')) {
+							let newAccept = options.accept;
+							if (!types.isArray(newAccept)) {
+								newAccept = [newAccept];
+							};
+							this.__streamOptions.accept = types.append(accept, newAccept.map(value => types.isString(value) ? http.parseAcceptHeader(value)[0] : value));
+						};
 					}),
 
 					hasStream: doodad.PUBLIC(function hasStream() {
@@ -1414,9 +1547,17 @@ module.exports = {
 						this.__waitQueue.push(promise);
 					}),
 
-					acceptEncoding: doodad.PUBLIC(function acceptEncoding(encoding) {
+					acceptContentEncodings: doodad.PUBLIC(function acceptContentEncodings(encodings) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};
+
+						if (!types.isArray(encodings)) {
+							encodings = [encodings];
+						};
+
 						// To validate later on getStream
-						this.__contentEncoding = encoding;
+						this.__contentEncodings = types.append([], this.__contentEncodings, encodings.map(encoding => encoding.toLowerCase())); // case-insensitive
 					}),
 				})));
 				
@@ -2159,23 +2300,29 @@ module.exports = {
 					}),
 					*/
 					
-					execute: doodad.OVERRIDE(function(request) {
-						const contentType = http.parseContentTypeHeader(request.getHeader('Content-Type'));
+					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
+						const request = ev.handlerData[0];
+						const contentType = request.contentType;
 						if (contentType && (contentType.name === 'application/json')) {
 							const encoding = contentType.params.charset || 'utf-8';
 
 							if (!ioJson.Stream.$isValidEncoding(encoding)) {
-								return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								///////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								return;
 							};
-
-							request.setStreamOptions({
-								accept: 'application/json', 
-								//encoding: encoding,
-							});
 
 							const stream = new ioJson.Stream({encoding: encoding});
 							request.addPipe(stream);
 						};
+					}),
+
+					execute: doodad.OVERRIDE(function(request) {
+						request.setStreamOptions({
+							accept: 'application/json', 
+						});
+
+						request.onGetStream.attach(this, this.__onGetStream, null, [request]);
 					}),
 				}));
 
@@ -2194,23 +2341,29 @@ module.exports = {
 					}),
 					* /
 					
-					execute: doodad.OVERRIDE(function(request) {
-						const contentType = request.getHeader('Content-Type');
-						if ((contentType === 'application/xml') || (contentType === 'text/xml')) {
+					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
+						const request = ev.handlerData[0];
+						const contentType = request.contentType;
+						if ((contentType.name === 'application/xml') || (contentType.name === 'text/xml')) {
 							const encoding = contentType.params.charset || 'utf-8';
 
 							if (!ioXml.Stream.$isValidEncoding(encoding)) {
-								return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								//////////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								return;
 							};
 
-							request.setStreamOptions({
-								accept: ['application/xml', 'text/xml'], 
-								//encoding: encoding,
-							});
-							
 							const stream = new ioXml.Stream({encoding: encoding});
 							request.addPipe(stream);
 						};
+					}),
+
+					execute: doodad.OVERRIDE(function(request) {
+						request.setStreamOptions({
+							accept: ['application/xml', 'text/xml'], 
+						});
+
+						request.onGetStream.attach(this, this.__onGetStream, null, [request]);
 					}),
 				}));
 		*/
@@ -2234,19 +2387,17 @@ module.exports = {
 						return options;
 					}),
 					
-					execute: doodad.OVERRIDE(function(request) {
-						const contentType = http.parseContentTypeHeader(request.getHeader('Content-Type'));
+					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
+						const request = ev.handlerData[0];
+						const contentType = request.contentType;
 						if (contentType && (contentType.name === 'application/x-www-form-urlencoded')) {
 							const encoding = contentType.params.charset || 'utf-8';
 
 							if (!io.UrlDecoderStream.$isValidEncoding(encoding)) {
-								return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								return;
 							};
-
-							request.setStreamOptions({
-								accept: 'application/x-www-form-urlencoded', 
-								//encoding: encoding,
-							});
 
 							const options = {encoding: encoding};
 							if (this.options.maxStringLength) {
@@ -2255,6 +2406,14 @@ module.exports = {
 							const stream = new io.UrlDecoderStream(options);
 							request.addPipe(stream);
 						};
+					}),
+
+					execute: doodad.OVERRIDE(function(request) {
+						request.setStreamOptions({
+							accept: 'application/x-www-form-urlencoded', 
+						});
+
+						request.onGetStream.attach(this, this.__onGetStream, null, [request]);
 					}),
 				}));
 
@@ -2272,11 +2431,128 @@ module.exports = {
 					//	return options;
 					//}),
 					
-					execute: doodad.OVERRIDE(function(request) {
+					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
+						const request = ev.handlerData[0];
 						const contentEncoding = request.getHeader('Content-Transfer-Encoding');
 						if (contentEncoding === 'base64') {
 							const stream = new io.Base64DecoderStream();
 							request.addPipe(stream);
+						};
+					}),
+
+					execute: doodad.OVERRIDE(function(request) {
+						request.onGetStream.attach(this, this.__onGetStream, null, [request]);
+					}),
+				}));
+
+
+				http.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'TextBodyHandler',
+					
+					//$prepare: doodad.OVERRIDE(function $prepare(options) {
+					//	options = this._super(options);
+					//
+					//	let val;
+					//
+					//	return options;
+					//}),
+					
+					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
+						const request = ev.handlerData[0];
+						const contentType = request.contentType;
+						if (contentType && (contentType.name === 'text/plain')) {
+							const encoding = contentType.params.charset || 'utf-8';
+
+							if (!io.TextDecoderStream.$isValidEncoding(encoding)) {
+								////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+								return;
+							};
+
+							const stream = new io.TextDecoderStream({encoding: encoding});
+							request.addPipe(stream);
+						};
+					}),
+
+					execute: doodad.OVERRIDE(function(request) {
+						request.setStreamOptions({
+							accept: 'text/plain', 
+						});
+
+						request.onGetStream.attach(this, this.__onGetStream, null, [request]);
+					}),
+				}));
+
+
+				http.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'FormMultipartBodyHandler',
+					
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						options = this._super(options);
+					
+						//let val;
+					
+						options.state = {
+							attached: false,
+						};
+
+						return options;
+					}),
+				
+					__onBOF: doodad.PROTECTED(function __onBOF(ev) {
+						const request = ev.handlerData[0],
+							mpStream = ev.handlerData[1];
+
+						request.clearHeaders();
+
+						if (!ev.data.end) {
+							request.addHeaders(ev.data.headers);
+
+							const contentType = request.contentType;
+							if (!contentType) {
+								request.addHeader('Content-Type', 'text/plain');
+							};
+						};
+					}),
+
+					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
+						const request = ev.handlerData[0],
+							mpStream = ev.handlerData[1];
+
+						// Prevents the request from returning "this.stream"
+						ev.preventDefault();
+
+						const contentType = request.contentType;
+						if (!mpStream || (contentType.name === 'multipart/mixed')) {
+							mpStream = new io.FormMultipartDecoderStream({boundary: contentType.params.boundary, bufferSize: 20});
+							request.addPipe(mpStream);
+
+							mpStream.onBOF.attach(this, this.__onBOF, 10, [request, mpStream])
+						} else if (contentType.name === 'multipart/form-data') {
+							ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
+						} else {
+							ev.data.stream = mpStream;
+							mpStream.unpipe();
+						};
+
+						request.onGetStream.attachOnce(this, this.__onGetStream, 10, [request, mpStream]);
+					}),
+
+					execute: doodad.OVERRIDE(function(request) {
+						const state = request.getHandlerState(this);
+						const contentType = request.contentType;
+						if (!state.attached && (contentType.name === 'multipart/form-data')) {
+							state.attached = true;
+
+							request.setStreamOptions({
+								accept: 'multipart/form-data, multipart/mixed', 
+							});
+
+							request.onGetStream.attachOnce(this, this.__onGetStream, 10, [request, null]);
 						};
 					}),
 				}));
