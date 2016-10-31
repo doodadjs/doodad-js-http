@@ -1425,7 +1425,7 @@ module.exports = {
 						if (!this.__headersCompiled || !this.options.headersOnly) {
 							const data = ev.data;
 							if (this.__headersCompiled || (data.raw === io.EOF)) {
-								this.push(data, {output: false});
+								this.push(data);
 							} else {
 								let buf = data.raw;
 								let remaining = this.__remaining;
@@ -1440,7 +1440,7 @@ module.exports = {
 										this.__headersCompiled = true;
 										this.onHeaders(new doodad.Event());
 										if (this.options.headersOnly) {
-											this.push({raw: io.EOF, valueOf: function() {return this.raw}}, {output: false});
+											this.push({raw: io.EOF, valueOf: function() {return this.raw}});
 											this.stopListening();
 										};
 										break;
@@ -1473,7 +1473,7 @@ module.exports = {
 								};
 								if (remaining && !this.options.headersOnly) {
 									if (this.__headersCompiled) {
-										this.push({raw: remaining, valueOf: function() {return this.raw}}, {output: false});
+										this.push({raw: remaining, valueOf: function() {return this.raw}});
 									} else {
 										this.__remaining = remaining;
 									};
