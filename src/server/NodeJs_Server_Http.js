@@ -301,6 +301,8 @@ module.exports = {
 									throw new http.StreamAborted();
 								};
 
+								root.DD_ASSERT && root.DD_ASSERT(types._implements(responseStream, io.Stream), "Invalid response stream.");
+
 								tools.forEach(this.__pipes, function(pipe) {
 									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
 									if (!types._implements(pipe.stream, io.Stream) && types._implements(responseStream, io.Stream)) {
@@ -442,7 +444,7 @@ module.exports = {
 						};
 
 						return Promise.create(function tryStat(resolve, reject) {
-								nodeFs.stat(path.toString(), new doodad.Callback(this, function getStatsCallback(err, stats) {
+								nodeFs.stat(path.toString(), doodad.Callback(this, function getStatsCallback(err, stats) {
 									if (err) {
 										reject(err);
 									} else {
@@ -726,7 +728,6 @@ module.exports = {
 
 						if (!ev) {
 							const requestStream = new nodejsIO.BinaryInputStream({nodeStream: this.nodeJsStream});
-							requestStream.onError.attachOnce(this, this.__streamOnError, 10);
 
 							ev = new doodad.Event({
 								stream: requestStream,
@@ -740,6 +741,9 @@ module.exports = {
 								if (types.isNothing(requestStream)) {
 									throw new http.StreamAborted();
 								};
+
+								root.DD_ASSERT && root.DD_ASSERT(types._implements(requestStream, io.Stream), "Invalid request stream.");
+								requestStream.onError.attachOnce(this, this.__streamOnError, 10);
 
 								tools.forEach(this.__pipes, function forEachPipe(pipe) {
 									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
@@ -1143,7 +1147,7 @@ module.exports = {
 						const Promise = types.getPromise();
 						const path = this.getSystemPath(request);
 						return Promise.create(function tryStat(resolve, reject) {
-								nodeFs.stat(path.toString(), new doodad.Callback(this, function getStatsCallback(err, stats) {
+								nodeFs.stat(path.toString(), doodad.Callback(this, function getStatsCallback(err, stats) {
 									if (err) {
 										if (err.code === 'ENOENT') {
 											//resolve(request.response.respondWithStatus(types.HttpStatus.NotFound));
@@ -1420,63 +1424,93 @@ module.exports = {
 					onWrite: doodad.OVERRIDE(function onWrite(ev) {
 						const retval = this._super(ev);
 
-						ev.preventDefault();
+						const data = ev.data;
 
-						if (!this.__headersCompiled || !this.options.headersOnly) {
-							const data = ev.data;
-							if (this.__headersCompiled || (data.raw === io.EOF)) {
+						ev.preventDefault();
+						data.consumed = true;	// Will be consumed later
+
+						const eof = (data.raw === io.EOF);
+						let buf = !eof && data.raw;
+
+						let remaining = this.__remaining;
+						this.__remaining = null;
+						if (remaining) {
+							if (buf) {
+								buf = _shared.Natives.globalBuffer.concat([remaining, buf], remaining.length + buf.length);
+							} else {
+								buf = remaining;
+							};
+						};
+
+						if (this.__headersCompiled || eof) {
+							if (buf) {
+								this.push({raw: buf, valueOf: function() {return this.raw}}, {callback: doodad.Callback(this, function() {
+									data.consumed = false;
+									this.__consumeData(data);
+								})});
+							} else if (eof) {
 								this.push(data);
 							} else {
-								let buf = data.raw;
-								let remaining = this.__remaining;
-								if (remaining) {
-									buf = _shared.Natives.globalBuffer.concat([remaining, buf], remaining.length + buf.length);
-									this.__remaining = remaining = null;
+								data.consumed = false;
+								this.__consumeData(data);
+							};
+						} else {
+							let index,
+								lastIndex = 0;
+							while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
+								if (index === lastIndex) {
+									this.__headersCompiled = true;
+									this.onHeaders(new doodad.Event());
+									break;
 								};
-								let index,
-									lastIndex = 0;
-								while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
-									if (index === lastIndex) {
-										this.__headersCompiled = true;
-										this.onHeaders(new doodad.Event());
-										if (this.options.headersOnly) {
-											this.push({raw: io.EOF, valueOf: function() {return this.raw}});
-											this.stopListening();
-										};
-										break;
-									};
-									const str = buf.slice(lastIndex, index).toString('utf-8');
-									const header = tools.split(str, ':', 2);
-									const name = tools.trim(header[0] || '');
-									const value = tools.trim(header[1] || '');
-									if (name === 'X-Cache-Key') {
-										this.__key = value;
-									} else if (name === 'X-Cache-File') {
-										const val = tools.split(value, ' ', 2);
-										this.__verb = val[0] || '';
-										this.__file = val[1] || '';
-									} else if (name === 'X-Cache-Status') {
-										const val = tools.split(value, ' ', 2);
-										this.__status = parseInt(val[0]) || 200;
-										this.__message = val[1] || '';
-									} else if (name === 'X-Cache-Section') {
-										this.__section = value;
-									} else if (name.slice(0, 8) === 'X-Cache-') {
-										// Ignored
-									} else if (name) {
-										this.__headers[name] = value;
-									};
-									lastIndex = index + 1;
+								const str = buf.slice(lastIndex, index).toString('utf-8');
+								const header = tools.split(str, ':', 2);
+								const name = tools.trim(header[0] || '');
+								const value = tools.trim(header[1] || '');
+								if (name === 'X-Cache-Key') {
+									this.__key = value;
+								} else if (name === 'X-Cache-File') {
+									const val = tools.split(value, ' ', 2);
+									this.__verb = val[0] || '';
+									this.__file = val[1] || '';
+								} else if (name === 'X-Cache-Status') {
+									const val = tools.split(value, ' ', 2);
+									this.__status = parseInt(val[0]) || 200;
+									this.__message = val[1] || '';
+								} else if (name === 'X-Cache-Section') {
+									this.__section = value;
+								} else if (name.slice(0, 8) === 'X-Cache-') {
+									// Ignored
+								} else if (name) {
+									this.__headers[name] = value;
 								};
+								lastIndex = index + 1;
+							};
+							if (this.__headersCompiled && this.options.headersOnly) {
+								this.push({raw: io.EOF, valueOf: function() {return this.raw}}, {callback: doodad.Callback(this, function() {
+									this.stopListening();
+									data.consumed = false;
+									this.__consumeData(data);
+								})});
+							} else {
+								let remaining = null;
 								if ((index >= 0) && (index < buf.length - 1)) {
 									remaining = buf.slice(index + 1);
 								};
-								if (remaining && !this.options.headersOnly) {
+								if (remaining) {
 									if (this.__headersCompiled) {
-										this.push({raw: remaining, valueOf: function() {return this.raw}});
+										this.push({raw: remaining, valueOf: function() {return this.raw}}, {callback: doodad.Callback(this, function() {
+											data.consumed = false;
+											this.__consumeData(data);
+										})});
 									} else {
 										this.__remaining = remaining;
+										data.consumed = false;
+										this.__consumeData(data);
 									};
+								} else {
+									data.consumed = false;
+									this.__consumeData(data);
 								};
 							};
 						};
@@ -1634,14 +1668,14 @@ module.exports = {
 								const fileStream = nodeFs.createReadStream(cached.path.toString());
 								let openCb = null,
 									errorCb = null;
-								fileStream.once('open', openCb = new doodad.Callback(this, function onOpen(fd) {
+								fileStream.once('open', openCb = doodad.Callback(this, function onOpen(fd) {
 									fileStream.removeListener('error', errorCb);
 									request.onSanitize.attachOnce(this, function sanitize() {
 										fileStream.close();
 									});
 									resolve(fileStream);
 								}, reject));
-								fileStream.once('error', errorCb = new doodad.Callback(this, function onError(err) {
+								fileStream.once('error', errorCb = doodad.Callback(this, function onError(err) {
 									fileStream.removeListener('open', openCb);
 									reject(err);
 								}, reject));
@@ -1715,14 +1749,14 @@ module.exports = {
 									const stream = nodeFs.createWriteStream(cached.path.toString(), {autoClose: true, flags: 'wx', mode: this.options.cachedFilesMode || 0o644});
 									let errorCb = null,
 										openCb = null;
-									stream.once('error', errorCb = new doodad.Callback(this, function streamOnError(err) {
+									stream.once('error', errorCb = doodad.Callback(this, function streamOnError(err) {
 										stream.removeListener('open', openCb);
 										// Abort writing of cache file, but give the response to the client
 										cached.path = null;
 										cached.abort();
 										reject(err);
 									}, reject));
-									stream.once('open', openCb = new doodad.Callback(this, function streamOnOpen(fd) {
+									stream.once('open', openCb = doodad.Callback(this, function streamOnOpen(fd) {
 										stream.removeListener('error', errorCb);
 										var ddStream = (encoding ? new nodejsIO.TextOutputStream({nodeStream: stream, encoding: encoding}) : new nodejsIO.BinaryOutputStream({nodeStream: stream}));
 										request.onSanitize.attachOnce(null, function sanitize() {
