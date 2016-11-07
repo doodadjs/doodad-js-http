@@ -138,7 +138,9 @@ module.exports = {
 						return Promise.try(function() {
 								if (forceDisconnect) {
 									if (this.stream) {
-										this.stream.destroy();
+										if (!this.stream.isDestroyed()) {
+											this.stream.destroy();
+										};
 										this.stream = null;
 									};
 									this.nodeJsStream.destroy();
@@ -284,7 +286,7 @@ module.exports = {
 						};
 
 						if (!ev) {
-							const responseStream = new nodejsIO.BinaryOutputStream({nodeStream: this.nodeJsStream}); // , autoFlush: !options.postpone
+							const responseStream = new nodejsIO.BinaryOutputStream({nodeStream: this.nodeJsStream});
 							responseStream.onWrite.attachOnce(this, this.__streamOnWrite, 10);
 							responseStream.onError.attachOnce(this, this.__streamOnError, 10);
 
@@ -1358,14 +1360,12 @@ module.exports = {
 					__remaining: doodad.PROTECTED(null),
 					__headersCompiled: doodad.PROTECTED(false),
 					__headers: doodad.PROTECTED(null),
-					__verb: doodad.PROTECTED(null),
-					__file: doodad.PROTECTED(null),
+					//__verb: doodad.PROTECTED(null),
+					//__file: doodad.PROTECTED(null),
 					__status: doodad.PROTECTED(null),
 					__message: doodad.PROTECTED(null),
-					__key: doodad.PROTECTED(null),
-					__section: doodad.PROTECTED(null),
-
-					onHeaders: doodad.EVENT(false),
+					//__key: doodad.PROTECTED(null),
+					//__section: doodad.PROTECTED(null),
 
 					create: doodad.OVERRIDE(function create(/*optional*/options) {
 						this._super(options);
@@ -1373,24 +1373,6 @@ module.exports = {
 						types.getDefault(this.options, 'headersOnly', false);
 					}),
 					
-					getStatus: doodad.PUBLIC(function getStatus() {
-						if (this.__headersCompiled && this.__status) {
-							return [this.__status, this.__message || ''];
-						};
-					}),
-
-					getHeaders: doodad.PUBLIC(function getHeaders() {
-						if (this.__headersCompiled && this.__headers) {
-							return this.__headers;
-						};
-					}),
-
-					getSection: doodad.PUBLIC(function getHeaders() {
-						if (this.__headersCompiled && this.__section) {
-							return this.__section;
-						};
-					}),
-
 					reset: doodad.OVERRIDE(function reset() {
 						this._super();
 
@@ -1398,8 +1380,12 @@ module.exports = {
 						this.__remaining = null;
 						this.__headersCompiled = false;
 						this.__headers = types.nullObject();
+						//this.__verb = null;
+						//this.__file = null;
 						this.__status = null;
 						this.__message = null;
+						//this.__key = null;
+						//this.__section = null;
 					}),
 
 					isListening: doodad.OVERRIDE(function isListening() {
@@ -1427,7 +1413,6 @@ module.exports = {
 						const data = ev.data;
 
 						ev.preventDefault();
-						data.consumed = true;	// Will be consumed later
 
 						const eof = (data.raw === io.EOF);
 						let buf = !eof && data.raw;
@@ -1444,15 +1429,10 @@ module.exports = {
 
 						if (this.__headersCompiled || eof) {
 							if (buf) {
-								this.push({raw: buf, valueOf: function() {return this.raw}}, {callback: doodad.Callback(this, function() {
-									data.consumed = false;
-									this.__consumeData(data);
-								})});
-							} else if (eof) {
-								this.push(data);
-							} else {
-								data.consumed = false;
-								this.__consumeData(data);
+								this.push({raw: buf, valueOf: function() {return this.raw}});
+							};
+							if (eof) {
+								this.push({raw: io.EOF, valueOf: function() {return this.raw}});
 							};
 						} else {
 							let index,
@@ -1460,7 +1440,7 @@ module.exports = {
 							while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
 								if (index === lastIndex) {
 									this.__headersCompiled = true;
-									this.onHeaders(new doodad.Event());
+									this.push({raw: io.BOF, headers: this.__headers, status: {code: this.__status, message: this.__message}, valueOf: function() {return this.raw}});
 									break;
 								};
 								const str = buf.slice(lastIndex, index).toString('utf-8');
@@ -1468,17 +1448,17 @@ module.exports = {
 								const name = tools.trim(header[0] || '');
 								const value = tools.trim(header[1] || '');
 								if (name === 'X-Cache-Key') {
-									this.__key = value;
+									//this.__key = value;
 								} else if (name === 'X-Cache-File') {
-									const val = tools.split(value, ' ', 2);
-									this.__verb = val[0] || '';
-									this.__file = val[1] || '';
+									//const val = tools.split(value, ' ', 2);
+									//this.__verb = val[0] || '';
+									//this.__file = val[1] || '';
 								} else if (name === 'X-Cache-Status') {
 									const val = tools.split(value, ' ', 2);
 									this.__status = parseInt(val[0]) || 200;
 									this.__message = val[1] || '';
 								} else if (name === 'X-Cache-Section') {
-									this.__section = value;
+									//this.__section = value;
 								} else if (name.slice(0, 8) === 'X-Cache-') {
 									// Ignored
 								} else if (name) {
@@ -1487,11 +1467,8 @@ module.exports = {
 								lastIndex = index + 1;
 							};
 							if (this.__headersCompiled && this.options.headersOnly) {
-								this.push({raw: io.EOF, valueOf: function() {return this.raw}}, {callback: doodad.Callback(this, function() {
-									this.stopListening();
-									data.consumed = false;
-									this.__consumeData(data);
-								})});
+								this.push({raw: io.EOF, valueOf: function() {return this.raw}});
+								this.stopListening();
 							} else {
 								let remaining = null;
 								if ((index >= 0) && (index < buf.length - 1)) {
@@ -1499,18 +1476,10 @@ module.exports = {
 								};
 								if (remaining) {
 									if (this.__headersCompiled) {
-										this.push({raw: remaining, valueOf: function() {return this.raw}}, {callback: doodad.Callback(this, function() {
-											data.consumed = false;
-											this.__consumeData(data);
-										})});
+										this.push({raw: remaining, valueOf: function() {return this.raw}});
 									} else {
 										this.__remaining = remaining;
-										data.consumed = false;
-										this.__consumeData(data);
 									};
-								} else {
-									data.consumed = false;
-									this.__consumeData(data);
 								};
 							};
 						};
@@ -1694,21 +1663,19 @@ module.exports = {
 							}, this)
 							.then(function(fileStream) {
 								if (fileStream) {
-									const cacheStream = new nodejsHttp.CacheStream({autoFlush: false, headersOnly: (request.verb === 'HEAD')});
+									const cacheStream = new nodejsHttp.CacheStream({headersOnly: (request.verb === 'HEAD')});
 									request.onSanitize.attachOnce(this, function sanitize(ev) {
 										cacheStream.destroy();
 									});
-									var promise = cacheStream.onHeaders.promise()
-										.then(function onHeaders(ev) {
-											const status = cacheStream.getStatus();
-											const headers = cacheStream.getHeaders();
-											if (!cached.section) {
-												request.response.clearHeaders();
-												headers && request.response.addHeaders(headers);
-												status && request.response.setStatus(status[0], status[1]);
-											};
-											return cacheStream;
-										}, null, this);
+									var promise = cacheStream.onBOF.promise(function(ev) {
+										ev.preventDefault();
+										if (!cached.section) {
+											request.response.clearHeaders();
+											request.response.addHeaders(ev.data.headers);
+											//ev.data.status.code && request.response.setStatus(ev.data.status.code, ev.data.status.message);
+										};
+										return cacheStream;
+									}, this);
 									cacheStream.listen();
 									fileStream.pipe(cacheStream.getInterface(nodejsIOInterfaces.IWritable));
 									return promise;
@@ -1825,7 +1792,7 @@ module.exports = {
 										if (cacheStream) {
 											const promise = cacheStream.onEOF.promise();
 											cacheStream.pipe(output);
-											cacheStream.flush({output: false});
+											cacheStream.flush();
 											return promise;
 										};
 									}, null, this)
@@ -1837,8 +1804,7 @@ module.exports = {
 									.then(function(cacheStream) {
 										if (cacheStream) {
 											request.waitFor(
-												cacheStream.onEOF.promise()
-													.then(function onEOF(ev) {
+												cacheStream.onEOF.promise(function onEOF(ev) {
 														cached.validate();
 													}, this)
 													.catch(function(err) {
