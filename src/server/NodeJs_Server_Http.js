@@ -1294,7 +1294,10 @@ module.exports = {
 					})),
 					
 					execute_HEAD: doodad.OVERRIDE(function execute_HEAD(request) {
-						return this.addHeaders(request);
+						return this.addHeaders(request)
+							.then(function(result) {
+								// Returns nothing
+							});
 					}),
 					
 					execute_GET: doodad.OVERRIDE(function execute_GET(request) {
