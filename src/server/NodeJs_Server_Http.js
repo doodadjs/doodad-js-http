@@ -1670,14 +1670,19 @@ module.exports = {
 									request.onSanitize.attachOnce(this, function sanitize(ev) {
 										cacheStream.destroy();
 									});
-									var promise = cacheStream.onBOF.promise(function(ev) {
-										ev.preventDefault();
-										if (!cached.section) {
-											request.response.clearHeaders();
-											request.response.addHeaders(ev.data.headers);
-											//ev.data.status.code && request.response.setStatus(ev.data.status.code, ev.data.status.message);
+									var promise = cacheStream.onReady.promise(function(ev) {
+										if (ev.data.raw === io.BOF) {
+											ev.preventDefault();
+											if (!cached.section) {
+												request.response.clearHeaders();
+												request.response.addHeaders(ev.data.headers);
+												//ev.data.status.code && request.response.setStatus(ev.data.status.code, ev.data.status.message);
+											};
+											return cacheStream;
+										} else {
+											// Cancels resolve and waits next event
+											return false;
 										};
-										return cacheStream;
 									}, this);
 									cacheStream.listen();
 									fileStream.pipe(cacheStream.getInterface(nodejsIOInterfaces.IWritable));
