@@ -383,6 +383,8 @@ module.exports = {
 					}),
 					
 					respondWithStatus: doodad.OVERRIDE(function respondWithStatus(status, /*optional*/message, /*optional*/headers, /*optional*/data) {
+						const Promise = types.getPromise();
+
 						// NOTE: Must always throws an error.
 						if (this.ended) {
 							throw new server.EndOfRequest();
@@ -401,11 +403,18 @@ module.exports = {
 							statusData: data,
 						});
 
-						this.sendHeaders();
-						
-						this.onStatus(new doodad.Event());
+						const ev = new doodad.Event({promise: Promise.resolve()});
 
-						return this.request.end();
+						this.onStatus(ev);
+
+						if (ev.prevent) {
+							return ev.data.promise
+								.finally(function() {
+									return this.request.end();
+								});
+						} else {
+							return this.request.end();
+						};
 					}),
 
 					respondWithError: doodad.OVERRIDE(function respondWithError(ex) {
