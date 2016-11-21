@@ -216,7 +216,7 @@ module.exports = {
 					return str;
 				};
 				
-				http.parseAcceptHeader = function parseAcceptHeader(value) {
+				http.ADD('parseAcceptHeader', function parseAcceptHeader(value) {
 					const result = types.nullObject(),
 						pos = [],
 						delimiters = [];
@@ -306,9 +306,9 @@ module.exports = {
 							return 0;
 						};
 					});
-				};
+				});
 				
-				http.parseAcceptEncodingHeader = function parseAcceptEncodingHeader(value) {
+				http.ADD('parseAcceptEncodingHeader', function parseAcceptEncodingHeader(value) {
 					if (!value) {
 						return [];
 					};
@@ -416,9 +416,9 @@ module.exports = {
 								return 0;
 							};
 						});
-				};
+				});
 				
-				http.parseContentTypeHeader = function parseContentTypeHeader(contentType) {
+				http.ADD('parseContentTypeHeader', function parseContentTypeHeader(contentType) {
 					if (!contentType) {
 						return null;
 					};
@@ -490,9 +490,9 @@ module.exports = {
 							return types.freezeObject(newType);
 						},
 					}));
-				};
+				});
 
-				http.parseContentDispositionHeader = function parseContentDispositionHeader(contentDisposition) {
+				http.ADD('parseContentDispositionHeader', function parseContentDispositionHeader(contentDisposition) {
 					if (!contentDisposition) {
 						return null;
 					};
@@ -546,9 +546,9 @@ module.exports = {
 							}, "");
 						},
 					}));
-				};
+				});
 
-				http.compareMimeTypes = function compareMimeTypes(mimeType1, mimeType2) {
+				http.ADD('compareMimeTypes', function compareMimeTypes(mimeType1, mimeType2) {
 					if (mimeType1.name === mimeType2.name) {
 						return 40;
 					} else if ((mimeType1.type === mimeType2.type) && (mimeType1.subtype === '*')) {
@@ -564,18 +564,18 @@ module.exports = {
 					} else {
 						return 0;
 					};
-				};
+				});
 				
-				http.toRFC1123Date = function(date) {
+				http.ADD('toRFC1123Date', function(date) {
 					// ex.:   Fri, 10 Jul 2015 03:16:55 GMT
 					if (moment && moment.isMoment(date)) {
 						date = date.toDate();
 					};
 					return dates.strftime('%a, %d %b %Y %H:%M:%S GMT', date, __Internal__.enUSLocale, true);
-				};
+				});
 				
 				
-				http.prepareHandlersOptions = function prepareHandlersOptions(handlersOptions, /*optional*/defaultOptions) {
+				http.ADD('prepareHandlersOptions', function prepareHandlersOptions(handlersOptions, /*optional*/defaultOptions) {
 					if (!types.isArray(handlersOptions)) {
 						handlersOptions = [handlersOptions];
 					};
@@ -615,7 +615,7 @@ module.exports = {
 						
 						return handlerOptions;
 					});
-				};
+				});
 
 				
 				http.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
