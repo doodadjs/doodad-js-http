@@ -2196,7 +2196,7 @@ module.exports = {
 					
 					createHandlers: doodad.OVERRIDE(function createHandlers(request) {
 						let handlers = tools.reduce(this.routes, function(handlers, handlersOptions, matcher) {
-							const routeId = types.getSymbol()(); // takes less resources than using "handlersOptions"
+							const routeId = types.getSymbol(); // takes less resources than using "handlersOptions"
 
 							for (let i = 0; i < handlersOptions.length; i++) {
 								let options = handlersOptions[i];
