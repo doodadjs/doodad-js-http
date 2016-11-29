@@ -419,7 +419,7 @@ module.exports = {
 							return ev.data.promise
 								.finally(function() {
 									return this.request.end();
-								});
+								}, this);
 						} else {
 							return this.request.end();
 						};
@@ -437,6 +437,7 @@ module.exports = {
 							// Do nothing
 						} else {
 							this.clear();
+console.log(ex);
 							this.onError(new doodad.ErrorEvent(ex));
 							
 							if (!this.nodeJsStream) {
@@ -1242,7 +1243,7 @@ module.exports = {
 											.once('error', reject)
 											.pipe(iwritable, {end: true});
 										outputStream.onError.attachOnce(null, function(err) {
-											reject(err)
+											reject(err.error)
 										});
 										outputStream.onEOF.attachOnce(null, resolve)
 									}, this);
