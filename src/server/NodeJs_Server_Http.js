@@ -1231,10 +1231,12 @@ module.exports = {
 											reject(new server.EndOfRequest);
 										});
 										inputStream
-											.once('close', resolve)
-											.once('end', resolve)
 											.once('error', reject)
 											.pipe(iwritable, {end: true});
+										outputStream.onError.attachOnce(null, function(err) {
+											reject(err)
+										});
+										outputStream.onEOF.attachOnce(null, resolve)
 									}, this);
 								}, null, this)
 								.then(function() {
