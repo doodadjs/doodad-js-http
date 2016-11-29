@@ -135,11 +135,19 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};
 
+						const stream = this.stream,
+							destroyed = stream && stream.isDestroyed();
+
 						return Promise.try(function() {
-								if (forceDisconnect) {
-									if (this.stream) {
-										if (!this.stream.isDestroyed()) {
-											this.stream.destroy();
+								if (!forceDisconnect && !destroyed) {
+									return stream.flushAsync();
+								};
+							}, this)
+							.finally(function() {
+								if (forceDisconnect || destroyed) {
+									if (stream) {
+										if (!destroyed) {
+											stream.destroy();
 										};
 										this.stream = null;
 									};
@@ -156,10 +164,10 @@ module.exports = {
 												this.nodeJsStream.once('finish', resolve);
 												this.nodeJsStream.once('error', reject);
 											}, this);
-										if (this.stream) {
+										if (stream) {
 											// EOF
-											this.stream.write(io.EOF);
-											this.stream.flush()
+											stream.write(io.EOF);
+											stream.flush()
 										} else {
 											// EOF
 											this.nodeJsStream.end();
