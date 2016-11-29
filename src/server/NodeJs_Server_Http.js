@@ -139,7 +139,7 @@ module.exports = {
 							destroyed = stream && stream.isDestroyed();
 
 						return Promise.try(function() {
-								if (!forceDisconnect && !destroyed) {
+								if (stream && !forceDisconnect && !destroyed) {
 									return stream.flushAsync();
 								};
 							}, this)
