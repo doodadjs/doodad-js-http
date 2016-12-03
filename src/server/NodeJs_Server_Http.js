@@ -524,40 +524,44 @@ console.log(ex);
 
 					startTime: doodad.PROTECTED(null),
 
-					$__timeStartSecond: doodad.PROTECTED(doodad.TYPE(null)),
-					$__timeStartMinute: doodad.PROTECTED(doodad.TYPE(null)),
-					$__timeStartHour: doodad.PROTECTED(doodad.TYPE(null)),
-					$__lastSecond: doodad.PROTECTED(doodad.TYPE(0)),
-					$__lastMinute: doodad.PROTECTED(doodad.TYPE(0)),
-					$__lastHour: doodad.PROTECTED(doodad.TYPE(0)),
+					// <FIXME> Time statistics do not work correctly
+					//$__timeStartSecond: doodad.PROTECTED(doodad.TYPE(null)),
+					//$__timeStartMinute: doodad.PROTECTED(doodad.TYPE(null)),
+					//$__timeStartHour: doodad.PROTECTED(doodad.TYPE(null)),
+					//$__lastSecond: doodad.PROTECTED(doodad.TYPE(0)),
+					//$__lastMinute: doodad.PROTECTED(doodad.TYPE(0)),
+					//$__lastHour: doodad.PROTECTED(doodad.TYPE(0)),
 
-					$__perSecond: doodad.PROTECTED(doodad.TYPE(0.0)),
-					$__perMinute: doodad.PROTECTED(doodad.TYPE(0.0)),
-					$__perHour: doodad.PROTECTED(doodad.TYPE(0.0)),
+					// <FIXME> Time statistics do not work correctly
+					//$__perSecond: doodad.PROTECTED(doodad.TYPE(0.0)),
+					//$__perMinute: doodad.PROTECTED(doodad.TYPE(0.0)),
+					//$__perHour: doodad.PROTECTED(doodad.TYPE(0.0)),
 
-					$getStats: doodad.OVERRIDE(function $getStats() {
-						const stats = this._super();
-						return types.extend(stats, {
-							perSecond: this.$__perSecond,
-							perMinute: this.$__perMinute,
-							perHour: this.$__perHour,
-						});
-					}),
+					// <FIXME> Time statistics do not work correctly
+					//$getStats: doodad.OVERRIDE(function $getStats() {
+					//	const stats = this._super();
+					//	return types.extend(stats, {
+					//		perSecond: this.$__perSecond,
+					//		perMinute: this.$__perMinute,
+					//		perHour: this.$__perHour,
+					//	});
+					//}),
 					
-					$clearStats: doodad.OVERRIDE(function $clearStats() {
-						this._super();
-
-						this.$__timeStartSecond = null;
-						this.$__timeStartMinute = null;
-						this.$__timeStartHour = null;
-						this.$__lastSecond = 0;
-						this.$__lastMinute = 0;
-						this.$__lastHour = 0;
-
-						this.$__perSecond = 0.0;
-						this.$__perMinute = 0.0;
-						this.$__perHour = 0.0;
-					}),
+					// <FIXME> Time statistics do not work correctly
+					//$clearStats: doodad.OVERRIDE(function $clearStats() {
+					//	this._super();
+					//
+					//	this.$__timeStartSecond = null;
+					//	this.$__timeStartMinute = null;
+					//	this.$__timeStartHour = null;
+					//	this.$__lastSecond = 0;
+					//	this.$__lastMinute = 0;
+					//	this.$__lastHour = 0;
+					//
+					//	this.$__perSecond = 0.0;
+					//	this.$__perMinute = 0.0;
+					//	this.$__perHour = 0.0;
+					//}),
 					
 					nodeJsStreamOnError: doodad.NODE_EVENT('error', function nodeJsStreamOnError(context, err) {
 						// When 'error' is raised ?
@@ -580,46 +584,49 @@ console.log(ex);
 						
 						this._super(server, nodeJsRequest.method, nodeJsRequest.url, nodeJsRequest.headers, [nodeJsResponse]);
 						
-						const type = types.getType(this);
+						//const type = types.getType(this);
 						
-						type.$__lastSecond++;
-						if (!type.$__timeStartSecond) {
-							type.$__timeStartSecond = process.hrtime();
-						} else {
-							let time = process.hrtime(type.$__timeStartSecond);
-							time = time[0] + (time[1] / 1e9);
-							if (time >= 1) {
-								type.$__perSecond = Math.max(0, type.$__lastSecond / time);
-								type.$__lastSecond = 0;
-								type.$__timeStartSecond = process.hrtime();
-							};
-						};
+						// <FIXME> Time statistics do not work correctly
+						//type.$__lastSecond++;
+						//if (!type.$__timeStartSecond) {
+						//	type.$__timeStartSecond = process.hrtime();
+						//} else {
+						//	let time = process.hrtime(type.$__timeStartSecond);
+						//	time = time[0] + (time[1] / 1e9);
+						//	if (time >= 1) {
+						//		type.$__perSecond = Math.max(0, type.$__lastSecond / time);
+						//		type.$__lastSecond = 0;
+						//		type.$__timeStartSecond = process.hrtime();
+						//	};
+						//};
 						
-						type.$__lastMinute++;
-						if (!type.$__timeStartMinute) {
-							type.$__timeStartMinute = process.hrtime();
-						} else {
-							let time = process.hrtime(type.$__timeStartMinute);
-							time = (time[0] + (time[1] / 1e9));
-							if (time >= 60) {
-								type.$__perMinute = Math.max(0, type.$__lastMinute / time);
-								type.$__lastMinute = 0;
-								type.$__timeStartMinute = process.hrtime();
-							};
-						};
+						// <FIXME> Time statistics do not work correctly
+						//type.$__lastMinute++;
+						//if (!type.$__timeStartMinute) {
+						//	type.$__timeStartMinute = process.hrtime();
+						//} else {
+						//	let time = process.hrtime(type.$__timeStartMinute);
+						//	time = (time[0] + (time[1] / 1e9));
+						//	if (time >= 60) {
+						//		type.$__perMinute = Math.max(0, type.$__lastMinute / time);
+						//		type.$__lastMinute = 0;
+						//		type.$__timeStartMinute = process.hrtime();
+						//	};
+						//};
 						
-						type.$__lastHour++;
-						if (!type.$__timeStartHour) {
-							type.$__timeStartHour = process.hrtime();
-						} else {
-							let time = process.hrtime(type.$__timeStartHour);
-							time = (time[0] + (time[1] / 1e9));
-							if (time >= (60 * 60)) {
-								type.$__perHour = Math.max(0, type.$__lastHour / time);
-								type.$__lastHour = 0;
-								type.$__timeStartHour = process.hrtime();
-							};
-						};
+						// <FIXME> Time statistics do not work correctly
+						//type.$__lastHour++;
+						//if (!type.$__timeStartHour) {
+						//	type.$__timeStartHour = process.hrtime();
+						//} else {
+						//	let time = process.hrtime(type.$__timeStartHour);
+						//	time = (time[0] + (time[1] / 1e9));
+						//	if (time >= (60 * 60)) {
+						//		type.$__perHour = Math.max(0, type.$__lastHour / time);
+						//		type.$__lastHour = 0;
+						//		type.$__timeStartHour = process.hrtime();
+						//	};
+						//};
 					}),
 					
 					//reset : doodad.OVERRIDE(function reset() {
@@ -677,7 +684,6 @@ console.log(ex);
 								const type = types.getType(this);
 								type.$__actives--;
 								if (forceDisconnect || this.isDestroyed() || this.response.isDestroyed()) {
-//console.log((this.url && this.url.toString()) + ": " + this.response.isDestroyed());
 									type.$__aborted++;
 								} else {
 									const status = this.response.status;
