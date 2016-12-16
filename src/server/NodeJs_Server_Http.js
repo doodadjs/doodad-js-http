@@ -97,6 +97,7 @@ module.exports = {
 										mixIns.NodeEvents,
 				{
 					$TYPE_NAME: 'Response',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('NodeJsResponse')), true) */,
 
 					nodeJsStream: doodad.PROTECTED(null),
 
@@ -519,6 +520,7 @@ console.log(ex);
 										mixIns.NodeEvents,
 				{
 					$TYPE_NAME: 'Request',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('NodeJsRequest')), true) */,
 					
 					nodeJsStream: doodad.PROTECTED(null),
 
@@ -854,6 +856,7 @@ console.log(ex);
 								mixIns.NodeEvents,
 				{
 					$TYPE_NAME: 'Server',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('NodeJsServer')), true) */,
 
 					__nodeServer: doodad.PROTECTED(doodad.READ_ONLY()),
 					__address: doodad.PROTECTED(doodad.READ_ONLY()),
@@ -1047,6 +1050,7 @@ console.log(ex);
 				nodejsHttp.REGISTER(doodad.BASE(templatesHtml.PageTemplate.$extend(
 				{
 					$TYPE_NAME: 'FolderPageTemplate',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('FolderPageTemplate')), true) */,
 
 					path: doodad.PROTECTED(null),
 					
@@ -1107,6 +1111,7 @@ console.log(ex);
 				nodejsHttp.REGISTER(http.StaticPage.$extend(
 				{
 					$TYPE_NAME: 'StaticPage',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('StaticPage')), true) */,
 
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						types.getDefault(options, 'depth', Infinity);
@@ -1347,6 +1352,7 @@ console.log(ex);
 				nodejsHttp.REGISTER(nodejsHttp.StaticPage.$extend(
 				{
 					$TYPE_NAME: 'JavascriptPage',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JavascriptPage')), true) */,
 					
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						options = this._super(options);
@@ -1384,6 +1390,7 @@ console.log(ex);
 									io.OutputStream,
 				{
 					$TYPE_NAME: 'CacheStream',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CacheStream')), true) */,
 
 					__listening: doodad.PROTECTED(false),
 					__remaining: doodad.PROTECTED(null),
@@ -1521,6 +1528,7 @@ console.log(ex);
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'CacheHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CacheHandler')), true) */,
 					
 					$__cache: doodad.PROTECTED(doodad.TYPE(  new types.Map()  )), // <FUTURE> Global to threads (shared)
 					
@@ -1865,6 +1873,7 @@ console.log(ex);
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'CompressionBodyHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CompressionBodyHandler')), true) */,
 					
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						types.getDefault(options, 'depth', Infinity);
@@ -1942,6 +1951,7 @@ console.log(ex);
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'CompressionHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CompressionHandler')), true) */,
 					
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						types.getDefault(options, 'depth', Infinity);

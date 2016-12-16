@@ -622,6 +622,7 @@ module.exports = {
 									mixIns.Events,
 				{
 					$TYPE_NAME: 'Headers',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('HeadersMixIn')), true) */,
 
 					headers: doodad.PROTECTED(null),
 					contentType: doodad.PUBLIC(doodad.READ_ONLY(null)),
@@ -769,6 +770,7 @@ module.exports = {
 		//									serverMixIns.Response,
 				{
 					$TYPE_NAME: 'Response',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ResponseBase')), true) */,
 					
 					onGetStream: doodad.EVENT(false),
 					onError: doodad.EVENT(false),
@@ -993,6 +995,7 @@ module.exports = {
 				http.REGISTER(doodad.EXPANDABLE(doodad.Object.$extend(
 				{
 					$TYPE_NAME: 'HandlerState',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('HandlerState')), true) */,
 				})));
 					
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
@@ -1000,6 +1003,7 @@ module.exports = {
 									serverMixIns.Request,
 				{
 					$TYPE_NAME: 'Request',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RequestBase')), true) */,
 					
 					onGetStream: doodad.EVENT(false),
 					
@@ -1564,6 +1568,7 @@ module.exports = {
 				httpMixIns.REGISTER(doodad.MIX_IN(serverMixIns.Server.$extend(
 				{
 					$TYPE_NAME: 'Server',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ServerMixIn')), true) */,
 
 					protocol: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					handlersOptions: doodad.PUBLIC(doodad.READ_ONLY(null)),
@@ -1575,6 +1580,7 @@ module.exports = {
 									serverMixIns.Response,
 				{
 					$TYPE_NAME: 'Handler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('HandlerMixIn')), true) */,
 
 					$prepare: doodad.PUBLIC(function $prepare(options) {
 						options = types.nullObject(options);
@@ -1632,6 +1638,7 @@ module.exports = {
 				httpMixIns.REGISTER(doodad.MIX_IN(httpMixIns.Handler.$extend(
 				{
 					$TYPE_NAME: 'Routes',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RoutesMixIn')), true) */,
 					
 					createHandlers: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request)
 				})));
@@ -1640,6 +1647,7 @@ module.exports = {
 				httpMixIns.REGISTER(doodad.MIX_IN(httpMixIns.Handler.$extend(
 				{
 					$TYPE_NAME: 'Page',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('PageMixIn')), true) */,
 					
 					__knownVerbs: doodad.PROTECTED(doodad.ATTRIBUTE(['HEAD', 'GET', 'POST', 'PUT', 'DELETE', 'TRACE', 'CONNECT', 'OPTIONS'], extenders.UniqueArray)),
 
@@ -1681,12 +1689,14 @@ module.exports = {
 									httpMixIns.Page,
 				{
 					$TYPE_NAME: 'NullPage',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('NullPage')), true) */,
 				}));
 
 				http.REGISTER(doodad.Object.$extend(
 									httpMixIns.Page,
 				{
 					$TYPE_NAME: 'StatusPage',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('StatusPage')), true) */,
 					
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						options = this._super(options);
@@ -1710,6 +1720,7 @@ module.exports = {
 									httpMixIns.Page,
 				{
 					$TYPE_NAME: 'StaticPage',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('StaticPageBase')), true) */,
 
 					execute_HEAD: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
 					execute_GET: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
@@ -1720,6 +1731,7 @@ module.exports = {
 									httpMixIns.Page,
 				{
 					$TYPE_NAME: 'WidgetPage',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('WidgetPageBase')), true) */,
 					
 					execute_GET: doodad.OVERRIDE(function(request) {
 						const result = this.show(request);
@@ -1749,6 +1761,7 @@ module.exports = {
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'RedirectHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RedirectHandler')), true) */,
 					
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						options = this._super(options);
@@ -1784,6 +1797,7 @@ module.exports = {
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'CrossOriginHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CrossOriginHandler')), true) */,
 					
 					$prepare: doodad.OVERRIDE(function(options) {
 						types.getDefault(options, 'depth', Infinity);
@@ -1919,6 +1933,7 @@ module.exports = {
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'UpgradeInsecureRequestsHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('UpgradeInsecureRequestsHandler')), true) */,
 					
 					$prepare: doodad.OVERRIDE(function(options) {
 						options = this._super(options);
@@ -1981,6 +1996,7 @@ module.exports = {
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'ClientCrashHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ClientCrashHandler')), true) */,
 					
 					$prepare: doodad.OVERRIDE(function(options) {
 						types.getDefault(options, 'depth', Infinity);
@@ -2012,6 +2028,7 @@ module.exports = {
 									httpMixIns.Server,
 				{
 					$TYPE_NAME: 'Server',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ServerBase')), true) */,
 
 					create: doodad.OVERRIDE(function create(handlersOptions, /*optional*/serverOptions) {
 						this._super();
@@ -2037,6 +2054,7 @@ module.exports = {
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
 				{
 					$TYPE_NAME: 'RequestMatcher',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RequestMatcherBase')), true) */,
 					
 					match: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, url, handlerOptions)
 				})));
@@ -2045,6 +2063,7 @@ module.exports = {
 				http.REGISTER(http.RequestMatcher.$extend(
 				{
 					$TYPE_NAME: 'UrlMatcher',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('UrlMatcher')), true) */,
 					
 					baseUrl: doodad.PUBLIC( null ),
 					
@@ -2147,6 +2166,7 @@ module.exports = {
 									httpMixIns.Routes,
 				{
 					$TYPE_NAME: 'Routes',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('Routes')), true) */,
 
 					routes: doodad.PUBLIC(doodad.READ_ONLY(null)),
 
@@ -2291,6 +2311,7 @@ module.exports = {
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'JsonBodyHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JsonBodyHandler')), true) */,
 					
 					/*
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
@@ -2332,6 +2353,7 @@ module.exports = {
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'XmlBodyHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('XmlBodyHandler')), true) * /,
 					
 					/ *
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
@@ -2372,6 +2394,7 @@ module.exports = {
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'UrlBodyHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('UrlBodyHandler')), true) */,
 					
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						options = this._super(options);
@@ -2422,6 +2445,7 @@ module.exports = {
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'Base64BodyHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('Base64BodyHandler')), true) */,
 					
 					//$prepare: doodad.OVERRIDE(function $prepare(options) {
 					//	options = this._super(options);
@@ -2450,6 +2474,7 @@ module.exports = {
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'TextBodyHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('TextBodyHandler')), true) */,
 					
 					//$prepare: doodad.OVERRIDE(function $prepare(options) {
 					//	options = this._super(options);
@@ -2490,6 +2515,7 @@ module.exports = {
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'FormMultipartBodyHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('FormMultipartBodyHandler')), true) */,
 					
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						options = this._super(options);
