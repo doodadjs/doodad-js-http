@@ -1731,7 +1731,7 @@ module.exports = {
 									httpMixIns.Page,
 				{
 					$TYPE_NAME: 'WidgetPage',
-					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('WidgetPageBase')), true) */,
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('WidgetPageBase')), true) * /,
 					
 					execute_GET: doodad.OVERRIDE(function(request) {
 						const result = this.show(request);
