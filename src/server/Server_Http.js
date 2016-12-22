@@ -1090,7 +1090,7 @@ module.exports = {
 					create: doodad.OVERRIDE(function create(server, verb, url, headers, /*optional*/responseArgs) {
 						const type = types.getType(this);
 						
-						if (type.$__total >= types.getSafeIntegerLen().max) {
+						if (type.$__total >= types.getSafeIntegerBounds().max) {
 							type.$clearStats();
 						};
 						
