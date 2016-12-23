@@ -2585,12 +2585,12 @@ module.exports = {
 
 				http.REGISTER(types.createErrorType("ProceedNewHandlers", types.ScriptInterruptedError, function _new(handlersOptions, /*optional*/message, /*optional*/params) {
 					this._this.handlersOptions = handlersOptions;
-					return this._super.call(this._this, message || "Will proceed with a new Handler object.", params);
+					this.superArgs = [message || "Will proceed with a new Handler object.", params];
 				}));
 				
 				
 				http.REGISTER(types.createErrorType("StreamAborted", types.ScriptInterruptedError, function _new(/*optional*/message, /*optional*/params) {
-					return this._super.call(this._this, message || "'getStream' has been aborted.", params);
+					this.superArgs = [message || "'getStream' has been aborted.", params];
 				}));
 				
 				
