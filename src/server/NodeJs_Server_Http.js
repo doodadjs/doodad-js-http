@@ -1306,8 +1306,10 @@ console.log(ex);
 					
 					execute_HEAD: doodad.OVERRIDE(function execute_HEAD(request) {
 						return this.addHeaders(request)
-							.then(function(result) {
-								// Returns nothing
+							.then(function(data) {
+								if (!data) {
+									request.response.setStatus(types.HttpStatus.NotFound);
+								};
 							});
 					}),
 					
@@ -1323,6 +1325,8 @@ console.log(ex);
 									} else if ((data.contentType.name === 'application/json') && this.options.showFolders) {
 										return this.sendFolder(request, data);
 									};
+								} else {
+									request.response.setStatus(types.HttpStatus.NotFound);
 								};
 							}, this);
 					}),
