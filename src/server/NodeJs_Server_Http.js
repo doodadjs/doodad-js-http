@@ -138,15 +138,29 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};
 
-						const stream = this.stream,
-							destroyed = stream && stream.isDestroyed();
-
 						return Promise.try(function() {
+								let promise = Promise.resolve();
+								if (!forceDisconnect) {
+									if ((this.status || types.HttpStatus.OK) !== types.HttpStatus.OK) {
+										const ev = new doodad.Event({promise: promise});
+										this.onStatus(ev);
+										if (ev.prevent) {
+											promise = ev.data.promise;
+										};
+									};
+								};
+								return promise;
+							}, this)
+							.finally(function() {
+								const stream = this.stream,
+									destroyed = stream && stream.isDestroyed();
 								if (stream && !forceDisconnect && !destroyed) {
 									return stream.flushAsync();
 								};
 							}, this)
 							.finally(function() {
+								const stream = this.stream,
+									destroyed = stream && stream.isDestroyed();
 								if (forceDisconnect || destroyed) {
 									if (stream) {
 										if (!destroyed) {
@@ -414,18 +428,7 @@ module.exports = {
 							statusData: data,
 						});
 
-						const ev = new doodad.Event({promise: Promise.resolve()});
-
-						this.onStatus(ev);
-
-						if (ev.prevent) {
-							return ev.data.promise
-								.finally(function() {
-									return this.request.end();
-								}, this);
-						} else {
-							return this.request.end();
-						};
+						return this.request.end();
 					}),
 
 					respondWithError: doodad.OVERRIDE(function respondWithError(ex) {
@@ -440,7 +443,7 @@ module.exports = {
 							// Do nothing
 						} else {
 							this.clear();
-console.log(ex);
+
 							this.onError(new doodad.ErrorEvent(ex));
 							
 							if (!this.nodeJsStream) {
@@ -648,18 +651,22 @@ console.log(ex);
 							};
 						};
 						
-						return Promise.try(function() {
-								_shared.setAttribute(this, 'ended', true);
-
-								if (forceDisconnect) {
-									this.nodeJsStream.destroy();
-								};
+						return Promise.try(function tryEndRequest() {
+								_shared.setAttribute(this, 'ended', true); // blocks additional operations...
+								this.__ending = true; // ...but some operations are still allowed
 
 								if (!this.response.ended) {
 									return this.response.end(forceDisconnect)
 										.catch(server.EndOfRequest, function() {});
 								};
 							}, this)
+							.then(function() {
+								this.__ending = false; // now blocks any operation
+
+								if (forceDisconnect) {
+									this.nodeJsStream.destroy();
+								};
+							}, null, this)
 							.then(wait, null, this)
 							.catch(this.catchError, this)
 							.nodeify(function(err) {
@@ -705,7 +712,7 @@ console.log(ex);
 					getStream: doodad.OVERRIDE(function getStream(/*optional*/options) {
 						const Promise = types.getPromise();
 
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};							
 
@@ -814,7 +821,7 @@ console.log(ex);
 					}),
 					
 					getTime: doodad.PUBLIC(function getTime() {
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};							
 						const time = _shared.Natives.globalProcess.hrtime(this.startTime);
@@ -823,7 +830,7 @@ console.log(ex);
 					
 					getSource: doodad.PUBLIC(function getSource() {
 						// TODO: Add more informations
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};							
 						return types.nullObject({

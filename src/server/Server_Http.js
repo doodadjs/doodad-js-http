@@ -1007,6 +1007,7 @@ module.exports = {
 					
 					onGetStream: doodad.EVENT(false),
 					
+					__ending: doodad.PROTECTED(false),
 					ended: doodad.PUBLIC(doodad.READ_ONLY(false)),
 					response: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					verb: doodad.PUBLIC(doodad.READ_ONLY(null)),
@@ -1542,7 +1543,7 @@ module.exports = {
 
 					// NOTE: Experimental
 					waitFor: doodad.PUBLIC(function waitFor(/*optional*/promise) {
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};
 
