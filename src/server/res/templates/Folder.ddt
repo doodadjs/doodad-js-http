@@ -39,7 +39,7 @@
 	]]></t:script>
 -->
 
-	<t:variable name="url" expr="page.request.url" />
+	<t:variable name="url" expr="page.request.url.getPath()" />
 	
 	<html>
 		<head>
