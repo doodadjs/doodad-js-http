@@ -2130,7 +2130,7 @@ module.exports = {
 											let val = name1.slice(pos + 1).trim();
 											if ((val[0] === '(') && (val.slice(-1) === ')')) {
 												// RegExp matching
-												val = new _shared.Natives.windowRegExp('^(' + val.slice(1, -1) + ')$', handlerOptions.caseSensitive ? '' : 'i');
+												val = new _shared.Natives.windowRegExp('^' + val + '$', handlerOptions.caseSensitive ? '' : 'i');
 												val = val.exec(name2Lc);
 												if (!val) {
 													break;
@@ -2184,7 +2184,7 @@ module.exports = {
 													};
 												} else if ((val[0] === '(') && (val.slice(-1) === ')')) {
 													// RegExp matching
-													val = new _shared.Natives.windowRegExp('^(' + val.slice(1, -1) + ')$', handlerOptions.caseSensitive ? '' : 'i');
+													val = new _shared.Natives.windowRegExp('^' + val + '$', handlerOptions.caseSensitive ? '' : 'i');
 													val = val.exec(requestUrl.args.get(name, true) || '');
 													if (!val) {
 														weight = 0;
