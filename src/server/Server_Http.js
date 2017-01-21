@@ -64,8 +64,9 @@ module.exports = {
 				};
 
 
-				//types.complete(_shared.Natives, {
-				//});
+				types.complete(_shared.Natives, {
+					windowRegExp: global.RegExp,
+				});
 				
 				
 				
@@ -1121,7 +1122,6 @@ module.exports = {
 
 						this.addHeaders(headers);
 
-						// TODO: Validate Host header with a server setting (can allow multiple host names)
 						let host = this.getHeader('Host');
 						if (host) {
 							host = files.Url.parse(server.protocol + '://' + host + '/');
@@ -1738,18 +1738,14 @@ module.exports = {
 						const result = this.show(request);
 						if (result !== false) {
 							const stream = request.response.getStream();
-							request.writeHeader();
 							this.render(stream);
-							request.writeFooter();
 						};
 					}),
 					execute_POST: doodad.OVERRIDE(function(request) {
 						const result = this.load(request);
 						if (result !== false) {
 							const stream = request.response.getStream();
-							request.writeHeader();
 							this.render(stream);
-							request.writeFooter();
 						};
 					}),
 					
@@ -2017,7 +2013,7 @@ module.exports = {
 							if (this.options.reportUrl) {
 								return request.redirectClient(request.url.combine(this.options.reportUrl));
 							} else {
-								// TODO: Use "crashRecovery"
+								// TODO: Use "crashRecovery" flag
 								return request.redirectClient(request.url.setArgs({crashRecovery: true})); // NOTE: "?crashReport=true" is removed by the "Request" object
 							};
 						};
@@ -2067,6 +2063,7 @@ module.exports = {
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('UrlMatcher')), true) */,
 					
 					baseUrl: doodad.PUBLIC( null ),
+					allowArguments: doodad.PUBLIC( true ),
 					
 					create: doodad.OVERRIDE(function create(baseUrl) {
 						this._super();
@@ -2078,10 +2075,6 @@ module.exports = {
 					}),
 					
 					match: doodad.OVERRIDE(function match(request, requestUrl, handlerOptions) {
-						// TODO: Query string matching and extraction in "request.data.query" : ex. "/invoice/edit?id&details=1" will match "/invoice$edit?id=194&details=1"
-						// TODO: Url arguments matching and extraction in "request.data.args" : ex. "/invoice/id:/edit" will match "/invoice/194/edit"
-						// TODO: RegExp between parentheses in patterns : ex. "/invoice$edit?id=(\\d+)&details=1"   ,   "/invoice/id:(\\d+)/edit", ...
-						
 						const urlPath = tools.trim(requestUrl.toArray(), '');
 						const urlPathLen = urlPath.length;
 
@@ -2093,20 +2086,29 @@ module.exports = {
 							url = null,    // matching URL
 							urlRemaining = null; // what remains from request's url
 
+						const urlArgs = types.nullObject(),
+							queryArgs = types.nullObject();
+
 						if (basePathLen <= urlPathLen) {
 							let urlLevel = 0,     // path level (used later to remove the beginning of the path)
 								starStar = false,
 								starStarWeight = 0,
 								i = 0;
 							
-							const maxDepth = handlerOptions.depth;
+							const maxDepth = handlerOptions.depth,
+								allowArgs = this.allowArguments;
 						
 							while (urlLevel < urlPathLen) {
 								let name1 = (i < basePathLen ? basePath[i] : null),
-									name2 = urlPath[urlLevel];
-								if (!handlerOptions.caseSensitive) {
-									name1 = name1 && name1.toUpperCase();
-									name2 = name2 && name2.toUpperCase();
+									name2 = urlPath[urlLevel],
+									name1Lc,
+									name2Lc;
+								if (handlerOptions.caseSensitive) {
+									name1Lc = name1;
+									name2Lc = name2;
+								} else {
+									name1Lc = name1 && name1.toLowerCase();
+									name2Lc = name2 && name2.toLowerCase();
 								};
 								if (name1 === '**') {
 									starStar = true;
@@ -2114,7 +2116,7 @@ module.exports = {
 									i++;
 								} else {
 									if (starStar) {
-										if (name1 === name2) {
+										if (name1Lc === name2Lc) {
 											i++;
 											starStar = false;
 											weight += starStarWeight + 1;
@@ -2122,7 +2124,28 @@ module.exports = {
 											starStarWeight++;
 										};
 									} else {
-										if ((name1 !== '*') && (name1 !== name2)) {
+										const pos = (name1 && allowArgs ? name1.indexOf(':') : -1);
+										if (pos >= 0) {
+											// Url arguments matching and extraction : ex. "/invoice/id:/edit" will match "/invoice/194/edit"
+											let val = name1.slice(pos + 1).trim();
+											if ((val[0] === '(') && (val.slice(-1) === ')')) {
+												// RegExp matching
+												val = new _shared.Natives.windowRegExp('^(' + val.slice(1, -1) + ')$', handlerOptions.caseSensitive ? '' : 'i');
+												val = val.exec(name2Lc);
+												if (!val) {
+													break;
+												};
+												if (val.length > 2) {
+													val = val.slice(2);
+												} else {
+													val = val[1];
+												};
+											} else {
+												val = name2;
+											};
+											name1 = name1.slice(0, pos).trim();
+											urlArgs[name1] = val;
+										} else if ((name1 !== '*') && (name1Lc !== name2Lc)) {
 											break;
 										};
 										i++;
@@ -2143,6 +2166,59 @@ module.exports = {
 							urlRemaining = files.Url.parse(urlPath.slice(urlLevel), {
 								isRelative: true,
 							});
+
+							if (allowArgs) {
+								// Query string matching and extraction : ex. "/invoice/edit?id&details=1" will match "/invoice/edit?id=194&details=1"
+								const args = this.baseUrl.args.toArray();
+								if (args) {
+									for (let i = 0; i < args.length; i++) {
+										const arg = args[i],
+											name = arg[0];
+										if (name) {
+											if (requestUrl.args.has(name)) {
+												let val = arg[1];
+												if (val === null) {
+													val = (requestUrl.args.get(name, true) || '');
+													if (!handlerOptions.caseSensitive) {
+														val = val.toLowerCase();
+													};
+												} else if ((val[0] === '(') && (val.slice(-1) === ')')) {
+													// RegExp matching
+													val = new _shared.Natives.windowRegExp('^(' + val.slice(1, -1) + ')$', handlerOptions.caseSensitive ? '' : 'i');
+													val = val.exec(requestUrl.args.get(name, true) || '');
+													if (!val) {
+														weight = 0;
+														full = false;
+														break;
+													};
+													if (val.length > 2) {
+														val = val.slice(2);
+													} else {
+														val = val[1];
+													};
+												} else {
+													var val2 = (requestUrl.args.get(name, true) || '');
+													if (!handlerOptions.caseSensitive) {
+														val = val.toLowerCase();
+														val2 = val2.toLowerCase();
+													};
+													if (val !== val2) {
+														weight = 0;
+														full = false;
+														break;
+													};
+												};
+												queryArgs[name] = val;
+												weight++;
+											} else {
+												weight = 0;
+												full = false;
+												break;
+											};
+										};
+									};
+								};
+							};
 						};
 
 						return types.nullObject({
@@ -2150,6 +2226,8 @@ module.exports = {
 							full: full,
 							url: url,
 							urlRemaining: urlRemaining,
+							urlArgs: urlArgs,
+							queryArgs: queryArgs,
 						});
 					}),
 					
