@@ -139,70 +139,59 @@ module.exports = {
 						};
 
 						return Promise.try(function() {
-								let promise = Promise.resolve();
 								if (!forceDisconnect) {
 									if ((this.status || types.HttpStatus.OK) !== types.HttpStatus.OK) {
-										const ev = new doodad.Event({promise: promise});
+										const ev = new doodad.Event({promise: Promise.resolve()});
 										this.onStatus(ev);
 										if (ev.prevent) {
-											promise = ev.data.promise;
+											return ev.data.promise;
 										};
 									};
 								};
-								return promise;
 							}, this)
 							.finally(function() {
-								const stream = this.stream,
-									destroyed = stream && stream.isDestroyed();
-								if (stream && !forceDisconnect && !destroyed) {
-									return stream.flushAsync();
+								if (!forceDisconnect) {
+									const stream = this.stream;
+									if (stream && !stream.isDestroyed()) {
+										return stream.flushAsync();
+									};
 								};
 							}, this)
 							.finally(function() {
+								let promise;
 								const stream = this.stream,
 									destroyed = stream && stream.isDestroyed();
-								if (forceDisconnect || destroyed) {
-									if (stream) {
-										if (!destroyed) {
-											stream.destroy();
-										};
-										this.stream = null;
-									};
+								if (forceDisconnect || destroyed || this.nodeJsStream.finished) {
 									this.nodeJsStream.destroy();
-									_shared.setAttribute(this, 'ended', true);
 								} else {
 									if (!this.trailersSent) {
 										this.sendTrailers();
 									};
-									let promise = null;
-									if (!this.nodeJsStream.finished) {
-										promise = Promise.create(function(resolve, reject) {
-												this.nodeJsStream.once('close', resolve);
-												this.nodeJsStream.once('finish', resolve);
-												this.nodeJsStream.once('error', reject);
-											}, this);
-										if (stream) {
-											// EOF
-											stream.write(io.EOF);
-											stream.flush()
-										} else {
-											// EOF
-											this.nodeJsStream.end();
-										};
+									promise = Promise.create(function(resolve, reject) {
+											this.nodeJsStream.once('close', resolve);
+											this.nodeJsStream.once('finish', resolve);
+											this.nodeJsStream.once('error', reject);
+										}, this);
+									if (stream) {
+										// EOF
+										stream.write(io.EOF);
+										stream.flush()
+									} else {
+										// EOF
+										this.nodeJsStream.end();
 									};
-									_shared.setAttribute(this, 'ended', true);
-									return promise;
 								};
+								_shared.setAttribute(this, 'ended', true);
+								return promise;
 							}, this)
 							.then(function() {
-								if (!this.isDestroyed()) {
-									if (!this.request.ended) {
-										return this.request.end(forceDisconnect);
-									};
+								if (!this.request.ended) {
+									return this.request.end(forceDisconnect);
 								};
-
+							}, null, this)
+							.then(function() {
 								throw new server.EndOfRequest();
-							}, null, this);
+							});
 					})),
 
 					sendHeaders: doodad.PUBLIC(function sendHeaders() {
