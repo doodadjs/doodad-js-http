@@ -128,8 +128,6 @@ module.exports = {
 						this.nodeJsStreamOnError.clear();
 						this.nodeJsStreamOnClose.clear();
 
-						this.nodeJsStream && this.nodeJsStream.destroy();
-
 						this.stream && !this.stream.isDestroyed() && this.stream.destroy();
 
 						this._super();
@@ -617,8 +615,6 @@ module.exports = {
 						this.nodeJsStreamOnError.clear();
 						this.nodeJsStreamOnClose.clear();
 
-						this.nodeJsStream && this.nodeJsStream.destroy();
-
 						this.stream && !this.stream.isDestroyed() && this.stream.destroy();
 
 						this._super();
@@ -856,36 +852,48 @@ module.exports = {
 								};
 							};
 
-							const request = new nodejsHttp.Request(this, nodeRequest, nodeResponse);
+							try {
+								const request = new nodejsHttp.Request(this, nodeRequest, nodeResponse);
 							
-							const ev = new doodad.Event({
-									request: request,
-								});
+								const ev = new doodad.Event({
+										request: request,
+									});
 								
-							this.onNewRequest(ev);
+								this.onNewRequest(ev);
 								
-							if (!ev.prevent) {
-								request.proceed(this.handlersOptions)
-									.catch(request.catchError)
-									.then(function endRequest() {
-										if (!request.isDestroyed() && !request.ended) {
-											if (request.isFullfilled()) {
-												return request.end();
-											} else {
-												return request.response.respondWithStatus(types.HttpStatus.NotFound);
+								if (!ev.prevent) {
+									request.proceed(this.handlersOptions)
+										.catch(request.catchError)
+										.then(function endRequest() {
+											if (!request.isDestroyed() && !request.ended) {
+												if (request.isFullfilled()) {
+													return request.end();
+												} else {
+													return request.response.respondWithStatus(types.HttpStatus.NotFound);
+												};
 											};
-										};
-									})
-									.catch(request.catchError)
-									.nodeify(function(err, result) {
-										if (!request.isDestroyed()) {
-											request.destroy();
-										};
-										if (err) {
-											throw err;
-										};
-									})
-									.catch(tools.catchAndExit, tools); // fatal error
+										})
+										.catch(request.catchError)
+										.nodeify(function(err, result) {
+											if (!request.isDestroyed()) {
+												request.destroy();
+											};
+											nodeRequest.destroy();
+											nodeResponse.destroy();
+											if (err) {
+												throw err;
+											};
+										})
+										.catch(tools.catchAndExit); // fatal error
+								};
+							} catch(ex) {
+								// <PRB> On error, we must return something to the browser or otherwise it will repeat the request if we just drop the connection !!!
+								nodeResponse.statusCode = types.HttpStatus.InternalError;
+								nodeResponse.end(function() {
+									nodeRequest.destroy();
+									nodeResponse.destroy();
+								});
+								throw ex;
 							};
 						};
 					}),
