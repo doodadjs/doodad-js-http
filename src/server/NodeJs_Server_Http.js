@@ -125,7 +125,11 @@ module.exports = {
 					}),
 
 					destroy: doodad.OVERRIDE(function destroy() {
-						this.nodeJsStream.destroy();
+						this.nodeJsStreamOnError.clear();
+						this.nodeJsStreamOnClose.clear();
+
+						this.nodeJsStream && this.nodeJsStream.destroy();
+
 						this.stream && !this.stream.isDestroyed() && this.stream.destroy();
 
 						this._super();
@@ -610,7 +614,11 @@ module.exports = {
 					//}),
 
 					destroy: doodad.OVERRIDE(function destroy() {
-						this.nodeJsStream.destroy();
+						this.nodeJsStreamOnError.clear();
+						this.nodeJsStreamOnClose.clear();
+
+						this.nodeJsStream && this.nodeJsStream.destroy();
+
 						this.stream && !this.stream.isDestroyed() && this.stream.destroy();
 
 						this._super();
@@ -630,7 +638,7 @@ module.exports = {
 						};
 
 						function wait() {
-							if (!forceDisconnect && !this.isDestroyed()) {
+							if (!forceDisconnect) {
 								const queue = this.__waitQueue;
 								if (queue.length) {
 									this.__waitQueue = [];
@@ -661,7 +669,7 @@ module.exports = {
 							.nodeify(function(err) {
 								const type = types.getType(this);
 								type.$__actives--;
-								if (forceDisconnect || this.isDestroyed() || this.response.isDestroyed()) {
+								if (forceDisconnect || this.response.isDestroyed()) {
 									type.$__aborted++;
 								} else {
 									const status = this.response.status;
@@ -679,9 +687,7 @@ module.exports = {
 									};
 								};
 
-								if (!this.isDestroyed()) {
-									this.onEnd();
-								};
+								this.onEnd();
 
 								if (err) {
 									throw err;
