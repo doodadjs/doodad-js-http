@@ -820,14 +820,6 @@ module.exports = {
 						this.reset();
 					}),
 
-					destroy: doodad.OVERRIDE(function destroy() {
-						if (!this.ended) {
-							this.end(true);
-						};
-
-						this._super();
-					}),
-
 					setContentType: doodad.OVERRIDE(function setContentType(contentType, /*optional*/options) {
 						if (this.ended) {
 							throw new server.EndOfRequest();
@@ -1099,83 +1091,79 @@ module.exports = {
 						type.$__total++;
 						type.$__actives++;
 
-						try {
-							if (types.isString(url)) {
-								url = files.Url.parse(url);
-							};
-					
-							if (root.DD_ASSERT) {
-								root.DD_ASSERT && root.DD_ASSERT(types._implements(server, httpMixIns.Server), "Invalid server.");
-								root.DD_ASSERT(types.isString(verb), "Invalid verb.");
-								root.DD_ASSERT((url instanceof files.Url), "Invalid URL.");
-								root.DD_ASSERT(types.isObject(headers), "Invalid headers.");
-							};
-
-							this._super();
-						
-							_shared.setAttributes(this, {
-								server: server,
-								verb: verb.toUpperCase(),
-								headers: {},
-								data: types.nullObject(),
-								id: tools.generateUUID(),
-							});
-
-							this.addHeaders(headers);
-
-							let host = this.getHeader('Host');
-							if (host) {
-								host = files.Url.parse(server.protocol + '://' + host + '/');
-							};
-						
+						if (types.isString(url)) {
 							url = files.Url.parse(url);
-							if (host) {
-								url = host.combine(url);
-							};
-						
-							this.__redirectsCount = types.toInteger(url.args.get('redirects', true));
-							if (!types.isFinite(this.__redirectsCount) || (this.__redirectsCount < 0)) {
-								this.__redirectsCount = 0;
-							};
-
-							const clientCrashed = types.toBoolean(url.args.get('crashReport', false));
-							const clientCrashRecovery = types.toBoolean(url.args.get('crashRecovery', false));
-						
-							url = url.removeArgs(['redirects', 'crashReport', 'crashRecovery'])
-
-							this.reset();
-
-							_shared.setAttributes(this, {
-								url: url,
-								clientCrashed: clientCrashed,
-								clientCrashRecovery: (clientCrashRecovery && !clientCrashed),
-								__parsedAccept: http.parseAcceptHeader(this.getHeader('Accept') || '*/*'),
-								response: this.createResponse.apply(this, responseArgs || []),
-							});
-
-						} catch(ex) {
-							type.$__actives--;
-							type.$__aborted++;
-
-							throw ex;
 						};
+					
+						if (root.DD_ASSERT) {
+							root.DD_ASSERT && root.DD_ASSERT(types._implements(server, httpMixIns.Server), "Invalid server.");
+							root.DD_ASSERT(types.isString(verb), "Invalid verb.");
+							root.DD_ASSERT((url instanceof files.Url), "Invalid URL.");
+							root.DD_ASSERT(types.isObject(headers), "Invalid headers.");
+						};
+
+						this._super();
+						
+						_shared.setAttributes(this, {
+							server: server,
+							verb: verb.toUpperCase(),
+							headers: {},
+							data: types.nullObject(),
+							id: tools.generateUUID(),
+						});
+
+						this.addHeaders(headers);
+
+						let host = this.getHeader('Host');
+						if (host) {
+							host = files.Url.parse(server.protocol + '://' + host + '/');
+						};
+						
+						url = files.Url.parse(url);
+						if (host) {
+							url = host.combine(url);
+						};
+						
+						this.__redirectsCount = types.toInteger(url.args.get('redirects', true));
+						if (!types.isFinite(this.__redirectsCount) || (this.__redirectsCount < 0)) {
+							this.__redirectsCount = 0;
+						};
+
+						const clientCrashed = types.toBoolean(url.args.get('crashReport', false));
+						const clientCrashRecovery = types.toBoolean(url.args.get('crashRecovery', false));
+
+						url = url.removeArgs(['redirects', 'crashReport', 'crashRecovery'])
+
+						this.reset();
+
+						_shared.setAttributes(this, {
+							url: url,
+							clientCrashed: clientCrashed,
+							clientCrashRecovery: (clientCrashRecovery && !clientCrashed),
+							__parsedAccept: http.parseAcceptHeader(this.getHeader('Accept') || '*/*'),
+							response: this.createResponse.apply(this, responseArgs || []),
+						});
 					}),
 
 					destroy: doodad.OVERRIDE(function destroy() {
 						if (!this.ended) {
-							this.end(true);
+							var type = types.getType(this);
+							type.$__actives--;
+							type.$__aborted++;
 						};
 
 						this.sanitize();
 
 						tools.forEach(this.__handlersStates, function(state, handler) {
-							if (state.mustDestroy && !handler.isDestroyed()) {
-								handler.destroy();
+							if (state.mustDestroy) {
+								if (!handler.isDestroyed()) {
+									handler.destroy();
+								};
 								state.destroy();
 							};
 						});
 
-						this.response.destroy();
+						this.response && this.response.destroy();
 
 						this._super();
 					}),
