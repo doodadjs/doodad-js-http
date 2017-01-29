@@ -128,7 +128,7 @@ module.exports = {
 						this.nodeJsStreamOnError.clear();
 						this.nodeJsStreamOnClose.clear();
 
-						this.stream && !this.stream.isDestroyed() && this.stream.destroy();
+						types.DESTROY(this.stream);
 
 						this._super();
 					}),
@@ -615,7 +615,7 @@ module.exports = {
 						this.nodeJsStreamOnError.clear();
 						this.nodeJsStreamOnClose.clear();
 
-						this.stream && !this.stream.isDestroyed() && this.stream.destroy();
+						types.DESTROY(this.stream);
 
 						this._super();
 					}),
@@ -875,9 +875,7 @@ module.exports = {
 										})
 										.catch(request.catchError)
 										.nodeify(function(err, result) {
-											if (!request.isDestroyed()) {
-												request.destroy();
-											};
+											types.DESTROY(request);
 											nodeRequest.destroy();
 											nodeResponse.destroy();
 											if (err) {
@@ -1272,7 +1270,7 @@ module.exports = {
 											return templ.render();
 										}, null, this)
 										.nodeify(function cleanup(err, result) {
-											templ.destroy();
+											types.DESTROY(templ);
 											if (err) {
 												throw err;
 											} else {
@@ -1362,9 +1360,7 @@ module.exports = {
 						const jsStream = new minifiers.Javascript();
 
 						request.onSanitize.attachOnce(this, function sanitize() {
-							if (!jsStream.isDestroyed()) {
-								jsStream.destroy(); // stops the stream in case of abort
-							};
+							types.DESTROY(jsStream); // stops the stream in case of abort
 						});
 
 						tools.forEach(this.options.variables, function forEachVar(value, name) {
@@ -1696,7 +1692,7 @@ module.exports = {
 								if (fileStream) {
 									const cacheStream = new nodejsHttp.CacheStream({headersOnly: (request.verb === 'HEAD')});
 									request.onSanitize.attachOnce(this, function sanitize(ev) {
-										cacheStream.destroy();
+										types.DESTROY(cacheStream);
 									});
 									var promise = cacheStream.onReady.promise(function(ev) {
 										if (ev.data.raw === io.BOF) {
@@ -1765,7 +1761,7 @@ module.exports = {
 										request.onSanitize.attachOnce(null, function sanitize() {
 											//stream.close();
 											stream.destroy();
-											ddStream.destroy();
+											types.DESTROY(ddStream);
 											cached.abort();
 										});
 										resolve(ddStream);

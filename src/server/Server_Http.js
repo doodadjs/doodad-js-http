@@ -1162,14 +1162,12 @@ module.exports = {
 
 						tools.forEach(this.__handlersStates, function(state, handler) {
 							if (state.mustDestroy) {
-								if (!handler.isDestroyed()) {
-									handler.destroy();
-								};
-								state.destroy();
+								types.DESTROY(handler);
+								types.DESTROY(state);
 							};
 						});
 
-						this.response && this.response.destroy();
+						types.DESTROY(this.response);
 
 						this._super();
 					}),
