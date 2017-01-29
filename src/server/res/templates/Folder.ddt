@@ -79,7 +79,7 @@
 								</div>
 								<div class="cell space"/>
 								<div class="cell size">
-									<div class="value"><t:eval>file.size</t:eval></div>
+									<div class="value"><t:eval>file.size</t:eval> <t:eval>(file.size > 1 ? "bytes" : "byte")</t:eval></div>
 								</div>
 							</li>
 						</t:for-each>
