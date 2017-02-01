@@ -164,7 +164,7 @@ module.exports = {
 								const stream = this.stream,
 									destroyed = stream && stream.isDestroyed();
 								if (forceDisconnect || destroyed || this.nodeJsStream.finished) {
-									this.nodeJsStream.destroy();
+									types.DESTROY(this.nodeJsStream);
 								} else {
 									if (!this.trailersSent) {
 										this.sendTrailers();
@@ -657,7 +657,7 @@ module.exports = {
 								this.__ending = false; // now blocks any operation
 
 								if (forceDisconnect) {
-									this.nodeJsStream.destroy();
+									types.DESTROY(this.nodeJsStream);
 								};
 							}, null, this)
 							.then(wait, null, this)
@@ -876,8 +876,8 @@ module.exports = {
 										.catch(request.catchError)
 										.nodeify(function(err, result) {
 											types.DESTROY(request);
-											nodeRequest.destroy();
-											nodeResponse.destroy();
+											types.DESTROY(nodeRequest);
+											types.DESTROY(nodeResponse);
 											if (err) {
 												throw err;
 											};
@@ -888,8 +888,8 @@ module.exports = {
 								// <PRB> On error, we must return something to the browser or otherwise it will repeat the request if we just drop the connection !!!
 								nodeResponse.statusCode = types.HttpStatus.InternalError;
 								nodeResponse.end(function() {
-									nodeRequest.destroy();
-									nodeResponse.destroy();
+									types.DESTROY(nodeRequest);
+									types.DESTROY(nodeResponse);
 								});
 								throw ex;
 							};
@@ -1763,7 +1763,7 @@ module.exports = {
 										var ddStream = (encoding ? new nodejsIO.TextOutputStream({nodeStream: stream, encoding: encoding}) : new nodejsIO.BinaryOutputStream({nodeStream: stream}));
 										request.onSanitize.attachOnce(null, function sanitize() {
 											//stream.close();
-											stream.destroy();
+											types.DESTROY(stream);
 											types.DESTROY(ddStream);
 											cached.abort();
 										});
