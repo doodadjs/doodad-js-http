@@ -1235,6 +1235,9 @@ module.exports = {
 									const iwritable = outputStream.getInterface(nodejsIOInterfaces.IWritable);
 									return Promise.create(function(resolve, reject) {
 										const inputStream = nodeFs.createReadStream(data.path.toString());
+										request.onSanitize.attachOnce(null, function() {
+											types.DESTROY(inputStream);
+										});
 										request.onEnd.attachOnce(null, function() {
 											reject(new server.EndOfRequest);
 										});
