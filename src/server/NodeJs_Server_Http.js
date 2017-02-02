@@ -946,19 +946,19 @@ module.exports = {
 								// TODO: Ask for private key's passphrase from the terminal if encrypted and decrypt the key.
 								const opts = types.nullObject();
 								if (options.pfxFile) {
-									opts.pfx = nodeFs.readFileSync(options.pfxFile);
+									opts.pfx = nodeFs.readFileSync(types.toString(options.pfxFile));
 								} else if (options.rawPfx) {
 									opts.pfx = options.rawPfx;
 								} else {
 									if (options.keyFile) {
-										opts.key = nodeFs.readFileSync(options.keyFile);
+										opts.key = nodeFs.readFileSync(types.toString(options.keyFile));
 									} else if (options.rawKey) {
 										opts.key = options.rawKey;
 									} else {
 										throw new types.Error("Missing private key file.");
 									};
 									if (options.certFile) {
-										opts.cert = nodeFs.readFileSync(options.certFile);
+										opts.cert = nodeFs.readFileSync(types.toString(options.certFile));
 									} else if (options.rawCert) {
 										opts.cert = options.rawCert;
 									} else {
