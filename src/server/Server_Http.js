@@ -843,6 +843,7 @@ module.exports = {
 							throw new types.Error("Can't add new headers because headers have been sent to the client.");
 						};
 						this._super(name, value);
+						this.request.setFullfilled(true);
 					}),
 					
 					addHeaders: doodad.OVERRIDE(function addHeaders(headers) {
@@ -853,6 +854,7 @@ module.exports = {
 							throw new types.Error("Can't add new headers because headers have been sent to the client.");
 						};
 						this._super(headers);
+						this.request.setFullfilled(true);
 					}),
 
 					clearHeaders: doodad.OVERRIDE(function clearHeaders(/*optional*/names) {
@@ -881,6 +883,7 @@ module.exports = {
 							delete responseTrailers[fixed];
 						};
 						this.onHeadersChanged(new doodad.Event({headers: [fixed], areTrailers: true}));
+						this.request.setFullfilled(true);
 					}),
 
 					addTrailers: doodad.PUBLIC(function addTrailers(trailers) {
@@ -906,6 +909,7 @@ module.exports = {
 						if (changedKeys.length) {
 							this.onHeadersChanged(new doodad.Event({headers: changedKeys, areTrailers: true}));
 						};
+						this.request.setFullfilled(true);
 					}),
 
 					clearTrailers: doodad.PUBLIC(function clearTrailers(/*optional*/names) {
@@ -946,6 +950,10 @@ module.exports = {
 							status: status,
 							message: message,
 						});
+
+						if (status) {
+							this.request.setFullfilled(true);
+						};
 					}),
 
 					addPipe: doodad.PUBLIC(function addPipe(stream, /*optional*/options) {
@@ -1031,6 +1039,8 @@ module.exports = {
 
 					__contentEncodings: doodad.PROTECTED(null),
 
+					__fullfilled: doodad.PROTECTED(false),
+
 					$__actives: doodad.PROTECTED(doodad.TYPE(0)),
 					
 					$__total: doodad.PROTECTED(doodad.TYPE(0)),
@@ -1077,6 +1087,7 @@ module.exports = {
 								__waitQueue: [],
 								__handlersStates: new types.Map(),
 								stream: null,
+								__fullfilled: false,
 							});
 						};
 					}),
@@ -1325,7 +1336,6 @@ module.exports = {
 						if (this.response.headersSent) {
 							throw new types.Error("Unable to redirect because HTTP headers are already sent.");
 						} else if (this.__redirectsCount >= maxRedirects) {
-							//return this.response.respondWithStatus(types.HttpStatus.NotFound);
 							return this.end();
 						} else {
 							//this.response.clear();
@@ -1420,8 +1430,11 @@ module.exports = {
 					}),
 					
 					isFullfilled: doodad.PUBLIC(function isFullfilled() {
-						return this.hasStream() || 
-							this.response.hasContent();
+						return this.__fullfilled;
+					}),
+
+					setFullfilled: doodad.PUBLIC(function setFullfilled(fullfilled) {
+						this.__fullfilled = !!fullfilled;
 					}),
 
 					proceed: doodad.PUBLIC(doodad.ASYNC(function proceed(handlersOptions) {
@@ -1920,6 +1933,8 @@ module.exports = {
 									'Access-Control-Allow-Credentials': (allowCredentials ? 'true' : 'false'),
 									'Access-Control-Expose-Headers': exposedHeaders.join(', '),
 								});
+
+								request.setFullfilled(false);
 							};
 						};
 					}),

@@ -352,6 +352,7 @@ module.exports = {
 								};
 
 								this.stream = responseStream;
+								this.request.setFullfilled(true);
 
 								return responseStream;
 							}, null, this);
@@ -388,11 +389,14 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};
 
-						if (this.nodeJsStream) {
-							if (!this.headersSent) {
-								this.clearHeaders();
-							};
+						if (!this.headersSent) {
+							this.clearHeaders();
 						};
+
+						if (!this.trailersSent) {
+							this.clearTrailers();
+						};
+
 						if (this.stream) {
 							this.stream.clear();
 						};
@@ -419,6 +423,8 @@ module.exports = {
 							statusData: data,
 						});
 
+						this.request.setFullfilled(true);
+
 						return this.request.end();
 					}),
 
@@ -434,6 +440,8 @@ module.exports = {
 							// Do nothing
 						} else {
 							this.clear();
+
+							this.request.setFullfilled(true);
 
 							this.onError(new doodad.ErrorEvent(ex));
 							
@@ -605,12 +613,6 @@ module.exports = {
 						type.$__time = _shared.Natives.globalProcess.hrtime();
 					}),
 					
-					//reset : doodad.OVERRIDE(function reset() {
-					//	this._super();
-					//
-					//	this.stream = null;
-					//}),
-
 					destroy: doodad.OVERRIDE(function destroy() {
 						this.nodeJsStreamOnError.clear();
 						this.nodeJsStreamOnClose.clear();
@@ -806,6 +808,7 @@ module.exports = {
 								};
 
 								this.stream = requestStream;
+								this.setFullfilled(true);
 
 								return requestStream;
 							}, null, this);
@@ -869,6 +872,7 @@ module.exports = {
 												if (request.isFullfilled()) {
 													return request.end();
 												} else {
+													request.response.clear();
 													return request.response.respondWithStatus(types.HttpStatus.NotFound);
 												};
 											};
@@ -1169,7 +1173,6 @@ module.exports = {
 								nodeFs.stat(path.toString(), doodad.Callback(this, function getStatsCallback(err, stats) {
 									if (err) {
 										if (err.code === 'ENOENT') {
-											//resolve(request.response.respondWithStatus(types.HttpStatus.NotFound));
 											resolve(null);
 										} else {
 											reject(err);
@@ -1319,7 +1322,7 @@ module.exports = {
 						return this.addHeaders(request)
 							.then(function(data) {
 								if (!data) {
-									request.response.setStatus(types.HttpStatus.NotFound);
+									request.setFullfilled(false);
 								};
 							});
 					}),
@@ -1337,7 +1340,7 @@ module.exports = {
 										return this.sendFolder(request, data);
 									};
 								} else {
-									request.response.setStatus(types.HttpStatus.NotFound);
+									request.setFullfilled(false);
 								};
 							}, this);
 					}),
