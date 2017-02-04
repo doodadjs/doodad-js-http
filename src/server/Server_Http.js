@@ -1901,6 +1901,8 @@ module.exports = {
 								'Access-Control-Allow-Methods': allowedMethods.join(', '),
 								'Access-Control-Allow-Headers': allowedHeaders.join(', '),
 							});
+
+							request.setFullfilled(false);
 						};
 					})),
 					
