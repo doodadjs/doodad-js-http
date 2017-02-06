@@ -2040,6 +2040,8 @@ module.exports = {
 								// Unknown compression method
 						};
 						
+						request.response.setVary('Accept-Encoding');
+
 						if (stream) {
 							const type = request.response.getHeader('Content-Type');
 							if (!type || request.getAcceptables(type, {handler: this}).length) {

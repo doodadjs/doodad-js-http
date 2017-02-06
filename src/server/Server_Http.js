@@ -2796,6 +2796,9 @@ module.exports = {
 					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 						const request = ev.handlerData[0];
 						const contentEncoding = request.getHeader('Content-Transfer-Encoding');
+
+						request.response.setVary('Content-Transfer-Encoding');
+
 						if (contentEncoding === 'base64') {
 							const stream = new io.Base64DecoderStream();
 							request.addPipe(stream);
