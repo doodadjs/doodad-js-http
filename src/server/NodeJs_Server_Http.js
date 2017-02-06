@@ -1232,7 +1232,7 @@ module.exports = {
 
 						if (data.path) {
 							request.data.isFolder = false;
-							return request.response.getStream()
+							return request.response.getStream(root.getOptions().debug ? {watch: data.path} : null)
 								.then(function(outputStream) {
 									const iwritable = outputStream.getInterface(nodejsIOInterfaces.IWritable);
 									return Promise.create(function(resolve, reject) {
@@ -1856,8 +1856,13 @@ module.exports = {
 									.then(function(cacheStream) {
 										if (cacheStream) {
 											request.waitFor(
-												cacheStream.onEOF.promise(function onEOF(ev) {
+												cacheStream.onEOF.promise(function onEOF() {
 														cached.validate();
+														if (ev.data.options.watch) {
+															files.watch(ev.data.options.watch, function() {
+																cached.invalidate();
+															}, {once: true});
+														};
 													}, this)
 													.catch(function(err) {
 														cached.abort();
