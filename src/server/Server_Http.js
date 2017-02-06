@@ -629,6 +629,7 @@ module.exports = {
 					headers: doodad.PROTECTED(null),
 					contentType: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					contentDisposition: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					__varyingHeaders: doodad.PROTECTED(null),
 
 					onHeadersChanged: doodad.EVENT(false),
 
@@ -664,6 +665,8 @@ module.exports = {
 							this.setContentType(value);
 						} else if (fixed === 'Content-Disposition') {
 							this.setContentDisposition(value);
+						} else if (fixed === 'Vary') {
+							this.setVary(value);
 						} else {
 							if (value) {
 								responseHeaders[fixed] = value;
@@ -684,6 +687,8 @@ module.exports = {
 								this.setContentType(value);
 							} else if (fixed === 'Content-Disposition') {
 								this.setContentDisposition(value);
+							} else if (fixed === 'Vary') {
+								this.setVary(value);
 							} else {
 								if (value) {
 									responseHeaders[fixed] = value;
@@ -714,6 +719,8 @@ module.exports = {
 										_shared.setAttribute(this, 'contentType', null);
 									} else if (fixed === 'Content-Disposition') {
 										_shared.setAttribute(this, 'contentDisposition', null);
+									} else if (fixed === 'Vary') {
+										this.__varyingHeaders = null;
 									};
 									delete this.headers[fixed];
 								};
@@ -761,6 +768,26 @@ module.exports = {
 						this.onHeadersChanged(new doodad.Event({headers: ['Content-Disposition']}));
 
 						return this.contentDisposition;
+					}),
+
+					setVary: doodad.PUBLIC(function setVary(names) {
+						if (!this.__varyingHeaders) {
+							this.__varyingHeaders = types.nullObject();
+						};
+
+						tools.forEach(names.split(','), function(name) {
+							const fixed = tools.title(tools.trim(name), '-');
+							this.__varyingHeaders[fixed] = true;
+						}, this);
+
+						const vary = tools.reduce(this.__varyingHeaders, function(result, dummy, name) {
+							return result + ', ' + name;
+						}, "");
+
+						this.headers['Vary'] = vary.slice(2);
+						this.onHeadersChanged(new doodad.Event({headers: ['Vary']}));
+
+						return vary;
 					}),
 
 				})));
@@ -2038,13 +2065,31 @@ module.exports = {
 					}),
 				}));
 
-/* TODO: Complete and test
 				http.REGISTER(doodad.Object.$extend(
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'ContentSecurityPolicyHandler',
-					$TYPE_UUID: '' / *! INJECT('+' + TO_SOURCE(UUID('ContentSecurityPolicyHandler')), true) * /,
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ContentSecurityPolicyHandler')), true) */,
 					
+					$updatePolicy: doodad.PUBLIC(doodad.TYPE(function(policy, value, /*optional*/replace) {
+						tools.forEach(tools.trim(value, ';', 0).split(';'), function(val) {
+							const args = val.trim().split(' ');
+							const name = args[0].toLowerCase();
+							if (!(name in policy)) {
+								throw new types.Error("Invalid or unkown policy name : '~0~'.", [name]);
+							};
+							if (replace || !policy[name]) {
+								policy[name] = types.nullObject();
+							};
+							const obj = policy[name];
+							if (args.length > 1) {
+								tools.forEach(args.slice(1), function(val) {
+									obj[val.trim()] = true;
+								});
+							};
+						});
+					})),
+
 					$prepare: doodad.OVERRIDE(function(options) {
 						types.getDefault(options, 'depth', Infinity);
 
@@ -2052,68 +2097,77 @@ module.exports = {
 						
 						let val;
 
-						const state = ...
-
-						const policies = state.policies = types.nullObject({
-							'base-uri': types.nullObject(),
-							'child-src': types.nullObject(),
-							'connect-src': types.nullObject(),
-							'default-src': types.nullObject(),
-							'font-src': types.nullObject(),
-							'form-action': types.nullObject(),
-							'frame-ancestors': types.nullObject(),
-							'frame-src': types.nullObject(),
-							'img-src': types.nullObject(),
-							'manifest-src': types.nullObject(),
-							'media-src': types.nullObject(),
-							'object-src': types.nullObject(),
-							'plugin-types': types.nullObject(), // mime-types
+						const policy = types.nullObject({
+							'base-uri': null,
+							'child-src': null,
+							'connect-src': null,
+							'default-src': null,
+							'font-src': null,
+							'form-action': null,
+							'frame-ancestors': null,
+							'frame-src': null,
+							'img-src': null,
+							'manifest-src': null,
+							'media-src': null,
+							'object-src': null,
+							'plugin-types': null, // mime-types
 							//'referrer': null, // obsolete
-							'require-sri-for': types.nullObject(), // 'script', 'style', 'script style'
-							'sandbox': types.nullObject(),
-							'script-src': types.nullObject(),
-							'style-src': types.nullObject(),
-							'worker-src': types.nullObject(),
-
-							// options.httpsPolicy
+							'require-sri-for': null, // 'script', 'style', 'script style'
+							'sandbox': null,
+							'script-src': null,
+							'style-src': null,
+							'worker-src': null,
 							'block-all-mixed-content': null,
 							'upgrade-insecure-requests': null,
 						});
 
-						val = options.httpsPolicy;
-						if (!types.isNothing(val)) {
-							val = types.toString(val).toLowerCase();
-							if (val === 'block') {
-								policies['block-all-mixed-content'] = '';
-							} else if (val === 'upgrade') {
-								policies['upgrade-insecure-requests'] = '';
-							} else {
-								throw new types.Error("Invalid 'httpsPolicy' value.");
-							};
+						val = options.policy;
+						if (val) {
+							this.$updatePolicy(policy, val);
 						};
-						options.httpsPolicy = (val || null);
+						options.policy = policy;
 						
-						val = options.;
-						if (!types.isNothing(val)) {
+						const self = this;
+						options.state = {
+							policy: doodad.READ_ONLY(types.clone(policy, Infinity, false, false, true)),
+							update: doodad.PUBLIC(function(value, /*optional*/replace) {
+								self.$updatePolicy(this.policy, value, replace);
+							}),
 						};
-						
+
 						return options;
 					}),
 
-					execute: doodad.OVERRIDE(function execute(request) {
-						request.response.addHeaders({
+					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
+						const request = ev.handlerData[0];
+						const state = request.getHandlerState(this);
+
+						let value = '';
+						tools.forEach(state.policy, function(args, name) {
+							if (args) {
+								value += '; ' + name;
+								tools.forEach(args, function(dummy, arg) {
+									value += ' ' + arg;
+								});
+							};
 						});
 
-						request.setFullfilled(false);
+						if (value) {
+							request.response.addHeader('Content-Security-Policy', value.slice(2));
+						};
+					}),
+
+					execute: doodad.OVERRIDE(function(request) {
+						request.response.onGetStream.attach(this, this.__onGetStream, null, [request]);
 					}),
 				}));
 
-
+/* TODO: Complete and test
 				http.REGISTER(doodad.Object.$extend(
 									httpMixIns.Handler,
 				{
 					$TYPE_NAME: 'ContentSecurityPolicyReportHandler',
-					$TYPE_UUID: '' / *! INJECT('+' + TO_SOURCE(UUID('ContentSecurityPolicyReportHandler')), true) * /,
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ContentSecurityPolicyReportHandler')), true) * /,
 					
 					$prepare: doodad.OVERRIDE(function(options) {
 						types.getDefault(options, 'depth', Infinity);
@@ -2122,8 +2176,8 @@ module.exports = {
 						
 						let val;
 						
-						CSP: report-uri
-						Content-Security-Policy-Report-Only: default-src https:; report-uri /endpoint
+						//CSP: report-uri
+						//Content-Security-Policy-Report-Only: default-src https:; report-uri /endpoint
 
 						return options;
 					}),
@@ -2161,29 +2215,23 @@ module.exports = {
 					}),
 
 					execute: doodad.OVERRIDE(function execute(request) {
-						// TODO: Connect to ContentSecurityPolicyHandler
-						//const cspState = request.getHandlerState(http.ContentSecurityPolicyHandler);
-						//if (!cspState) {
-						//	throw new types.Error("The handler '~0~' is missing or not loaded.", [types.getTypeName(http.ContentSecurityPolicyHandler)]);
-						//};
+						const csp = http.ContentSecurityPolicyHandler;
+						const cspState = request.getHandlerState(csp);
+						if (!cspState) {
+							throw new types.Error("The handler '~0~' is missing or not loaded.", [types.getTypeName(csp)]);
+						};
 
 						const uirs = request.getHeader('Upgrade-Insecure-Requests');
 
 						if (this.options.hstsSafe) {
-							request.response.addHeaders({
-								'Strict-Transport-Security': 'max-age=' + types.toString(this.options.hstsMaxAge) + '; preload',
-								'Content-Security-Policy': 'block-all-mixed-content;',
-							});
+							request.response.addHeader('Strict-Transport-Security', 'max-age=' + types.toString(this.options.hstsMaxAge) + '; preload');
+							cspState.update('block-all-mixed-content');
 						} else {
-							request.response.addHeaders({
-								'Content-Security-Policy': 'upgrade-insecure-requests;',
-							});
+							cspState.update('upgrade-insecure-requests');
 						};
 						
 						if (uirs === '1') {
-							request.response.addHeaders({
-								'Vary': 'Upgrade-Insecure-Requests',
-							});
+							request.response.setVary('Upgrade-Insecure-Requests');
 							
 							if (!this.options.hstsSafe) {
 								request.response.addHeaders({
