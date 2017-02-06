@@ -66,6 +66,7 @@ module.exports = {
 
 				types.complete(_shared.Natives, {
 					windowRegExp: global.RegExp,
+					windowArray: global.Array,
 				});
 				
 				
@@ -1437,6 +1438,71 @@ module.exports = {
 						this.__fullfilled = !!fullfilled;
 					}),
 
+					resolve: doodad.PUBLIC(function resolve(url, type) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};
+						
+						const base = httpMixIns.Handler;
+						if (types.isString(type)) {
+							const tmp = namespaces.get(type);
+							if (!types._implements(tmp, base)) {
+								throw new types.Error("Invalid handler type : '~0~'.", [type]);
+							};
+							type = tmp;
+						} else if (!types._implements(type, base)) {
+							throw new types.Error("Invalid handler type : '~0~'.", [options.type.DD_FULL_NAME || '<unknown>']);
+						};
+
+						const resolveHandlers = function resolveHandlers(newHandlersOptions) {
+							if (!types.isArray(newHandlersOptions)) {
+								newHandlersOptions = [newHandlersOptions];
+							};
+
+							for (let i = 0; i < newHandlersOptions.length; i++) {
+								const options = types.nullObject(newHandlersOptions[i]);
+
+								let handler = options.handler;
+
+								if (!types._implements(handler, httpMixIns.Handler)) {
+									continue;
+								};
+
+								let mustDestroy = false;
+								if (types.isType(handler)) {
+									handler = handler.$createInstance(options);
+									mustDestroy = true;
+								};
+
+								if (!this.__handlersStates.has(handler)) {
+									this.applyHandlerState(handler, {
+										mustDestroy: doodad.PUBLIC(doodad.READ_ONLY(mustDestroy)),
+									});
+								};
+
+								if (types.isLike(handler, type)) {
+									return handler;
+								};
+
+								if (types.isImplemented(handler, 'resolve')) {
+									const targetUrl = (options.matcherResult ? options.matcherResult.urlRemaining : url);
+									const handlers = handler.resolve(this, targetUrl);
+									if (handlers) {
+										const resolved = resolveHandlers.call(this, handlers);
+										if (resolved) {
+											return resolved;
+										};
+									};
+								};
+							};
+
+							return null; // not found
+						};
+
+						const result = resolveHandlers.call(this, this.server.handlersOptions);
+						return result;
+					}),
+
 					proceed: doodad.PUBLIC(doodad.ASYNC(function proceed(handlersOptions) {
 						if (this.ended) {
 							throw new server.EndOfRequest();
@@ -1451,9 +1517,20 @@ module.exports = {
 						const runHandler = function runHandler(options) {
 							options = types.nullObject(options);
 
-							let handler = options.handler,
-								mustDestroy = false;
+							let handler = options.handler;
 
+							const parentState = options.parent && this.getHandlerState(options.parent);
+							const stateUrl = options.matcherResult && (parentState && parentState.url ? parentState.url.combine(options.matcherResult.url, {isRelative: true}) : options.matcherResult.url);
+							const state = types.extend({}, options.state, {
+								parent: doodad.PUBLIC(doodad.READ_ONLY(options.parent || null)),
+								matcherResult: doodad.PUBLIC(doodad.READ_ONLY(options.matcherResult || null)),
+								mimeTypes: doodad.PUBLIC(doodad.READ_ONLY(options.acceptedMimeTypes || null)),
+								mimeWeight: doodad.PUBLIC(doodad.READ_ONLY(types.isNothing(options.acceptedMimeWeight) ? null : options.acceptedMimeWeight)),
+								url: doodad.PUBLIC(doodad.READ_ONLY(stateUrl || null)),
+							});
+							this.applyHandlerState(handler, state, {globalState: true});
+
+							let mustDestroy = false;
 							if (types.isType(handler)) {
 								// TODO: Reuse objects on "redirectServer"
 								handler = handler.$createInstance(options);
@@ -1646,6 +1723,8 @@ module.exports = {
 
 						_shared.setAttribute(this, 'options', options);
 					}),
+
+					resolve: doodad.PUBLIC(doodad.NOT_IMPLEMENTED()),  // function(request, url)
 				})));
 				
 				
@@ -1654,7 +1733,9 @@ module.exports = {
 					$TYPE_NAME: 'Routes',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RoutesMixIn')), true) */,
 					
-					createHandlers: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request)
+					createHandlers: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, targetUrl)
+
+					resolve: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),  // function(request, url)
 				})));
 				
 				
@@ -1736,8 +1817,11 @@ module.exports = {
 					$TYPE_NAME: 'StaticPage',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('StaticPageBase')), true) */,
 
+					getSystemPath: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request)
+
 					execute_HEAD: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
 					execute_GET: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
+
 				})));
 
 				/* TODO: Terminate and Test
@@ -1942,6 +2026,104 @@ module.exports = {
 					}),
 				}));
 
+/* TODO: Complete and test
+				http.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'ContentSecurityPolicyHandler',
+					$TYPE_UUID: '' / *! INJECT('+' + TO_SOURCE(UUID('ContentSecurityPolicyHandler')), true) * /,
+					
+					$prepare: doodad.OVERRIDE(function(options) {
+						types.getDefault(options, 'depth', Infinity);
+
+						options = this._super(options);
+						
+						let val;
+
+						const state = ...
+
+						const policies = state.policies = types.nullObject({
+							'base-uri': types.nullObject(),
+							'child-src': types.nullObject(),
+							'connect-src': types.nullObject(),
+							'default-src': types.nullObject(),
+							'font-src': types.nullObject(),
+							'form-action': types.nullObject(),
+							'frame-ancestors': types.nullObject(),
+							'frame-src': types.nullObject(),
+							'img-src': types.nullObject(),
+							'manifest-src': types.nullObject(),
+							'media-src': types.nullObject(),
+							'object-src': types.nullObject(),
+							'plugin-types': types.nullObject(), // mime-types
+							//'referrer': null, // obsolete
+							'require-sri-for': types.nullObject(), // 'script', 'style', 'script style'
+							'sandbox': types.nullObject(),
+							'script-src': types.nullObject(),
+							'style-src': types.nullObject(),
+							'worker-src': types.nullObject(),
+
+							// options.httpsPolicy
+							'block-all-mixed-content': null,
+							'upgrade-insecure-requests': null,
+						});
+
+						val = options.httpsPolicy;
+						if (!types.isNothing(val)) {
+							val = types.toString(val).toLowerCase();
+							if (val === 'block') {
+								policies['block-all-mixed-content'] = '';
+							} else if (val === 'upgrade') {
+								policies['upgrade-insecure-requests'] = '';
+							} else {
+								throw new types.Error("Invalid 'httpsPolicy' value.");
+							};
+						};
+						options.httpsPolicy = (val || null);
+						
+						val = options.;
+						if (!types.isNothing(val)) {
+						};
+						
+						return options;
+					}),
+
+					execute: doodad.OVERRIDE(function execute(request) {
+						request.response.addHeaders({
+						});
+
+						request.setFullfilled(false);
+					}),
+				}));
+
+
+				http.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'ContentSecurityPolicyReportHandler',
+					$TYPE_UUID: '' / *! INJECT('+' + TO_SOURCE(UUID('ContentSecurityPolicyReportHandler')), true) * /,
+					
+					$prepare: doodad.OVERRIDE(function(options) {
+						types.getDefault(options, 'depth', Infinity);
+
+						options = this._super(options);
+						
+						let val;
+						
+						CSP: report-uri
+						Content-Security-Policy-Report-Only: default-src https:; report-uri /endpoint
+
+						return options;
+					}),
+
+					execute: doodad.OVERRIDE(function execute(request) {
+						request.response.addHeaders({
+						});
+
+						request.setFullfilled(false);
+					}),
+				}));
+*/
 
 				http.REGISTER(doodad.Object.$extend(
 									httpMixIns.Handler,
@@ -1967,6 +2149,12 @@ module.exports = {
 					}),
 
 					execute: doodad.OVERRIDE(function execute(request) {
+						// TODO: Connect to ContentSecurityPolicyHandler
+						//const cspState = request.getHandlerState(http.ContentSecurityPolicyHandler);
+						//if (!cspState) {
+						//	throw new types.Error("The handler 'ContentSecurityPolicyHandler' is missing or not loaded.");
+						//};
+
 						const uirs = request.getHeader('Upgrade-Insecure-Requests');
 
 						if (this.options.hstsSafe) {
@@ -1991,6 +2179,8 @@ module.exports = {
 								});
 							};
 						};
+
+						request.setFullfilled(false);
 						
 						if (this.options.hstsSafe || (uirs === '1')) {
 							if ((request.url.protocol !== 'https') && (request.url.domain || this.options.sslDomain)) {
@@ -2182,6 +2372,7 @@ module.exports = {
 							
 							urlRemaining = files.Url.parse(urlPath.slice(urlLevel), {
 								isRelative: true,
+								args: requestUrl.args,
 							});
 
 							if (allowArgs) {
@@ -2192,17 +2383,18 @@ module.exports = {
 										const arg = args[i],
 											name = arg[0];
 										if (name) {
-											if (requestUrl.args.has(name)) {
+											if (urlRemaining.args.has(name)) {
 												let val = arg[1];
+												let remainingVal = (urlRemaining.args.get(name, true) || '');
 												if (val === null) {
-													val = (requestUrl.args.get(name, true) || '');
+													val = remainingVal;
 													if (!handlerOptions.caseSensitive) {
 														val = val.toLowerCase();
 													};
 												} else if ((val[0] === '(') && (val.slice(-1) === ')')) {
 													// RegExp matching
 													val = new _shared.Natives.windowRegExp('^' + val + '$', handlerOptions.caseSensitive ? '' : 'i');
-													val = val.exec(requestUrl.args.get(name, true) || '');
+													val = val.exec(remainingVal);
 													if (!val) {
 														weight = 0;
 														full = false;
@@ -2214,12 +2406,11 @@ module.exports = {
 														val = val[1];
 													};
 												} else {
-													var val2 = (requestUrl.args.get(name, true) || '');
 													if (!handlerOptions.caseSensitive) {
 														val = val.toLowerCase();
-														val2 = val2.toLowerCase();
+														remainingVal = remainingVal.toLowerCase();
 													};
-													if (val !== val2) {
+													if (val !== remainingVal) {
 														weight = 0;
 														full = false;
 														break;
@@ -2310,7 +2501,9 @@ module.exports = {
 
 					}),
 					
-					createHandlers: doodad.OVERRIDE(function createHandlers(request) {
+					createHandlers: doodad.OVERRIDE(function createHandlers(request, targetUrl) {
+						const self = this;
+
 						let handlers = tools.reduce(this.routes, function(handlers, handlersOptions, matcher) {
 							const routeId = types.getSymbol(); // takes less resources than using "handlersOptions"
 
@@ -2323,46 +2516,28 @@ module.exports = {
 									continue;
 								};
 								
-								if (options.extensions && !types.isNothing(request.url.extension)) {
-									if (tools.indexOf(options.extensions, request.url.extension) === -1) {
+								if (options.extensions && targetUrl.file) {
+									if (tools.indexOf(options.extensions, targetUrl.extension) === -1) {
 										continue;
 									};
 								};
 
-								const parent = request.currentHandler;
-								const parentState = request.getHandlerState(parent);
-								const url = (parentState && parentState.matcherResult ? parentState.matcherResult.urlRemaining : request.url);
-
-								const matcherResult = matcher.match(request, url, options);
+								const matcherResult = matcher.match(request, targetUrl, options);
 
 								if ((matcherResult.weight > 0) || matcherResult.full) {
+									options.parent = self;
 									//options.route = handlersOptions;
 									options.routeId = routeId;
 									options.routeIndex = i;
-
-									const mimeTypes = request.getAcceptables(options.mimeTypes);
-
-									const mimeWeight = tools.reduce(mimeTypes, function(mimeWeight, mimeType) {
+									options.matcherResult = matcherResult;
+									options.acceptedMimeTypes = request.getAcceptables(options.mimeTypes);
+									options.acceptedMimeWeight = tools.reduce(options.acceptedMimeTypes, function(mimeWeight, mimeType) {
 										if (mimeType.weight > mimeWeight) {
 											return mimeType.weight;
 										} else {
 											return mimeWeight;
 										};
 									}, 0.0);
-
-									const state = types.extend({}, options.state, {
-										parent: doodad.PUBLIC(doodad.READ_ONLY(parent)),
-										matcherResult: doodad.PUBLIC(doodad.READ_ONLY(matcherResult)),
-										mimeTypes: doodad.PUBLIC(doodad.READ_ONLY(mimeTypes)),
-										mimeWeight: doodad.PUBLIC(doodad.READ_ONLY(mimeWeight)),
-										url: doodad.PUBLIC(doodad.READ_ONLY(parentState && parentState.url ? parentState.url.combine(matcherResult.url, {isRelative: true}) : matcherResult.url)),
-									});
-
-									request.applyHandlerState(options.handler, state, {globalState: true});
-
-									options.matcherResult = matcherResult;
-									options.mimeWeight = mimeWeight;
-
 									handlers.push(options);
 								};
 							};
@@ -2397,9 +2572,18 @@ module.exports = {
 					}),
 					
 					execute: doodad.OVERRIDE(function execute(request) {
-						const handlers = this.createHandlers(request);
+						const state = request.getHandlerState(this);
+						const url = (state && state.matcherResult ? state.matcherResult.urlRemaining : request.url);
+						const handlers = this.createHandlers(request, url);
 						return request.proceed(handlers);
 					}),
+
+					resolve: doodad.OVERRIDE(function resolve(request, url) {
+						// TODO: Validate domain with the server instead of just clearing it
+						url = _shared.urlParser(url).set({domain: null});
+						return this.createHandlers(request, url);
+					}),
+
 				}));
 
 
