@@ -43,7 +43,7 @@
 	
 	<html>
 		<head>
-			<link rel="stylesheet" type="text/css" t:href="url.setArgs({'res': 'css/Folder.css'})" />
+			<link rel="stylesheet" type="text/css" t:href="url.setArgs({'res': 'css/Folder.css'})" t:integrity="auto" />
 		</head>
 		
 		<body>
