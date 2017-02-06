@@ -1468,29 +1468,41 @@ module.exports = {
 									continue;
 								};
 
-								let mustDestroy = false;
-								if (types.isType(handler)) {
-									handler = handler.$createInstance(options);
-									mustDestroy = true;
-								};
-
-								if (!this.__handlersStates.has(handler)) {
-									this.applyHandlerState(handler, {
-										mustDestroy: doodad.PUBLIC(doodad.READ_ONLY(mustDestroy)),
-									});
-								};
-
 								if (types.isLike(handler, type)) {
+									let mustDestroy = false;
+									if (types.isType(handler)) {
+										handler = handler.$createInstance(options);
+										mustDestroy = true;
+									};
+									if (!this.__handlersStates.has(handler)) {
+										this.applyHandlerState(handler, {
+											mustDestroy: doodad.PUBLIC(doodad.READ_ONLY(mustDestroy)),
+										});
+									};
 									return handler;
 								};
 
 								if (types.isImplemented(handler, 'resolve')) {
-									const targetUrl = (options.matcherResult ? options.matcherResult.urlRemaining : url);
-									const handlers = handler.resolve(this, targetUrl);
-									if (handlers) {
-										const resolved = resolveHandlers.call(this, handlers);
-										if (resolved) {
-											return resolved;
+									let mustDestroy = false;
+									if (types.isType(handler)) {
+										handler = handler.$createInstance(options);
+										mustDestroy = true;
+									};
+									try {
+										const targetUrl = (options.matcherResult ? options.matcherResult.urlRemaining : url);
+										const handlers = handler.resolve(this, targetUrl);
+										if (handlers) {
+											const resolved = resolveHandlers.call(this, handlers);
+											if (resolved) {
+												return resolved;
+											};
+										};
+									} catch(ex) {
+										throw ex;
+									} finally {
+										if (mustDestroy) {
+											types.DESTROY(handler);
+											handler = null;
 										};
 									};
 								};
