@@ -1397,6 +1397,7 @@ module.exports = {
 					__message: doodad.PROTECTED(null),
 					//__key: doodad.PROTECTED(null),
 					//__section: doodad.PROTECTED(null),
+					__encoding: doodad.PROTECTED(null),
 
 					create: doodad.OVERRIDE(function create(/*optional*/options) {
 						this._super(options);
@@ -1417,6 +1418,7 @@ module.exports = {
 						this.__message = null;
 						//this.__key = null;
 						//this.__section = null;
+						this.__encoding = null;
 					}),
 
 					isListening: doodad.OVERRIDE(function isListening() {
@@ -1471,7 +1473,7 @@ module.exports = {
 							while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
 								if (index === lastIndex) {
 									this.__headersCompiled = true;
-									this.push({raw: io.BOF, headers: this.__headers, status: {code: this.__status, message: this.__message}, valueOf: function() {return this.raw}});
+									this.push({raw: io.BOF, headers: this.__headers, status: {code: this.__status, message: this.__message}, encoding: this.__encoding, valueOf: function() {return this.raw}});
 									break;
 								};
 								const str = buf.slice(lastIndex, index).toString('utf-8');
@@ -1490,6 +1492,8 @@ module.exports = {
 									this.__message = val[1] || '';
 								} else if (name === 'X-Cache-Section') {
 									//this.__section = value;
+								} else if (name === 'X-Cache-Encoding') {
+									this.__encoding = value;
 								} else if (name.slice(0, 8) === 'X-Cache-') {
 									// Ignored
 								} else if (name) {
@@ -1711,6 +1715,10 @@ module.exports = {
 												request.response.addHeaders(ev.data.headers);
 												//ev.data.status.code && request.response.setStatus(ev.data.status.code, ev.data.status.message);
 											};
+											if (ev.data.encoding) {
+												const decoder = new io.TextDecoderStream();
+												return cacheStream.pipe(decoder);
+											};
 											return cacheStream;
 										} else {
 											// Cancels resolve and waits next event
@@ -1811,6 +1819,9 @@ module.exports = {
 									};
 									if (cached.expiration) {
 										headers += 'X-Cache-Expiration: ' + http.toRFC1123Date(cached.expiration) + '\n'; // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
+									};
+									if (encoding) {
+										headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
 									};
 									stream.write(headers + '\n', {encoding: 'utf-8'}); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
 									return stream;
