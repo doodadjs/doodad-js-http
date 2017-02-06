@@ -1154,21 +1154,20 @@ module.exports = {
 						return options;
 					}),
 
-					getSystemPath: doodad.PROTECTED(function getSystemPath(request) {
+					getSystemPath: doodad.OVERRIDE(function getSystemPath(request, targetUrl) {
 						let path;
-						if (request.url.args.has('res')) {
-							path = this.options.folderTemplate.set({file: null}).combine('./public/' + request.url.args.get('res'), {isRelative: true, os: 'linux'});
+						if (targetUrl.args.has('res')) {
+							path = this.options.folderTemplate.set({file: null}).combine('./public/' + targetUrl.args.get('res', true), {isRelative: true, os: 'linux'});
 						} else {
-							const handlerState = request.getHandlerState(this);
-							path = this.options.path.combine(handlerState.matcherResult.urlRemaining);
+							path = this.options.path.combine(targetUrl, {isRelative: true});
 						};
-			//console.log(path.toString());
 						return path;
 					}),
 					
 					addHeaders: doodad.PROTECTED(doodad.ASYNC(function addHeaders(request) {
 						const Promise = types.getPromise();
-						const path = this.getSystemPath(request);
+						const state = request.getHandlerState(this);
+						const path = this.getSystemPath(request, state.matcherResult.urlRemaining);
 						return Promise.create(function tryStat(resolve, reject) {
 								nodeFs.stat(path.toString(), doodad.Callback(this, function getStatsCallback(err, stats) {
 									if (err) {
@@ -1582,6 +1581,10 @@ module.exports = {
 						const section = types.get(options, 'section');
 						if (section) {
 							parent = this.getCached(request, {key: key});
+							if (!parent) {
+								// No parent (should not happen)
+								return null;
+							};
 							key += '|' + section;
 						};
 						let cached = (section ? null : state.cached);
