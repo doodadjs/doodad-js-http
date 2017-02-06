@@ -2152,7 +2152,7 @@ module.exports = {
 						// TODO: Connect to ContentSecurityPolicyHandler
 						//const cspState = request.getHandlerState(http.ContentSecurityPolicyHandler);
 						//if (!cspState) {
-						//	throw new types.Error("The handler 'ContentSecurityPolicyHandler' is missing or not loaded.");
+						//	throw new types.Error("The handler '~0~' is missing or not loaded.", [types.getTypeName(http.ContentSecurityPolicyHandler)]);
 						//};
 
 						const uirs = request.getHeader('Upgrade-Insecure-Requests');
@@ -2508,10 +2508,8 @@ module.exports = {
 							const routeId = types.getSymbol(); // takes less resources than using "handlersOptions"
 
 							for (let i = 0; i < handlersOptions.length; i++) {
-								let options = handlersOptions[i];
+								const options = types.nullObject(handlersOptions[i]);
 
-								options = types.nullObject(options);
-								
 								if (options.verbs && (tools.indexOf(options.verbs, request.verb) === -1)) {
 									continue;
 								};
@@ -2559,9 +2557,9 @@ module.exports = {
 								return -1;
 							} else if (handler1.matcherResult.weight < handler2.matcherResult.weight) {
 								return 1;
-							} else if (handler1.mimeWeight > handler2.mimeWeight) {
+							} else if (handler1.acceptedMimeWeight > handler2.acceptedMimeWeight) {
 								return -1;
-							} else if (handler1.mimeWeight < handler2.mimeWeight) {
+							} else if (handler1.acceptedMimeWeight < handler2.acceptedMimeWeight) {
 								return 1;
 							} else {
 								return 0;
