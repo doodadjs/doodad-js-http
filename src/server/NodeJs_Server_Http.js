@@ -1991,7 +1991,8 @@ module.exports = {
 								generateKey: doodad.OVERRIDE(function(request, handler) {
 									let key = this._super(request, handler);
 									if (key) {
-										const compressionHandler = request.getHandlers(type).slice(-1)[0];
+										const handlers = request.getHandlers(type);
+										const compressionHandler = handlers.slice(-1)[0];
 										if (compressionHandler) {
 											const encoding = request.getHandlerState(compressionHandler).contentEncoding || 'identity';
 											key += '|' + encoding;
