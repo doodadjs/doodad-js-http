@@ -1215,6 +1215,8 @@ module.exports = {
 										'Content-Length': stats.size,
 										'Content-Disposition': 'filename="' + path.file.replace(/\"/g, '\\"') + '"',
 									});
+								} else {
+									request.response.setVary('Accept');
 								};
 
 								request.response.setContentType(contentType, {force: force});
