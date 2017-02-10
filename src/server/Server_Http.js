@@ -2071,12 +2071,12 @@ module.exports = {
 					$TYPE_NAME: 'ContentSecurityPolicyHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ContentSecurityPolicyHandler')), true) */,
 					
-					$updatePolicy: doodad.PUBLIC(doodad.TYPE(function(policy, value, /*optional*/replace) {
+					$updatePolicy: doodad.PUBLIC(doodad.TYPE(function $updatePolicy(policy, value, /*optional*/replace) {
 						tools.forEach(tools.trim(value, ';', 0).split(';'), function(val) {
 							const args = val.trim().split(' ');
 							const name = args[0].toLowerCase();
 							if (!(name in policy)) {
-								throw new types.Error("Invalid or unkown policy name : '~0~'.", [name]);
+								throw new types.Error("Invalid or unknown policy name : '~0~'.", [name]);
 							};
 							if (replace || !policy[name]) {
 								policy[name] = types.nullObject();
@@ -2088,6 +2088,19 @@ module.exports = {
 								});
 							};
 						});
+					})),
+
+					$getPolicyString: doodad.PUBLIC(doodad.TYPE(function $getPolicyString(policy) {
+						let value = '';
+						tools.forEach(policy, function(args, name) {
+							if (args) {
+								value += '; ' + name;
+								tools.forEach(args, function(dummy, arg) {
+									value += ' ' + arg;
+								});
+							};
+						});
+						return value.slice(2);
 					})),
 
 					$prepare: doodad.OVERRIDE(function(options) {
@@ -2125,7 +2138,7 @@ module.exports = {
 						if (val) {
 							this.$updatePolicy(policy, val);
 						};
-						options.policy = policy;
+						options.policy = this.$getPolicyString(policy);
 						
 						const self = this;
 						options.state = {
@@ -2142,19 +2155,10 @@ module.exports = {
 						const request = ev.handlerData[0];
 						const state = request.getHandlerState(this);
 
-						let value = '';
-						tools.forEach(state.policy, function(args, name) {
-							if (args) {
-								value += '; ' + name;
-								tools.forEach(args, function(dummy, arg) {
-									value += ' ' + arg;
-								});
-							};
-						});
+						const type = types.getType(this);
+						const value = type.$getPolicyString(state.policy);
 
-						if (value) {
-							request.response.addHeader('Content-Security-Policy', value.slice(2));
-						};
+						request.response.addHeader('Content-Security-Policy', value);
 					}),
 
 					execute: doodad.OVERRIDE(function(request) {
