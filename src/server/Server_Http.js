@@ -2346,10 +2346,10 @@ module.exports = {
 					}),
 					
 					match: doodad.OVERRIDE(function match(request, requestUrl, handlerOptions) {
-						const urlPath = tools.trim(requestUrl.toArray(), '');
+						const urlPath = requestUrl.toArray({isPath: true, trim: true});
 						const urlPathLen = urlPath.length;
 
-						const basePath = tools.trim(this.baseUrl.toArray(), '');
+						const basePath = this.baseUrl.toArray({isPath: true, trim: true});
 						const basePathLen = basePath.length;
 
 						let weight = 0,    // weight
