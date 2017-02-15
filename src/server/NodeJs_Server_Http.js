@@ -1105,10 +1105,10 @@ module.exports = {
 					$TYPE_NAME: 'StaticPage',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('StaticPage')), true) */,
 
-					$prepare: doodad.OVERRIDE(function $prepare(options) {
+					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options);
+						options = this._super(options, parentOptions);
 						
 						let val;
 						
@@ -1185,7 +1185,11 @@ module.exports = {
 							}, this)
 							.then(function toCanonical(stats) {
 								if (stats) {
-									if (this.options.forceCaseSensitive) {
+									if (this.options.caseSensitive && this.options.forceCaseSensitive) {
+										// Windows/MacOS X : File systems are case-insensitive by default. 
+										//					If "forceCaseSensitive" is true, we scan the file system for the right name and require that exact name. 
+										//					But please note that it causes an overhead and enabling the case-sensitive option on the file system,
+										//					when possible, is a better choice.
 										return files.getCanonical(path, {async: true})
 											.then(function(canonicalPath) {
 												stats.realPath = canonicalPath.toString();
@@ -1373,8 +1377,8 @@ module.exports = {
 					$TYPE_NAME: 'JavascriptPage',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JavascriptPage')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options) {
-						options = this._super(options);
+					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
+						options = this._super(options, parentOptions);
 						
 						let val;
 						
@@ -1553,10 +1557,10 @@ module.exports = {
 					
 					$__cache: doodad.PROTECTED(doodad.TYPE(  new types.Map()  )), // <FUTURE> Global to threads (shared)
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options) {
+					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options);
+						options = this._super(options, parentOptions);
 						
 						let val;
 						
@@ -1912,10 +1916,10 @@ module.exports = {
 					$TYPE_NAME: 'CompressionBodyHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CompressionBodyHandler')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options) {
+					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options);
+						options = this._super(options, parentOptions);
 
 						var val;
 						
@@ -1990,10 +1994,10 @@ module.exports = {
 					$TYPE_NAME: 'CompressionHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CompressionHandler')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options) {
+					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options);
+						options = this._super(options, parentOptions);
 
 						var val;
 						
