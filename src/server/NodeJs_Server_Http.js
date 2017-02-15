@@ -1169,7 +1169,8 @@ module.exports = {
 						const state = request.getHandlerState(this);
 						const path = this.getSystemPath(request, state.matcherResult.urlRemaining);
 						return Promise.create(function tryStat(resolve, reject) {
-								nodeFs.stat(path.toString(), doodad.Callback(this, function getStatsCallback(err, stats) {
+								const pathStr = path.toString();
+								nodeFs.stat(pathStr, doodad.Callback(this, function getStatsCallback(err, stats) {
 									if (err) {
 										if (err.code === 'ENOENT') {
 											resolve(null);
@@ -1177,15 +1178,34 @@ module.exports = {
 											reject(err);
 										};
 									} else {
+										stats.path = pathStr;
 										resolve(stats);
 									};
 								}))
 							}, this)
+							.then(function toCanonical(stats) {
+								if (stats) {
+									if (this.options.forceCaseSensitive) {
+										return files.getCanonical(path, {async: true})
+											.then(function(canonicalPath) {
+												stats.realPath = canonicalPath.toString();
+												return stats;
+											});
+									} else {
+										stats.realPath = stats.path;
+									};
+								};
+								return stats;
+							}, null, this)
 							.then(function parseStats(stats) {
 								if (!stats) {
 									return null;
 								};
 								
+								if (stats.path !== stats.realPath) {
+									return null;
+								};
+
 								let contentTypes,
 									force = false;
 								if (stats.isFile()) {
