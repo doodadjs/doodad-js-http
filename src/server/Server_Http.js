@@ -2454,8 +2454,15 @@ module.exports = {
 							
 							url = files.Url.parse(urlPath.slice(0, urlLevel));
 							
-							urlRemaining = files.Url.parse(urlPath.slice(urlLevel), {
+							const ar = urlPath.slice(urlLevel);
+							let file = null;
+							if (requestUrl.file) {
+								file = ar.pop();
+							};
+							urlRemaining = files.Url.parse(null, {
 								isRelative: true,
+								path: ar,
+								file: file,
 								args: requestUrl.args,
 							});
 
