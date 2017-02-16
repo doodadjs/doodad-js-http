@@ -1140,8 +1140,8 @@ module.exports = {
 									let key = this._super(request, handler);
 									if (key) {
 										const res = !request.url.file && request.url.args.get('res');
-										//key += (res ? ('|' + res) : '');
 										if (res) {
+											//key += '|' + res;
 											// No cache
 											return null;
 										};
@@ -1156,7 +1156,7 @@ module.exports = {
 
 					getSystemPath: doodad.OVERRIDE(function getSystemPath(request, targetUrl) {
 						let path;
-						if (targetUrl.args.has('res')) {
+						if (!request.url.file && targetUrl.args.has('res')) {
 							path = this.options.folderTemplate.set({file: null}).combine('./public/' + targetUrl.args.get('res', true), {isRelative: true, os: 'linux'});
 						} else {
 							path = this.options.path.combine(targetUrl, {isRelative: true});
@@ -1169,7 +1169,7 @@ module.exports = {
 						const state = request.getHandlerState(this);
 						const path = this.getSystemPath(request, state.matcherResult.urlRemaining);
 						return Promise.create(function tryStat(resolve, reject) {
-								const pathStr = path.toString();
+								const pathStr = path.toApiString();
 								nodeFs.stat(pathStr, doodad.Callback(this, function getStatsCallback(err, stats) {
 									if (err) {
 										if (err.code === 'ENOENT') {
@@ -1178,7 +1178,11 @@ module.exports = {
 											reject(err);
 										};
 									} else {
-										stats.path = pathStr;
+										if (path.file && !stats.isFile()) {
+											stats.path = path.pushFile().toApiString();
+										} else {
+											stats.path = pathStr;
+										};
 										resolve(stats);
 									};
 								}))
@@ -1192,7 +1196,7 @@ module.exports = {
 										//					when possible, is a better choice.
 										return files.getCanonical(path, {async: true})
 											.then(function(canonicalPath) {
-												stats.realPath = canonicalPath.toString();
+												stats.realPath = canonicalPath.toApiString();
 												return stats;
 											});
 									} else {
