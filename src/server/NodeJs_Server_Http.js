@@ -1089,9 +1089,12 @@ module.exports = {
 
 						this.path = path;
 
-						const cached = cacheHandler.getCached(request);
-						files.watch(this.path.toString(), function() {
-							cached.invalidate();
+						const state = request.getHandlerState(cacheHandler);
+
+						state.onCreateCurrent.attachOnce(this, function(handler, cached) {
+							files.watch(this.path.toString(), function() {
+								cached.invalidate();
+							});
 						});
 					}),
 
@@ -1658,6 +1661,8 @@ module.exports = {
 							defaultDisabled: doodad.PUBLIC(false),
 							defaultDuration: doodad.PUBLIC(null), // Moment Duration
 							cached: doodad.PUBLIC(null),
+							onCreateCurrent: doodad.PUBLIC(doodad.RAW_EVENT()),
+							onNewCached: doodad.PUBLIC(doodad.RAW_EVENT()),
 							generateKey: doodad.PUBLIC(doodad.METHOD(options.keyGenerator)),
 						};
 
@@ -1760,6 +1765,8 @@ module.exports = {
 							cached.parent.children[section] = cached;
 						};
 
+						state.onNewCached(this, cached);
+
 						return cached;
 					}),
 
@@ -1819,6 +1826,8 @@ module.exports = {
 
 							if (fromCurrent) {
 								state.cached = cached;
+
+								state.onCreateCurrent(this, cached);
 							};
 
 							return cached;
