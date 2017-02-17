@@ -1032,6 +1032,7 @@ module.exports = {
 				})));
 				
 				http.REGISTER(doodad.EXPANDABLE(doodad.Object.$extend(
+									mixIns.Events,
 				{
 					$TYPE_NAME: 'HandlerState',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('HandlerState')), true) */,
