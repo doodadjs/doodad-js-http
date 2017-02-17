@@ -676,7 +676,7 @@ module.exports = {
 									} else if (types.HttpStatus.isRedirect(status)) {
 										type.$__redirected++;
 									} else { // if (types.HttpStatus.isError(status))
-										var failed = type.$__failed;
+										const failed = type.$__failed;
 										if (types.has(failed, status)) {
 											failed[status]++;
 										} else {
@@ -1057,7 +1057,7 @@ module.exports = {
 										if (!handler.options.mimeTypes) {
 											return true;
 										};
-										var types = mime.getTypes(file.name);
+										const types = mime.getTypes(file.name);
 										return tools.some(handler.options.mimeTypes, function(mimeType) {
 											return (tools.findItem(types, function(type) {
 													return type === mimeType.name;
@@ -1089,7 +1089,7 @@ module.exports = {
 
 						this.path = path;
 
-						var cached = cacheHandler.getCached(request);
+						const cached = cacheHandler.getCached(request);
 						files.watch(this.path.toString(), function() {
 							cached.invalidate();
 						});
@@ -1874,7 +1874,7 @@ module.exports = {
 									request.onSanitize.attachOnce(this, function sanitize(ev) {
 										types.DESTROY(cacheStream);
 									});
-									var promise = cacheStream.onReady.promise(function(ev) {
+									const promise = cacheStream.onReady.promise(function(ev) {
 										if (ev.data.raw === io.BOF) {
 											ev.preventDefault();
 											if (!cached.section) {
@@ -1943,7 +1943,7 @@ module.exports = {
 									}, reject));
 									stream.once('open', openCb = doodad.Callback(this, function streamOnOpen(fd) {
 										stream.removeListener('error', errorCb);
-										var ddStream = (encoding ? new nodejsIO.TextOutputStream({nodeStream: stream, encoding: encoding}) : new nodejsIO.BinaryOutputStream({nodeStream: stream}));
+										const ddStream = (encoding ? new nodejsIO.TextOutputStream({nodeStream: stream, encoding: encoding}) : new nodejsIO.BinaryOutputStream({nodeStream: stream}));
 										request.onSanitize.attachOnce(null, function sanitize() {
 											//stream.close();
 											types.DESTROY(stream);
@@ -2067,7 +2067,7 @@ module.exports = {
 
 						options = this._super(options, parentOptions);
 
-						var val;
+						let val;
 						
 						val = options.encodings;
 						if (types.isNothing(val)) {
@@ -2145,7 +2145,7 @@ module.exports = {
 
 						options = this._super(options, parentOptions);
 
-						var val;
+						let val;
 						
 						val = options.encodings;
 						if (types.isNothing(val)) {
