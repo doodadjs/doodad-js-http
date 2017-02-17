@@ -1136,17 +1136,13 @@ module.exports = {
 
 						options.states = types.extend({}, options.states, {
 							'Doodad.NodeJs.Server.Http.CacheHandler': {
-								generateKey: doodad.OVERRIDE(function(request, handler) {
-									let key = this._super(request, handler);
-									if (key) {
-										const res = !request.url.file && request.url.args.get('res');
-										if (res) {
-											//key += '|' + res;
-											// No cache
-											return null;
-										};
+								generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
+									this._super(request, handler, keyObj);
+
+									const res = !request.url.file && request.url.args.get('res');
+									if (res) {
+										keyObj.url.args.res = res;
 									};
-									return key;
 								}),
 							},
 						});
@@ -1553,6 +1549,74 @@ module.exports = {
 					}),
 				}));
 
+				__Internal__.keyObjToString = function keyObjToString() {
+					const keys = types.keys(this);
+					keys.sort(function(key1, key2) {
+						if (key1 < key2) {
+							return -1;
+						} else if (key1 > key2) {
+							return 1;
+						} else {
+							return 0;
+						};
+					});
+					return '{' + tools.reduce(keys, function(str, key) {
+						const val = this[key];
+						if ((key === 'toString') || types.isNothing(val) || types.isFunction(val)) {
+							return str;
+						} else if (types.isPrimitive(val)) {
+							return str + key + ':' + types.toString(val) + '|';
+						} else if (types.getType(val)) {
+							return str + key + ':' + val.toString() + '|';
+						} else if (types.isArrayLike(val)) {
+							return '[' + tools.reduce(str, function(item) {
+								return str + __Internal__.keyObjToString.call(item) + '|';
+							}, '') + ']';
+						} else if (types.isObject(val)) {
+							if (types.has(val, 'toString')) {
+								return str + key + ':' + types.toString(val) + '|';
+							} else {
+								return str + key + ':' + __Internal__.keyObjToString.call(val) + '|';
+							};
+						} else {
+							throw new types.Error("Invalid cache key value encountered.");
+						};
+					}, '', this) + '}';
+				};
+
+				nodejsHttp.REGISTER(doodad.Object.$extend(
+									httpMixIns.Headers,
+				{
+					$TYPE_NAME: 'CacheHeaders',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CacheHeaders')), true) */,
+
+					toString: doodad.OVERRIDE(function toString() {
+						if (types.isType(this)) {
+							return this._super();
+
+						} else {
+							this.overrideSuper();
+
+							const headers = this.headers;
+							const names = types.keys(headers);
+
+							names.sort(function(name1, name2) {
+								if (name1 < name2) {
+									return -1;
+								} else if (name1 > name2) {
+									return 1;
+								} else {
+									return 0;
+								};
+							});
+
+							return '{' + tools.reduce(names, function(str, name) {
+								return str + name + ':' + headers[name] + '|';
+							}, '', this) + '}';
+						};
+					}),
+				}));
+					
 				nodejsHttp.REGISTER(doodad.Object.$extend(
 									httpMixIns.Handler,
 				{
@@ -1572,132 +1636,205 @@ module.exports = {
 						if (!(val instanceof files.Path)) {
 							val = files.Path.parse(val);
 						};
-						root.DD_ASSERT && root.DD_ASSERT((val instanceof files.Path), "Invalid cache path.");
+						root.DD_ASSERT && root.DD_ASSERT(types._instanceof(val, files.Path), "Invalid cache path.");
 						options.cachePath = val;
 
 						val = options.keyGenerator;
 						if (!val) {
-							val = function defaultKeyGenerator(request, handler) {
-								return request.url.set({domain: null, args: null}).toString() + 
-									'|' + (request.response.getHeader('Content-Type') || '*/*');
+							val = function generateKey(request, handler, keyObj) {
+								keyObj.headers.addHeader('Content-Type', request.response.getHeader('Content-Type') || '*/*');
 							};
 						};
 						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(val), "Invalid key generator.");
 						options.keyGenerator = val;
 
 						val = moment && options.duration;
-						if (val && !moment.isDuration(val)) {
+						if (!types.isNothing(val) && !moment.isDuration(val)) {
 							val = moment.duration(types.toString(val)); // ISO 8601 / ASP.NET style TimeSpans (see Moment doc)
 						};
 						options.duration = val;
 
 						options.state = {
-							cached: doodad.PUBLIC(false),
+							defaultDisabled: doodad.PUBLIC(false),
+							defaultDuration: doodad.PUBLIC(null), // Moment Duration
+							cached: doodad.PUBLIC(null),
 							generateKey: doodad.PUBLIC(doodad.METHOD(options.keyGenerator)),
 						};
 
 						return options;
 					}),
 
-					getCached: doodad.PUBLIC(function getCached(request, /*optional*/options) {
+					__createCached: doodad.PROTECTED(function __createCached(request, /*optional*/key, /*optional*/section, /*optional*/options) {
 						const type = types.getType(this);
-						let create = types.get(options, 'create', true);
-						let key = types.get(options, 'key');
+
 						const state = request.getHandlerState(this);
-						if (types.isNothing(key)) {
-							key = state.generateKey(request, this);
-						};
-						if (types.isNothing(key)) {
-							// No cache
-							return null;
-						};
-						let parent = key;
-						const section = types.get(options, 'section');
+
+						let parent = null;
+
 						if (section) {
 							parent = this.getCached(request, {key: key});
-							if (!parent) {
-								// No parent (should not happen)
-								return null;
-							};
-							key += '|' + section;
+
+							root.DD_ASSERT && root.DD_ASSERT(!types.isNothing(parent), "Section '~0~' has no parent.", [section]);
+
+							key = null;
 						};
-						let cached = (section ? null : state.cached);
-						let writing = false;
-						if (!cached || (cached.key !== key)) {
-							if (cached) {
-								create = false;
+
+						if (types.isNothing(key)) {
+							key = types.nullObject();
+							
+							key.url = request.url.toDataObject({domain: null, args: null});
+							key.headers = new nodejsHttp.CacheHeaders();
+							key.section = section;
+
+							key.toString = __Internal__.keyObjToString;
+
+							state.generateKey(request, this, key);
+						};
+
+						const keyStr = key.toString();
+
+						root.DD_ASSERT && root.DD_ASSERT(types.isStringAndNotEmpty(keyStr), "Problem generating a string from the key object.");
+
+						if (type.$__cache.has(key)) {
+							return type.$__cache.get(key);
+						} else if (type.$__cache.has(keyStr)) {
+							return type.$__cache.get(keyStr);
+						};
+
+						const cached = types.nullObject({
+							key: key, // Object
+							section: section, // STring
+							parent: parent, // Cached object
+							disabled: !!types.get(options, 'defaultDisabled', state.defaultDisabled), // Bool
+							duration: state.defaultDuration, // Moment Duration
+
+							path: null, // Path
+							writing: false, // Bool
+							aborted: false, // Bool
+							ready: false, // Bool
+							expiration: null, // Date
+							children: types.nullObject(), // objectof(Cached objects)
+
+							isInvalid: function() {
+								return !this.disabled && !this.ready && !this.writing && (request.verb !== 'HEAD');
+							},
+							isPending: function() {
+								return !this.disabled && !this.ready && this.writing;
+							},
+							isValid: function() {
+								return !this.disabled && this.ready && !this.writing;
+							},
+							validate: function() {
+								if (!this.ready && this.writing) {
+									this.writing = false;
+									this.ready = !this.aborted;
+									if (this.aborted && this.path) {
+										nodeFs.unlink(this.path.toString(), function(err) {}); // no need to get error feedbacks
+										this.path = null;
+									};
+									this.aborted = false;
+								};
+							},
+							abort: function() {
+								if (!this.ready && this.writing && !this.aborted) {
+									this.aborted = true;
+									this.validate();
+								};
+							},
+							invalidate: function() {
+								if (this.ready && !this.writing) {
+									this.ready = false;
+									this.writing = true;
+									this.abort();
+								};
+								tools.forEach(this.children, function(child) {
+									child.invalidate();
+								});
+							},
+						});
+
+						type.$__cache.set(key, cached);
+						type.$__cache.set(keyStr, cached);
+
+						if (section) {
+							cached.parent.children[section] = cached;
+						};
+
+						return cached;
+					}),
+
+					getCached: doodad.PUBLIC(function getCached(request, /*optional*/options) {
+						const type = types.getType(this),
+							state = request.getHandlerState(this),
+							section = types.get(options, 'section'), // string
+							create = types.get(options, 'create', false); // boolean
+
+						let fromCurrent = false;
+
+						let key = types.get(options, 'key', null), // object
+							cached = null;
+
+						if (types.isNothing(key)) {
+							// Get from current request/response.
+							fromCurrent = !section;
+
+							if (state.cached) {
+								cached = state.cached;
+								key = cached.key;
 							};
+
+						} else if (types.isJsObject(key)) {
+							// Get from object key
 							cached = type.$__cache.get(key);
+
+						} else if (types.isString(key)) {
+							// Get from string key
+							cached = type.$__cache.get(key);
+							if (cached) {
+								key = cached.key;
+							};
+
+						} else {
+							throw new types.TypeError("Invalid cached object key '~0~'.", [key]);
+
 						};
-						if (!cached && create) {
-							cached = types.nullObject({
-								key: key, // String
-								path: null, // Path
-								writing: writing, // Bool
-								aborted: false, // Bool
-								ready: false, // Bool
-								section: section, // String
-								disabled: false, // Bool
-								duration: null, // Moment Duration
-								expiration: null, // Date
-								parent: parent, // Cached object
-								children: {}, // objectof(Cached objects)
-								isInvalid: function() {
-									return !this.disabled && !this.ready && !this.writing && (request.verb !== 'HEAD');
-								},
-								isPending: function() {
-									return !this.disabled && !this.ready && this.writing;
-								},
-								isValid: function() {
-									return !this.disabled && this.ready && !this.writing;
-								},
-								validate: function() {
-									if (!this.ready && this.writing) {
-										this.writing = false;
-										this.ready = !this.aborted;
-										if (this.aborted && this.path) {
-											nodeFs.unlink(this.path.toString(), function(err) {}); // no need to get error feedbacks
-											this.path = null;
-										};
-										this.aborted = false;
-									};
-								},
-								abort: function() {
-									if (!this.ready && this.writing && !this.aborted) {
-										this.aborted = true;
-										this.validate();
-									};
-								},
-								invalidate: function() {
-									if (this.ready && !this.writing) {
-										this.ready = false;
-										this.writing = true;
-										this.abort();
-									};
-									tools.forEach(this.children, function(child) {
-										child.invalidate();
-									});
-								},
-							});
-							type.$__cache.set(key, cached);
+						
+						if (cached && section) {
+							cached = tools.filter(cached.children, function(child) {
+								return child.section === section;
+							})[0];
 						};
+
 						if (cached) {
 							if (cached.expiration && cached.ready) {
 								if (moment.create().isSameOrAfter(cached.expiration)) {
 									cached.invalidate();
 								};
 							};
-							if (section) {
-								parent.children[section] = cached;
-							} else {
+
+							return cached;
+
+						} else if (create) {
+							cached = this.__createCached(request, key, section, options);
+
+							if (fromCurrent) {
 								state.cached = cached;
 							};
+
+							return cached;
+
+						} else {
+							return null;
+
 						};
-						return cached;
 					}),
 					
 					openFile: doodad.PUBLIC(doodad.ASYNC(function openFile(request, cached) {
 						const Promise = types.getPromise();
+
+						if (cached.disabled) {
+							return null;
+						};
 
 						if (!cached.ready) {
 							throw new types.Error("Cache is not ready.");
@@ -1751,7 +1888,7 @@ module.exports = {
 											};
 											return cacheStream;
 										} else {
-											// Cancels resolve and waits next event
+											// Cancels resolve and waits next 'onReady' event
 											return false;
 										};
 									}, this);
@@ -1765,6 +1902,8 @@ module.exports = {
 					createFile: doodad.PUBLIC(doodad.ASYNC(function createFile(request, cached, /*optional*/options) {
 						const Promise = types.getPromise();
 						
+						const state = request.getHandlerState(this);
+
 						if (cached.disabled) {
 							return null;
 						};
@@ -1830,7 +1969,6 @@ module.exports = {
 						return loopOpenFile.call(this, 10)
 							.then(function afterOpen(stream) {
 								if (stream) {
-									request.waitFor(stream.onEOF.promise());
 									let headers = '';
 									headers += 'X-Cache-Key: ' + cached.key + '\n';
 									headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toString() + '\n';
@@ -1853,7 +1991,11 @@ module.exports = {
 									if (encoding) {
 										headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
 									};
+
 									stream.write(headers + '\n', {encoding: 'utf-8'}); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
+
+									request.waitFor(stream.onEOF.promise());
+
 									return stream;
 								};
 							}, null, this)
@@ -1865,50 +2007,50 @@ module.exports = {
 
 					__onGetStream: doodad.PROTECTED(function(ev) {
 						const request = ev.handlerData[0];
-						const cached = this.getCached(request);
-						if (cached) {
-							const output = ev.data.stream;
-							if (cached.isValid()) {
-								ev.data.stream = this.openFile(request, cached)
-									.then(function sendCache(cacheStream) {
-										if (cacheStream) {
-											const promise = cacheStream.onEOF.promise();
-											cacheStream.pipe(output);
-											cacheStream.flush();
-											return promise;
-										};
-									}, null, this)
-									.then(function() {
-										return request.end();
-									}, null, this);
-							} else if (cached.isInvalid()) {
-								ev.data.stream = this.createFile(request, cached)
-									.then(function(cacheStream) {
-										if (cacheStream) {
-											request.waitFor(
-												cacheStream.onEOF.promise(function onEOF() {
-														cached.validate();
-														if (ev.data.options.watch) {
-															files.watch(ev.data.options.watch, function() {
-																cached.invalidate();
-															}, {once: true});
-														};
-													}, this)
-													.catch(function(err) {
-														cached.abort();
-														throw err;
-													}, this)
-											);
-											output.pipe(cacheStream);
-										};
-										return output;
-									});
-							};
+						const cached = this.getCached(request, {create: true});
+						const output = ev.data.stream;
+
+						if (cached.isValid()) {
+							ev.data.stream = this.openFile(request, cached)
+								.then(function sendCache(cacheStream) {
+									if (cacheStream) {
+										const promise = cacheStream.onEOF.promise();
+										cacheStream.pipe(output);
+										cacheStream.flush();
+										return promise;
+									};
+								}, null, this)
+								.then(function() {
+									return request.end();
+								}, null, this);
+
+						} else if (cached.isInvalid()) {
+							ev.data.stream = this.createFile(request, cached)
+								.then(function(cacheStream) {
+									if (cacheStream) {
+										request.waitFor(
+											cacheStream.onEOF.promise(function onEOF() {
+													cached.validate();
+													if (ev.data.options.watch) {
+														files.watch(ev.data.options.watch, function() {
+															cached.invalidate();
+														}, {once: true});
+													};
+												}, this)
+												.catch(function(err) {
+													cached.abort();
+													throw err;
+												}, this)
+										);
+										output.pipe(cacheStream);
+									};
+									return output;
+								}, null, this);
 						};
 					}),
 
 					execute: doodad.OVERRIDE(function execute(request) {
-						request.response.onGetStream.attachOnce(this, this.__onGetStream, null, [request]);
+						request.response.onGetStream.attachOnce(this, this.__onGetStream, 100, [request]);
 					}),
 				}));
 				
@@ -2031,20 +2173,17 @@ module.exports = {
 							contentEncoding: doodad.PUBLIC(null),
 						};
 
-						var type = this;
 						options.states = types.extend({}, options.states, {
 							'Doodad.NodeJs.Server.Http.CacheHandler': {
-								generateKey: doodad.OVERRIDE(function(request, handler) {
-									let key = this._super(request, handler);
-									if (key) {
-										const handlers = request.getHandlers(type);
-										const compressionHandler = handlers.slice(-1)[0];
-										if (compressionHandler) {
-											const encoding = request.getHandlerState(compressionHandler).contentEncoding || 'identity';
-											key += '|' + encoding;
+								generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
+									this._super(request, handler, keyObj);
+
+									if (!keyObj.section) {
+										const encoding = request.response.getHeader('Content-Encoding');
+										if (encoding) {
+											keyObj.headers.addHeader('Content-Encoding', encoding);
 										};
 									};
-									return key;
 								}),
 							},
 						});

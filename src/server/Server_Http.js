@@ -620,7 +620,8 @@ module.exports = {
 				});
 
 				
-				http.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
+				httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
+									mixIns.Creatable,
 									mixIns.Events,
 				{
 					$TYPE_NAME: 'Headers',
@@ -632,6 +633,12 @@ module.exports = {
 					__varyingHeaders: doodad.PROTECTED(null),
 
 					onHeadersChanged: doodad.EVENT(false),
+
+					create: doodad.OVERRIDE(function create(/*paramarray*/) {
+						this.headers = types.nullObject();
+
+						this._super.apply(this, arguments);
+					}),
 
 					getHeader: doodad.PUBLIC(function getHeader(name) {
 						var fixed = tools.title(name, '-');
@@ -790,11 +797,14 @@ module.exports = {
 						return vary;
 					}),
 
+					storeHeaders: doodad.PUBLIC(function storeHeaders(storeObj, /*optional*/names) {
+						storeObj.addHeaders(this.getHeaders(names));
+					}),
 				})));
 
-					
+
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
-									http.Headers,
+									httpMixIns.Headers,
 									//mixIns.Events,
 		//									serverMixIns.Response,
 				{
@@ -1028,7 +1038,7 @@ module.exports = {
 				})));
 					
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
-									http.Headers,
+									httpMixIns.Headers,
 									serverMixIns.Request,
 				{
 					$TYPE_NAME: 'Request',
@@ -1147,7 +1157,6 @@ module.exports = {
 							_shared.setAttributes(this, {
 								server: server,
 								verb: verb.toUpperCase(),
-								headers: {},
 								data: types.nullObject(),
 								id: tools.generateUUID(),
 							});
