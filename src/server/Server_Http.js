@@ -815,11 +815,11 @@ module.exports = {
 					onError: doodad.EVENT(false),
 					onStatus: doodad.EVENT(false),
 					onSendHeaders: doodad.EVENT(false),
-					
+
 					ended: doodad.PUBLIC(doodad.READ_ONLY(false)),
 					request: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					status: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					message: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					status: doodad.PUBLIC(doodad.READ_ONLY(types.HttpStatus.OK)),
+					message: doodad.PUBLIC(doodad.READ_ONLY('OK')),
 					statusData: doodad.PUBLIC(doodad.READ_ONLY(null)),
 
 					trailers: doodad.PROTECTED(null),
@@ -985,8 +985,8 @@ module.exports = {
 						};
 
 						_shared.setAttributes(this, {
-							status: status,
-							message: message,
+							status: status || types.HttpStatus.OK,
+							message: message || null,
 						});
 
 						if (status) {
