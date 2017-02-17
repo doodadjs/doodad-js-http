@@ -117,6 +117,8 @@ module.exports = {
 					}),
 					
 					create: doodad.OVERRIDE(function create(request, nodeJsStream) {
+						_shared.setAttribute(this, 'message', nodeHttp.STATUS_CODES[this.status]);
+
 						this._super(request);
 
 						this.nodeJsStream = nodeJsStream;
@@ -142,7 +144,7 @@ module.exports = {
 
 						return Promise.try(function() {
 								if (!forceDisconnect) {
-									if ((this.status || types.HttpStatus.OK) !== types.HttpStatus.OK) {
+									if (this.status !== types.HttpStatus.OK) {
 										const ev = new doodad.Event({promise: Promise.resolve()});
 										this.onStatus(ev);
 										if (ev.prevent) {
@@ -196,6 +198,13 @@ module.exports = {
 							});
 					})),
 
+					setStatus: doodad.OVERRIDE(function setStatus(status, /*optional*/message) {
+						status = status || types.HttpStatus.OK;
+						message = message || nodeHttp.STATUS_CODES[status];
+
+						this._super(status, message);
+					}),
+
 					sendHeaders: doodad.PUBLIC(function sendHeaders() {
 						//if (this.ended) {
 						//	throw new server.EndOfRequest();
@@ -212,26 +221,19 @@ module.exports = {
 
 						this.onSendHeaders(new doodad.Event());
 							
-						const status = this.status || types.HttpStatus.OK,
-							message = this.message || nodeHttp.STATUS_CODES[status],
-							headers = this.headers,
-							response = this.nodeJsStream;
+						const response = this.nodeJsStream;
 						
-						response.statusCode = status;
-						response.statusMessage = message;
-						tools.forEach(headers, function(value, name) {
+						response.statusCode = this.status;
+						response.statusMessage = this.message;
+
+						tools.forEach(this.headers, function(value, name) {
 							if (value) {
 								response.setHeader(name, value);
 							} else {
 								response.removeHeader(name);
 							};
 						});
-							
-						_shared.setAttributes(this, {
-							status: response.statusCode,
-							message: response.statusMessage,
-						});
-
+						
 						_shared.setAttribute(this, 'headersSent', true);
 					}),
 					
@@ -1137,6 +1139,8 @@ module.exports = {
 							options.folderTemplate = val;
 						};
 
+						const resType = this.DD_FULL_NAME;
+
 						options.states = types.extend({}, options.states, {
 							'Doodad.NodeJs.Server.Http.CacheHandler': {
 								generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
@@ -1144,7 +1148,10 @@ module.exports = {
 
 									const res = !request.url.file && request.url.args.get('res');
 									if (res) {
-										keyObj.url.args.res = res;
+										keyObj.url.path = null;
+										keyObj.url.file = null;
+										keyObj.resType = resType;
+										keyObj.res = res;
 									};
 								}),
 							},
@@ -2016,45 +2023,48 @@ module.exports = {
 
 					__onGetStream: doodad.PROTECTED(function(ev) {
 						const request = ev.handlerData[0];
-						const cached = this.getCached(request, {create: true});
-						const output = ev.data.stream;
 
-						if (cached.isValid()) {
-							ev.data.stream = this.openFile(request, cached)
-								.then(function sendCache(cacheStream) {
-									if (cacheStream) {
-										const promise = cacheStream.onEOF.promise();
-										cacheStream.pipe(output);
-										cacheStream.flush();
-										return promise;
-									};
-								}, null, this)
-								.then(function() {
-									return request.end();
-								}, null, this);
+						if (!types.HttpStatus.isError(request.response.status)) {
+							const cached = this.getCached(request, {create: true});
+							const output = ev.data.stream;
 
-						} else if (cached.isInvalid()) {
-							ev.data.stream = this.createFile(request, cached)
-								.then(function(cacheStream) {
-									if (cacheStream) {
-										request.waitFor(
-											cacheStream.onEOF.promise(function onEOF() {
-													cached.validate();
-													if (ev.data.options.watch) {
-														files.watch(ev.data.options.watch, function() {
-															cached.invalidate();
-														}, {once: true});
-													};
-												}, this)
-												.catch(function(err) {
-													cached.abort();
-													throw err;
-												}, this)
-										);
-										output.pipe(cacheStream);
-									};
-									return output;
-								}, null, this);
+							if (cached.isValid()) {
+								ev.data.stream = this.openFile(request, cached)
+									.then(function sendCache(cacheStream) {
+										if (cacheStream) {
+											const promise = cacheStream.onEOF.promise();
+											cacheStream.pipe(output);
+											cacheStream.flush();
+											return promise;
+										};
+									}, null, this)
+									.then(function() {
+										return request.end();
+									}, null, this);
+
+							} else if (cached.isInvalid()) {
+								ev.data.stream = this.createFile(request, cached)
+									.then(function(cacheStream) {
+										if (cacheStream) {
+											request.waitFor(
+												cacheStream.onEOF.promise(function onEOF() {
+														cached.validate();
+														if (ev.data.options.watch) {
+															files.watch(ev.data.options.watch, function() {
+																cached.invalidate();
+															}, {once: true});
+														};
+													}, this)
+													.catch(function(err) {
+														cached.abort();
+														throw err;
+													}, this)
+											);
+											output.pipe(cacheStream);
+										};
+										return output;
+									}, null, this);
+							};
 						};
 					}),
 
