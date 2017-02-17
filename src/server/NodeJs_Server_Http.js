@@ -1676,6 +1676,14 @@ module.exports = {
 						return options;
 					}),
 
+					createKey: doodad.PUBLIC(function createKey(/*optional*/data) {
+						const key = types.nullObject(data);
+
+						key.toString = __Internal__.keyObjToString;
+
+						return key;
+					}),
+
 					__createCached: doodad.PROTECTED(function __createCached(request, /*optional*/key, /*optional*/section, /*optional*/options) {
 						const type = types.getType(this);
 
@@ -1692,15 +1700,19 @@ module.exports = {
 						};
 
 						if (types.isNothing(key)) {
-							key = types.nullObject();
+							key = this.createKey();
 							
 							key.url = request.url.toDataObject({domain: null, args: null});
 							key.headers = new nodejsHttp.CacheHeaders();
 							key.section = section;
+						};
 
-							key.toString = __Internal__.keyObjToString;
+						root.DD_ASSERT && root.DD_ASSERT(types.isJsObject(key), "Invalid cache key.");
 
+						if (!types.isFrozen(key)) {
 							state.generateKey(request, this, key);
+
+							types.freezeObject(key); // TODO: depthFreeze
 						};
 
 						const keyStr = key.toString();
@@ -2024,7 +2036,7 @@ module.exports = {
 					__onGetStream: doodad.PROTECTED(function(ev) {
 						const request = ev.handlerData[0];
 
-						if (!types.HttpStatus.isError(request.response.status)) {
+						if (!types.HttpStatus.isError(request.response.status) && !types.HttpStatus.isRedirect(request.response.status)) {
 							const cached = this.getCached(request, {create: true});
 							const output = ev.data.stream;
 
