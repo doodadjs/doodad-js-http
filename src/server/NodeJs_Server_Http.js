@@ -1868,7 +1868,7 @@ module.exports = {
 							throw new types.Error("Cache is not ready.");
 						};
 
-						return Promise.create(function(resolve, reject) {
+						return Promise.create(function openFile(resolve, reject) {
 								const fileStream = nodeFs.createReadStream(cached.path.toString());
 								let openCb = null,
 									errorCb = null;
@@ -1896,7 +1896,7 @@ module.exports = {
 									throw err;
 								};
 							}, this)
-							.then(function(fileStream) {
+							.then(function proceed(fileStream) {
 								if (fileStream) {
 									const cacheStream = new nodejsHttp.CacheStream({headersOnly: (request.verb === 'HEAD')});
 									request.onSanitize.attachOnce(this, function sanitize(ev) {
@@ -2041,6 +2041,7 @@ module.exports = {
 							const output = ev.data.stream;
 
 							if (cached.isValid()) {
+								ev.preventDefault();
 								ev.data.stream = this.openFile(request, cached)
 									.then(function sendCache(cacheStream) {
 										if (cacheStream) {
@@ -2055,6 +2056,7 @@ module.exports = {
 									}, null, this);
 
 							} else if (cached.isInvalid()) {
+								ev.preventDefault();
 								ev.data.stream = this.createFile(request, cached)
 									.then(function(cacheStream) {
 										if (cacheStream) {
