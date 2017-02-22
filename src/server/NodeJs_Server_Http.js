@@ -288,8 +288,12 @@ module.exports = {
 							if (ev.prevent) {
 								this.stream = null;
 							} else {
-								this.stream = ev.data.stream;
-								return ev.data.stream;
+								return Promise.resolve(ev.data.stream)
+									.then(function(responseStream) {
+										root.DD_ASSERT && root.DD_ASSERT(types.isNothing(responseStream) || types._implements(responseStream, ioMixIns.OutputStreamBase), "Invalid response stream.");
+										this.stream = responseStream;
+										return responseStream;
+									}, null, this);
 							};
 						};
 
@@ -321,7 +325,7 @@ module.exports = {
 									throw new http.StreamAborted();
 								};
 
-								root.DD_ASSERT && root.DD_ASSERT(types._implements(responseStream, io.Stream), "Invalid response stream.");
+								root.DD_ASSERT && root.DD_ASSERT(types._implements(responseStream, ioMixIns.OutputStreamBase), "Invalid response stream.");
 
 								tools.forEach(this.__pipes, function(pipe) {
 									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
@@ -725,8 +729,12 @@ module.exports = {
 							if (ev.prevent) {
 								this.stream = null;
 							} else {
-								this.stream = ev.data.stream;
-								return ev.data.stream;
+								return Promise.resolve(ev.data.stream)
+									.then(function(requestStream) {
+										root.DD_ASSERT && root.DD_ASSERT(types.isNothing(requestStream) || types._implements(requestStream, ioMixIns.InputStreamBase), "Invalid request stream.");
+										this.stream = requestStream;
+										return requestStream;
+									}, null, this);
 							};
 						};
 
@@ -752,7 +760,8 @@ module.exports = {
 									throw new http.StreamAborted();
 								};
 
-								root.DD_ASSERT && root.DD_ASSERT(types._implements(requestStream, io.Stream), "Invalid request stream.");
+								root.DD_ASSERT && root.DD_ASSERT(types._implements(requestStream, ioMixIns.InputStreamBase), "Invalid request stream.");
+
 								requestStream.onError.attachOnce(this, this.__streamOnError, 10);
 
 								tools.forEach(this.__pipes, function forEachPipe(pipe) {
@@ -2041,7 +2050,6 @@ module.exports = {
 							const output = ev.data.stream;
 
 							if (cached.isValid()) {
-								ev.preventDefault();
 								ev.data.stream = this.openFile(request, cached)
 									.then(function sendCache(cacheStream) {
 										if (cacheStream) {
@@ -2056,7 +2064,6 @@ module.exports = {
 									}, null, this);
 
 							} else if (cached.isInvalid()) {
-								ev.preventDefault();
 								ev.data.stream = this.createFile(request, cached)
 									.then(function(cacheStream) {
 										if (cacheStream) {
