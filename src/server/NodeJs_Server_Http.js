@@ -250,7 +250,7 @@ module.exports = {
 						};
 					}),
 					
-					getStream: doodad.OVERRIDE(function getStream(/*optional*/options) {
+					getStream: doodad.OVERRIDE(doodad.NOT_REENTRANT(function getStream(/*optional*/options) {
 						const Promise = types.getPromise();
 
 						if (this.ended) {
@@ -288,6 +288,7 @@ module.exports = {
 							if (ev.prevent) {
 								this.stream = null;
 							} else {
+								// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream.
 								return Promise.resolve(ev.data.stream)
 									.then(function(responseStream) {
 										root.DD_ASSERT && root.DD_ASSERT(types.isNothing(responseStream) || types._implements(responseStream, ioMixIns.OutputStreamBase), "Invalid response stream.");
@@ -319,6 +320,7 @@ module.exports = {
 							this.onGetStream(ev);
 						};
 						
+						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream.
 						return Promise.resolve(ev.data.stream)
 							.then(function(responseStream) {
 								if (types.isNothing(responseStream)) {
@@ -362,7 +364,7 @@ module.exports = {
 
 								return responseStream;
 							}, null, this);
-					}),
+					})),
 					
 					sendTrailers: doodad.PROTECTED(function sendTrailers(/*optional*/trailers) {
 						//if (this.ended) {
@@ -708,7 +710,7 @@ module.exports = {
 						};
 					}),
 					
-					getStream: doodad.OVERRIDE(function getStream(/*optional*/options) {
+					getStream: doodad.OVERRIDE(doodad.NOT_REENTRANT(function getStream(/*optional*/options) {
 						const Promise = types.getPromise();
 
 						if (this.ended && !this.__ending) {
@@ -729,6 +731,7 @@ module.exports = {
 							if (ev.prevent) {
 								this.stream = null;
 							} else {
+								// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream.
 								return Promise.resolve(ev.data.stream)
 									.then(function(requestStream) {
 										root.DD_ASSERT && root.DD_ASSERT(types.isNothing(requestStream) || types._implements(requestStream, ioMixIns.InputStreamBase), "Invalid request stream.");
@@ -754,6 +757,7 @@ module.exports = {
 							this.onGetStream(ev);
 						};
 						
+						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream.
 						return Promise.resolve(ev.data.stream)
 							.then(function(requestStream) {
 								if (types.isNothing(requestStream)) {
@@ -823,7 +827,7 @@ module.exports = {
 
 								return requestStream;
 							}, null, this);
-					}),
+					})),
 					
 					getTime: doodad.PUBLIC(function getTime() {
 						if (this.ended && !this.__ending) {
