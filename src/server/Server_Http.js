@@ -2106,6 +2106,32 @@ module.exports = {
 				{
 					$TYPE_NAME: 'ContentSecurityPolicyHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ContentSecurityPolicyHandler')), true) */,
+
+					$createPolicy: doodad.PUBLIC(doodad.TYPE(function $createPolicy() {
+						return types.nullObject({
+							'base-uri': null,
+							'child-src': null,
+							'connect-src': null,
+							'default-src': null,
+							'font-src': null,
+							'form-action': null,
+							'frame-ancestors': null,
+							'frame-src': null,
+							'img-src': null,
+							'manifest-src': null,
+							'media-src': null,
+							'object-src': null,
+							'plugin-types': null, // mime-types
+							//'referrer': null, // obsolete
+							'require-sri-for': null, // 'script', 'style', 'script style'
+							'sandbox': null,
+							'script-src': null,
+							'style-src': null,
+							'worker-src': null,
+							'block-all-mixed-content': null,
+							'upgrade-insecure-requests': null,
+						});
+					})),
 					
 					$updatePolicy: doodad.PUBLIC(doodad.TYPE(function $updatePolicy(policy, value, /*optional*/replace) {
 						tools.forEach(tools.trim(value, ';', 0).split(';'), function(val) {
@@ -2146,31 +2172,8 @@ module.exports = {
 						
 						let val;
 
-						const policy = types.nullObject({
-							'base-uri': null,
-							'child-src': null,
-							'connect-src': null,
-							'default-src': null,
-							'font-src': null,
-							'form-action': null,
-							'frame-ancestors': null,
-							'frame-src': null,
-							'img-src': null,
-							'manifest-src': null,
-							'media-src': null,
-							'object-src': null,
-							'plugin-types': null, // mime-types
-							//'referrer': null, // obsolete
-							'require-sri-for': null, // 'script', 'style', 'script style'
-							'sandbox': null,
-							'script-src': null,
-							'style-src': null,
-							'worker-src': null,
-							'block-all-mixed-content': null,
-							'upgrade-insecure-requests': null,
-						});
-
 						val = options.policy;
+						const policy = this.$createPolicy();
 						if (val) {
 							this.$updatePolicy(policy, val);
 						};
@@ -2178,7 +2181,7 @@ module.exports = {
 						
 						const self = this;
 						options.state = {
-							policy: doodad.READ_ONLY(types.clone(policy, Infinity, false, false, true)),
+							policy: doodad.READ_ONLY(this.$createPolicy()),
 							update: doodad.PUBLIC(function(value, /*optional*/replace) {
 								self.$updatePolicy(this.policy, value, replace);
 							}),
@@ -2189,16 +2192,18 @@ module.exports = {
 
 					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 						const request = ev.handlerData[0];
+
+						const type = types.getType(this);
 						const state = request.getHandlerState(this);
 
-						// Check if current Content-Type needs a policy...
 						const contentType = request.getAcceptables(request.response.contentType, {handler: this})[0];
 						if (contentType) {
-							const type = types.getType(this);
-							const value = type.$getPolicyString(state.policy);
-
-							request.response.addHeader('Content-Security-Policy', value);
+							state.update(this.options.policy);
 						};
+
+						const value = type.$getPolicyString(state.policy);
+
+						request.response.addHeader('Content-Security-Policy', value);
 					}),
 
 					execute: doodad.OVERRIDE(function(request) {
