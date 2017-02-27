@@ -245,7 +245,6 @@ module.exports = {
 					
 					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
 						ev.preventDefault(); // error handled
-						this.onError(ev);
 						if (!this.ended) {
 							this.request.end(true);
 						};
@@ -452,8 +451,6 @@ module.exports = {
 
 							this.request.setFullfilled(true);
 
-							this.onError(new doodad.ErrorEvent(ex));
-							
 							if (!this.nodeJsStream) {
 								// Too late !
 								return this.end();
@@ -706,7 +703,6 @@ module.exports = {
 
 					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
 						ev.preventDefault(); // error handled
-						this.onError(ev);
 						if (!this.ended) {
 							this.end(true);
 						};
