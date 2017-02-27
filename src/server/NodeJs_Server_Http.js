@@ -142,7 +142,7 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};
 
-						return Promise.try(function() {
+						return Promise.try(function tryEnd() {
 								if (!forceDisconnect) {
 									if (this.status !== types.HttpStatus.OK) {
 										const ev = new doodad.Event({promise: Promise.resolve()});
@@ -301,7 +301,7 @@ module.exports = {
 						if (options.contentType) {
 							this.setContentType(options.contentType, {encoding: options.encoding});
 						} else if (options.encoding) {
-							this.setContentType(this.contentType || 'text/plain', {encoding: options.encoding, force: true});
+							this.setContentType(this.contentType || 'text/plain', {encoding: options.encoding});
 						};
 						
 						if (!this.contentType) {
@@ -1240,20 +1240,19 @@ module.exports = {
 								};
 
 								let contentTypes,
-									force = false;
+									handler = request.currentHandler;
 								if (stats.isFile()) {
 									contentTypes = mime.getTypes(path.file);
 								} else {
 									contentTypes = ['text/html; charset=utf-8', 'application/json; charset=utf-8'];
-									force = true;
+									handler = null;
 								};
 								
 								let contentType;
 								if (request.url.args.has('res')) {
 									contentType = contentTypes[0];
-									force = true;
 								} else {
-									contentType = request.getAcceptables(contentTypes, {force: force})[0];
+									contentType = request.getAcceptables(contentTypes, {handler: handler})[0];
 								};
 								if (!contentType) {
 									return request.response.respondWithStatus(types.HttpStatus.NotAcceptable);
@@ -1272,14 +1271,14 @@ module.exports = {
 									request.response.setVary('Accept');
 								};
 
-								request.response.setContentType(contentType, {force: force});
+								request.response.setContentType(contentType, {handler: handler});
 
 								return types.nullObject({
 									contentType: contentType,
 									stats: stats,
 									path: path,
 								});
-							});
+							}, null, this);
 					})),
 
 					sendFile: doodad.PROTECTED(doodad.ASYNC(function sendFile(request, data) {

@@ -1239,13 +1239,16 @@ module.exports = {
 
 					getHandlerState: doodad.PUBLIC(function getHandlerState(/*optional*/handler) {
 						root.DD_ASSERT && root.DD_ASSERT(types.isNothing(handler) || types.isJsFunction(handler) || types._implements(handler, httpMixIns.Handler), "Invalid handler.");
-						if (!handler) {
+						if (types.isNothing(handler)) {
 							handler = this.currentHandler;
 						};
-						let state = this.__handlersStates.get(handler);
-						if (!state) {
-							this.applyHandlerState(handler);
+						let state = null;
+						if (handler) {
 							state = this.__handlersStates.get(handler);
+							if (!state) {
+								this.applyHandlerState(handler);
+								state = this.__handlersStates.get(handler);
+							};
 						};
 						return state;
 					}),
@@ -1294,8 +1297,8 @@ module.exports = {
 						options = types.nullObject(options);
 
 						// Get negociated mime types between the handler and the client
-						const handlerState = this.getHandlerState(options.handler);
-						let handlerTypes = !options.force && handlerState && handlerState.mimeTypes || this.__parsedAccept;
+						const handlerState = options.handler && this.getHandlerState(options.handler);
+						let handlerTypes = handlerState && handlerState.mimeTypes || this.__parsedAccept;
 
 						if (!contentTypes) {
 							return handlerTypes;
@@ -1568,44 +1571,49 @@ module.exports = {
 
 							let handler = options.handler;
 
-							const parentState = options.parent && this.getHandlerState(options.parent);
-							const stateUrl = options.matcherResult && (parentState && parentState.url ? parentState.url.combine(options.matcherResult.url, {isRelative: true}) : options.matcherResult.url);
-							const state = types.extend({}, options.state, {
-								parent: doodad.PUBLIC(doodad.READ_ONLY(options.parent || null)),
-								matcherResult: doodad.PUBLIC(doodad.READ_ONLY(options.matcherResult || null)),
-								mimeTypes: doodad.PUBLIC(doodad.READ_ONLY(options.acceptedMimeTypes || null)),
-								mimeWeight: doodad.PUBLIC(doodad.READ_ONLY(types.isNothing(options.acceptedMimeWeight) ? null : options.acceptedMimeWeight)),
-								url: doodad.PUBLIC(doodad.READ_ONLY(stateUrl || null)),
-							});
-							this.applyHandlerState(handler, state, {globalState: true});
+							const acceptedMimeTypes = this.getAcceptables(options.mimeTypes);
 
-							let mustDestroy = false;
-							if (types.isType(handler)) {
-								// TODO: Reuse objects on "redirectServer"
-								handler = handler.$createInstance(options);
-								mustDestroy = true;
-							};
-
-							if (!this.__handlersStates.has(handler)) {
-								this.applyHandlerState(handler, {
-									mustDestroy: doodad.PUBLIC(doodad.READ_ONLY(mustDestroy)),
+							if (!options.mimeTypes || (acceptedMimeTypes && acceptedMimeTypes.length)) {
+								const parentState = options.parent && this.getHandlerState(options.parent);
+								const stateUrl = options.matcherResult && (parentState && parentState.url ? parentState.url.combine(options.matcherResult.url, {isRelative: true}) : options.matcherResult.url);
+								const state = types.extend({}, options.state, {
+									parent: doodad.PUBLIC(doodad.READ_ONLY(options.parent || null)),
+									matcherResult: doodad.PUBLIC(doodad.READ_ONLY(options.matcherResult || null)),
+									mimeTypes: doodad.PUBLIC(doodad.READ_ONLY(acceptedMimeTypes || null)),
+									url: doodad.PUBLIC(doodad.READ_ONLY(stateUrl || null)),
 								});
-							};
+								this.applyHandlerState(handler, state, {globalState: true});
 
-							tools.forEach(options.states, function(newState, handler) {
-								this.applyHandlerState(handler, newState);
-							}, this);
+								let mustDestroy = false;
+								if (types.isType(handler)) {
+									// TODO: Reuse objects on "redirectServer"
+									handler = handler.$createInstance(options);
+									mustDestroy = true;
+								};
+
+								if (!this.__handlersStates.has(handler)) {
+									this.applyHandlerState(handler, {
+										mustDestroy: doodad.PUBLIC(doodad.READ_ONLY(mustDestroy)),
+									});
+								};
+
+								tools.forEach(options.states, function(newState, handler) {
+									this.applyHandlerState(handler, newState);
+								}, this);
 							
-//console.log(types.getTypeName(handler) + ": " + this.url.toString() + "   " + this.id);
+	//console.log(types.getTypeName(handler) + ": " + this.url.toString() + "   " + this.id);
 
-							_shared.setAttribute(this, 'currentHandler', handler);
+								_shared.setAttribute(this, 'currentHandler', handler);
 
-							if (types._implements(handler, httpMixIns.Handler)) {
-								return handler.execute(this);
-							} else if (types.isJsFunction(handler)) {
-								return Promise.resolve(handler(this)); // "handler" is "function(request) {...}"
+								if (types._implements(handler, httpMixIns.Handler)) {
+									return handler.execute(this);
+								} else if (types.isJsFunction(handler)) {
+									return Promise.resolve(handler(this)); // "handler" is "function(request) {...}"
+								} else {
+									throw new types.Error("Invalid handler.");
+								};
 							} else {
-								throw new types.Error("Invalid handler.");
+								return Promise.resolve();
 							};
 						};
 						
@@ -1942,7 +1950,7 @@ module.exports = {
 						return options;
 					}),
 					
-					execute: doodad.OVERRIDE(function(request) {
+					execute: doodad.OVERRIDE(function execute(request) {
 						const handlerState = request.getHandlerState(this);
 						const url = handlerState.url.combine(this.options.targetUrl).set({isRelative: false});
 						if (this.options.internal) {
@@ -2183,10 +2191,14 @@ module.exports = {
 						const request = ev.handlerData[0];
 						const state = request.getHandlerState(this);
 
-						const type = types.getType(this);
-						const value = type.$getPolicyString(state.policy);
+						// Check if current Content-Type needs a policy...
+						const contentType = request.getAcceptables(request.response.contentType, {handler: this})[0];
+						if (contentType) {
+							const type = types.getType(this);
+							const value = type.$getPolicyString(state.policy);
 
-						request.response.addHeader('Content-Security-Policy', value);
+							request.response.addHeader('Content-Security-Policy', value);
+						};
 					}),
 
 					execute: doodad.OVERRIDE(function(request) {
@@ -2631,14 +2643,6 @@ module.exports = {
 									options.routeId = routeId;
 									options.routeIndex = i;
 									options.matcherResult = matcherResult;
-									options.acceptedMimeTypes = request.getAcceptables(options.mimeTypes);
-									options.acceptedMimeWeight = tools.reduce(options.acceptedMimeTypes, function(mimeWeight, mimeType) {
-										if (mimeType.weight > mimeWeight) {
-											return mimeType.weight;
-										} else {
-											return mimeWeight;
-										};
-									}, 0.0);
 									handlers.push(options);
 								};
 							};
@@ -2659,10 +2663,6 @@ module.exports = {
 							} else if (handler1.matcherResult.weight > handler2.matcherResult.weight) {
 								return -1;
 							} else if (handler1.matcherResult.weight < handler2.matcherResult.weight) {
-								return 1;
-							} else if (handler1.acceptedMimeWeight > handler2.acceptedMimeWeight) {
-								return -1;
-							} else if (handler1.acceptedMimeWeight < handler2.acceptedMimeWeight) {
 								return 1;
 							} else {
 								return 0;
