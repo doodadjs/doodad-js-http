@@ -244,7 +244,7 @@ module.exports = {
 					}),
 					
 					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
-						ev.preventDefault();
+						ev.preventDefault(); // error handled
 						this.onError(ev);
 						if (!this.ended) {
 							this.request.end(true);
@@ -705,7 +705,7 @@ module.exports = {
 					}),
 
 					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
-						ev.preventDefault();
+						ev.preventDefault(); // error handled
 						this.onError(ev);
 						if (!this.ended) {
 							this.end(true);
@@ -875,6 +875,14 @@ module.exports = {
 							try {
 								const request = new nodejsHttp.Request(this, nodeRequest, nodeResponse);
 							
+								request.onError.attach(this, function(ev) {
+									this.onError(ev);
+								});
+
+								request.response.onError.attach(this, function(ev) {
+									this.onError(ev);
+								});
+
 								const ev = new doodad.Event({
 										request: request,
 									});
