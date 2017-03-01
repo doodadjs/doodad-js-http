@@ -251,12 +251,13 @@ module.exports = {
 					}),
 					
 					getStream: doodad.OVERRIDE(doodad.NOT_REENTRANT(function getStream(/*optional*/options) {
+						// NOTE: "getStream" is NOT_REENTRANT
+
 						const Promise = types.getPromise();
 
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
-
 
 						options = types.nullObject(options);
 
@@ -276,51 +277,34 @@ module.exports = {
 							};
 						};
 
-						let ev = null;
-
-						if (this.stream) {
-							ev = new doodad.Event({
-								stream: this.stream,
-								options: options,
-							});
-							this.onGetStream(ev);
-
-							if (ev.prevent) {
-								this.stream = null;
-							} else {
-								// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream.
-								return Promise.resolve(ev.data.stream)
-									.then(function(responseStream) {
-										root.DD_ASSERT && root.DD_ASSERT(types.isNothing(responseStream) || types._implements(responseStream, ioMixIns.OutputStreamBase), "Invalid response stream.");
-										this.stream = responseStream;
-										return responseStream;
-									}, null, this);
-							};
-						};
-
 						if (options.contentType) {
 							this.setContentType(options.contentType, {encoding: options.encoding});
 						} else if (options.encoding) {
 							this.setContentType(this.contentType || 'text/plain', {encoding: options.encoding});
 						};
 						
+						const currentStream = this.stream;
+						if (currentStream) {
+							return currentStream;
+						};
+
 						if (!this.contentType) {
 							throw new types.Error("'Content-Type' has not been set.");
 						};
 
-						if (!ev) {
-							const responseStream = new nodejsIO.BinaryOutputStream({nodeStream: this.nodeJsStream});
-							responseStream.onWrite.attachOnce(this, this.__streamOnWrite, 10);
-							responseStream.onError.attachOnce(this, this.__streamOnError, 10);
+						const responseStream = new nodejsIO.BinaryOutputStream({nodeStream: this.nodeJsStream});
 
-							ev = new doodad.Event({
-								stream: responseStream,
-								options: options,
-							});
-							this.onGetStream(ev);
-						};
+						responseStream.onWrite.attachOnce(this, this.__streamOnWrite, 10);
+						responseStream.onError.attachOnce(this, this.__streamOnError, 10);
+
+						const ev = new doodad.Event({
+							stream: responseStream,
+							options: options,
+						});
+
+						this.onGetStream(ev);
 						
-						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream.
+						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream itself.
 						return Promise.resolve(ev.data.stream)
 							.then(function(responseStream) {
 								if (types.isNothing(responseStream)) {
@@ -339,7 +323,7 @@ module.exports = {
 									};
 									responseStream = pipe.stream;
 								});
-								this.__pipes = [];
+								this.__pipes = null;  // disables "addPipe".
 
 								const encoding = this.contentType.params.charset;
 								if (types._implements(responseStream, io.Stream)) {
@@ -360,10 +344,16 @@ module.exports = {
 								};
 
 								this.stream = responseStream;
+
 								this.request.setFullfilled(true);
 
 								return responseStream;
-							}, null, this);
+							}, null, this)
+							.catch(function(err) {
+								types.DESTROY(responseStream);
+
+								throw err;
+							}, this);
 					})),
 					
 					sendTrailers: doodad.PROTECTED(function sendTrailers(/*optional*/trailers) {
@@ -709,6 +699,8 @@ module.exports = {
 					}),
 					
 					getStream: doodad.OVERRIDE(doodad.NOT_REENTRANT(function getStream(/*optional*/options) {
+						// NOTE: "getStream" is NOT_REENTRANT
+
 						const Promise = types.getPromise();
 
 						if (this.ended && !this.__ending) {
@@ -717,26 +709,9 @@ module.exports = {
 
 						options = types.nullObject(this.__streamOptions, options);
 
-						let ev = null;
-
-						if (this.stream) {
-							ev = new doodad.Event({
-								stream: this.stream,
-								options: options,
-							});
-							this.onGetStream(ev);
-		
-							if (ev.prevent) {
-								this.stream = null;
-							} else {
-								// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream.
-								return Promise.resolve(ev.data.stream)
-									.then(function(requestStream) {
-										root.DD_ASSERT && root.DD_ASSERT(types.isNothing(requestStream) || types._implements(requestStream, ioMixIns.InputStreamBase), "Invalid request stream.");
-										this.stream = requestStream;
-										return requestStream;
-									}, null, this);
-							};
+						const currentStream = this.stream;
+						if (currentStream) {
+							return currentStream;
 						};
 
 						const acceptContentEncodings = this.__contentEncodings || ['identity'];
@@ -745,17 +720,16 @@ module.exports = {
 							return this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 						};
 
-						if (!ev) {
-							const requestStream = new nodejsIO.BinaryInputStream({nodeStream: this.nodeJsStream});
+						const requestStream = new nodejsIO.BinaryInputStream({nodeStream: this.nodeJsStream});
 
-							ev = new doodad.Event({
-								stream: requestStream,
-								options: options,
-							});
-							this.onGetStream(ev);
-						};
+						const ev = new doodad.Event({
+							stream: requestStream,
+							options: options,
+						});
+
+						this.onGetStream(ev);
 						
-						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream.
+						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream itself.
 						return Promise.resolve(ev.data.stream)
 							.then(function(requestStream) {
 								if (types.isNothing(requestStream)) {
@@ -764,20 +738,6 @@ module.exports = {
 
 								root.DD_ASSERT && root.DD_ASSERT(types._implements(requestStream, ioMixIns.InputStreamBase), "Invalid request stream.");
 
-								requestStream.onError.attachOnce(this, this.__streamOnError, 10);
-
-								tools.forEach(this.__pipes, function forEachPipe(pipe) {
-									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
-									if (!types._implements(requestStream, io.Stream) && types._implements(pipe.stream, io.Stream)) {
-										const iwritable = pipe.stream.getInterface(nodejsIOInterfaces.IWritable);
-										requestStream.pipe(iwritable, pipe.options.pipeOptions);
-									} else {
-										requestStream.pipe(pipe.stream, pipe.options.pipeOptions);
-									};
-									requestStream = pipe.stream;
-								});
-								this.__pipes = [];
-							
 								let accept = options.accept;  // content-types expected by the page
 								if (types.isString(accept)) {
 									accept = [http.parseAcceptHeader(accept)];
@@ -809,6 +769,20 @@ module.exports = {
 									requestEncoding = options.encoding; // default encoding
 								};
 							
+								requestStream.onError.attachOnce(this, this.__streamOnError, 10);
+
+								tools.forEach(this.__pipes, function forEachPipe(pipe) {
+									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
+									if (!types._implements(requestStream, io.Stream) && types._implements(pipe.stream, io.Stream)) {
+										const iwritable = pipe.stream.getInterface(nodejsIOInterfaces.IWritable);
+										requestStream.pipe(iwritable, pipe.options.pipeOptions);
+									} else {
+										requestStream.pipe(pipe.stream, pipe.options.pipeOptions);
+									};
+									requestStream = pipe.stream;
+								});
+								this.__pipes = null;  // disables "addPipe".
+							
 								if (!types._implements(requestStream, io.Stream)) {
 									if (requestEncoding) {
 										if (!nodejsIO.TextInputStream.$isValidEncoding(requestEncoding)) {
@@ -821,10 +795,16 @@ module.exports = {
 								};
 
 								this.stream = requestStream;
+
 								this.setFullfilled(true);
 
 								return requestStream;
-							}, null, this);
+							}, null, this)
+							.catch(function(err) {
+								types.DESTROY(requestStream);
+
+								throw err;
+							}, this);
 					})),
 					
 					getTime: doodad.PUBLIC(function getTime() {

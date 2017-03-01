@@ -999,6 +999,10 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};							
 
+						if (!this.__pipes) {
+							throw new types.NotAvailable("'addPipe' is not available because pipes have already been proceed.");
+						};
+
 						// TODO: Assert on "stream"
 						// NOTE: Pipes are made at "getStream".
 						options = types.nullObject(options);
@@ -1013,6 +1017,10 @@ module.exports = {
 					clearPipes: doodad.PUBLIC(function clearPipes() {
 						if (this.ended) {
 							throw new server.EndOfRequest();
+						};
+
+						if (!this.__pipes) {
+							throw new types.NotAvailable("'clearPipes' is not available because pipes have already been proceed.");
 						};
 
 						this.__pipes = [];
@@ -1429,6 +1437,10 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};
 
+						if (!this.__pipes) {
+							throw new types.NotAvailable("'addPipe' is not available because pipes have already been proceed.");
+						};
+
 						// TODO: Assert on "stream"
 						// NOTE: Don't immediatly do pipes to not start the transfer. Pipes and transfer are made at "getStream".
 						options = types.nullObject(options);
@@ -1443,6 +1455,10 @@ module.exports = {
 					clearPipes: doodad.PUBLIC(function clearPipes() {
 						if (this.ended) {
 							throw new server.EndOfRequest();
+						};
+
+						if (!this.__pipes) {
+							throw new types.NotAvailable("'clearPipes' is not available because pipes have already been proceed.");
 						};
 
 						this.__pipes = [];
