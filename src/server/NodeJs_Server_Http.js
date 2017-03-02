@@ -527,19 +527,15 @@ module.exports = {
 					startTime: doodad.PROTECTED(null),
 
 					$__time: doodad.PROTECTED(doodad.TYPE(null)),
-					$__totalSecond: doodad.PROTECTED(doodad.TYPE(0)),
-					$__totalMinute: doodad.PROTECTED(doodad.TYPE(0)),
 					$__totalHour: doodad.PROTECTED(doodad.TYPE(0)),
 					$__perSecond: doodad.PROTECTED(doodad.TYPE(0.0)),
 					$__perMinute: doodad.PROTECTED(doodad.TYPE(0.0)),
 					$__perHour: doodad.PROTECTED(doodad.TYPE(0.0)),
+					$__oldPerSecond: doodad.PROTECTED(doodad.TYPE(null)),
 
 					$getStats: doodad.OVERRIDE(function $getStats() {
 						const stats = this._super();
 						return types.extend(stats, {
-							totalSecond: this.$__totalSecond,
-							totalMinute: this.$__totalMinute,
-							totalHour: this.$__totalHour,
 							perSecond: this.$__perSecond,
 							perMinute: this.$__perMinute,
 							perHour: this.$__perHour,
@@ -549,13 +545,12 @@ module.exports = {
 					$clearStats: doodad.OVERRIDE(function $clearStats() {
 						this._super();
 					
-						this.$__time = _shared.Natives.globalProcess.hrtime();
-						this.$__totalSecond = 0;
-						this.$__totalMinute = 0;
+						this.$__time = null;
 						this.$__totalHour = 0;
 						this.$__perSecond = 0.0;
 						this.$__perMinute = 0.0;
 						this.$__perHour = 0.0;
+						this.$__oldPerSecond = [];
 					}),
 					
 					nodeJsStreamOnError: doodad.NODE_EVENT('error', function nodeJsStreamOnError(context, err) {
@@ -580,33 +575,39 @@ module.exports = {
 						this._super(server, nodeJsRequest.method, nodeJsRequest.url, nodeJsRequest.headers, [nodeJsResponse]);
 						
 						const type = types.getType(this);
-						
-						const time = _shared.Natives.globalProcess.hrtime(type.$__time);
-						let diff = time[0] + (time[1] / 1e9); // seconds
-						if (diff <= 1.0) {
-							type.$__totalSecond++;
-							type.$__perSecond = type.$__totalSecond * diff;
-						} else {
-							type.$__totalSecond = 0;
-							type.$__perSecond = 0.0;
+
+						var getTime = true;
+
+						type.$__totalHour++;
+
+						if (type.$__time) {
+							const time = _shared.Natives.globalProcess.hrtime(type.$__time);
+							
+							const diff = time[0] + (time[1] / 1e9); // seconds
+							
+							if (diff > 3600.0) {
+								// Hours
+								type.$__totalHour = 0;
+							} else {
+								// Nanos/Millis/Seconds/Minutes
+								const oldPerSecond = type.$__oldPerSecond;
+								type.$__perSecond = type.$__totalHour / diff;
+								if (oldPerSecond.length >= 15) {
+									type.$__perSecond = tools.reduce(oldPerSecond, function(sum, perSec) {
+										return sum + perSec;
+									}, 0.0) / oldPerSecond.length;
+									oldPerSecond.shift();
+								};
+								oldPerSecond.push(type.$__perSecond);
+								type.$__perMinute = type.$__perSecond * 60.0;
+								type.$__perHour = type.$__perMinute * 60.0;
+								getTime = false;
+							};
 						};
-						diff /= 60.0;
-						if (diff <= 1.0) {
-							type.$__totalMinute++;
-							type.$__perMinute = type.$__totalMinute * diff;
-						} else {
-							type.$__totalMinute = 0;
-							type.$__perMinute = 0.0;
+
+						if (getTime) {
+							type.$__time = _shared.Natives.globalProcess.hrtime();
 						};
-						diff /= 60.0;
-						if (diff <= 1.0) {
-							type.$__totalHour++;
-							type.$__perHour = type.$__totalHour * diff;
-						} else {
-							type.$__totalHour = 0;
-							type.$__perHour = 0.0;
-						};
-						type.$__time = _shared.Natives.globalProcess.hrtime();
 					}),
 					
 					destroy: doodad.OVERRIDE(function destroy() {
