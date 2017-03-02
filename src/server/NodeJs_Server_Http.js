@@ -592,13 +592,13 @@ module.exports = {
 								// Nanos/Millis/Seconds/Minutes
 								const oldPerSecond = type.$__oldPerSecond;
 								type.$__perSecond = type.$__totalHour / diff;
+								oldPerSecond.push(type.$__perSecond);
 								if (oldPerSecond.length >= 15) {
 									type.$__perSecond = tools.reduce(oldPerSecond, function(sum, perSec) {
 										return sum + perSec;
 									}, 0.0) / oldPerSecond.length;
 									oldPerSecond.shift();
 								};
-								oldPerSecond.push(type.$__perSecond);
 								type.$__perMinute = type.$__perSecond * 60.0;
 								type.$__perHour = type.$__perMinute * 60.0;
 								getTime = false;
