@@ -86,7 +86,9 @@ module.exports = {
 
 					globalProcess: global.process,
 
-					mathFloor: global.Math.floor,
+					//mathFloor: global.Math.floor,
+					mathRound: global.Math.round,
+					mathMax: global.Math.max,
 				});
 
 				// TODO: 
@@ -534,6 +536,7 @@ module.exports = {
 					$__perMinute: doodad.PROTECTED(doodad.TYPE(0.0)),
 					$__perHour: doodad.PROTECTED(doodad.TYPE(0.0)),
 					$__oldPerSecond: doodad.PROTECTED(doodad.TYPE(null)),
+					$__noActivityStart: doodad.PROTECTED(doodad.TYPE(null)),
 					$__noActivityTimeout: doodad.PROTECTED(doodad.TYPE(null)),
 					$__statsUpdated: doodad.PROTECTED(doodad.TYPE(false)),
 
@@ -567,6 +570,7 @@ module.exports = {
 							noActivityTimeout.cancel();
 							this.$__noActivityTimeout = null;
 						};
+						this.$__noActivityStart = null;
 						this.$__statsUpdated = false;
 					}),
 					
@@ -574,11 +578,14 @@ module.exports = {
 						const oldPerSecond = this.$__oldPerSecond;
 						let perSecond = 0.0;
 						const time = this.$__time;
+						let seconds = 0.0;
 						if (time) {
 							const diff = _shared.Natives.globalProcess.hrtime(time);
-							const seconds = diff[0] + (diff[1] / 1e9);
-							perSecond = this.$__totalHour / seconds;
-							if (seconds > 3600.0) {
+							seconds = diff[0] + (diff[1] / 1e9);
+							if (seconds > 0.0) {
+								perSecond = this.$__totalHour / seconds;
+							};
+							if (seconds > 86400.0) {
 								this.$__time = null;
 								this.$__totalHour = 0;
 							};
@@ -597,25 +604,44 @@ module.exports = {
 							perSecond /= count;
 						};
 						this.$__perSecond = perSecond;
-						const perMinute = perSecond * 60.0;
+						const perMinute = (seconds >= 60.0 ? perSecond * 60.0 : 0.0);
 						this.$__perMinute = perMinute;
-						this.$__perHour = perMinute * 60.0;
+						this.$__perHour = (seconds >= 3600.0 ? perMinute * 60.0 : 0.0);
 					})),
 
 					$watchNoActivity: doodad.PROTECTED(doodad.TYPE(function $watchNoActivity() {
-						this.$__noActivityTimeout = tools.callAsync(function() {
+						this.$__noActivityStart = _shared.Natives.globalProcess.hrtime();
+						this.$__noActivityTimeout = tools.callAsync(function noActivityTimer() {
 							this.$__noActivityTimeout = null;
 							if (this.$__statsUpdated) {
 								this.$__statsUpdated = false;
 								this.$watchNoActivity();
 							} else {
-								this.$__time = null;
-								this.$__totalHour = 0;
+								const oldPerSecond = this.$__oldPerSecond;
+								const diff = _shared.Natives.globalProcess.hrtime(this.$__noActivityStart);
+								let seconds = diff[0] + (diff[1] / 1e9);
+								seconds = _shared.Natives.mathRound(seconds);
+								let count = oldPerSecond.length;
+								if (count > 0) {
+									let totalHour = this.$__totalHour;
+									while ((seconds > 0) && (count > 0)) {
+										totalHour -= _shared.Natives.mathMax(_shared.Natives.mathRound(oldPerSecond.shift()), 1);
+										if (totalHour < 0) {
+											totalHour = 0;
+											break;
+										};
+										seconds--;
+										count--;
+									};
+									this.$__totalHour = totalHour;
+								};
 								this.$compileStats();
 								if (this.$__perSecond > 0.0) {
 									this.$watchNoActivity();
 								} else {
-									this.$__oldPerSecond.length = 0;
+									this.$__time = null;
+									this.$__totalHour = 0;
+									oldPerSecond.length = 0;
 								};
 							};
 						}, 1000, this, null, true);
@@ -650,13 +676,12 @@ module.exports = {
 
 						type.$__totalHour++;
 
-						const time = type.$__time;
-						if (time) {
+						if (type.$__time) {
 							type.$compileStats();
-							type.$__statsUpdated = true;
 						} else {
 							type.$__time = _shared.Natives.globalProcess.hrtime();
 						};
+						type.$__statsUpdated = true;
 
 						if (!type.$__noActivityTimeout) {
 							type.$watchNoActivity();
