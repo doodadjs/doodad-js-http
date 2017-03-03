@@ -85,6 +85,8 @@ module.exports = {
 					globalBuffer: global.Buffer,
 
 					globalProcess: global.process,
+
+					mathFloor: global.Math.floor,
 				});
 
 				// TODO: 
@@ -532,6 +534,8 @@ module.exports = {
 					$__perMinute: doodad.PROTECTED(doodad.TYPE(0.0)),
 					$__perHour: doodad.PROTECTED(doodad.TYPE(0.0)),
 					$__oldPerSecond: doodad.PROTECTED(doodad.TYPE(null)),
+					$__noActivityTimeout: doodad.PROTECTED(doodad.TYPE(null)),
+					$__statsUpdated: doodad.PROTECTED(doodad.TYPE(false)),
 
 					$getStats: doodad.OVERRIDE(function $getStats() {
 						const stats = this._super();
@@ -550,9 +554,73 @@ module.exports = {
 						this.$__perSecond = 0.0;
 						this.$__perMinute = 0.0;
 						this.$__perHour = 0.0;
-						this.$__oldPerSecond = [];
+
+						const oldPerSecond = this.$__oldPerSecond;
+						if (oldPerSecond) {
+							oldPerSecond.length = 0;
+						} else {
+							this.$__oldPerSecond = [];
+						};
+						
+						const noActivityTimeout = this.$__noActivityTimeout;
+						if (noActivityTimeout) {
+							noActivityTimeout.cancel();
+							this.$__noActivityTimeout = null;
+						};
+						this.$__statsUpdated = false;
 					}),
 					
+					$compileStats: doodad.PROTECTED(doodad.TYPE(function $compileStats() {
+						const oldPerSecond = this.$__oldPerSecond;
+						let perSecond = 0.0;
+						const time = this.$__time;
+						if (time) {
+							const diff = _shared.Natives.globalProcess.hrtime(time);
+							const seconds = diff[0] + (diff[1] / 1e9);
+							perSecond = this.$__totalHour / seconds;
+							if (seconds > 3600.0) {
+								this.$__time = null;
+								this.$__totalHour = 0;
+							};
+						};
+						oldPerSecond.push(perSecond);
+						let count = oldPerSecond.length;
+						if (count > 60) {
+							oldPerSecond.shift();
+							count--;
+						};
+						if (count > 1) {
+							const max = count - 1; // last appended is already included in "perScecond".
+							for (let i = 0; i < max; i++) {
+								perSecond += oldPerSecond[i];
+							};
+							perSecond /= count;
+						};
+						this.$__perSecond = perSecond;
+						const perMinute = perSecond * 60.0;
+						this.$__perMinute = perMinute;
+						this.$__perHour = perMinute * 60.0;
+					})),
+
+					$watchNoActivity: doodad.PROTECTED(doodad.TYPE(function $watchNoActivity() {
+						this.$__noActivityTimeout = tools.callAsync(function() {
+							this.$__noActivityTimeout = null;
+							if (this.$__statsUpdated) {
+								this.$__statsUpdated = false;
+								this.$watchNoActivity();
+							} else {
+								this.$__time = null;
+								this.$__totalHour = 0;
+								this.$compileStats();
+								if (this.$__perSecond > 0.0) {
+									this.$watchNoActivity();
+								} else {
+									this.$__oldPerSecond.length = 0;
+								};
+							};
+						}, 1000, this, null, true);
+					})),
+
 					nodeJsStreamOnError: doodad.NODE_EVENT('error', function nodeJsStreamOnError(context, err) {
 						// When 'error' is raised ?
 						debugger;
@@ -574,40 +642,26 @@ module.exports = {
 						
 						this._super(server, nodeJsRequest.method, nodeJsRequest.url, nodeJsRequest.headers, [nodeJsResponse]);
 						
-						const type = types.getType(this);
+						////////////////
+						// STATISTICS //
+						////////////////
 
-						var getTime = true;
+						const type = types.getType(this);
 
 						type.$__totalHour++;
 
-						if (type.$__time) {
-							const time = _shared.Natives.globalProcess.hrtime(type.$__time);
-							
-							const diff = time[0] + (time[1] / 1e9); // seconds
-							
-							if (diff > 3600.0) {
-								// Hours
-								type.$__totalHour = 0;
-							} else {
-								// Nanos/Millis/Seconds/Minutes
-								const oldPerSecond = type.$__oldPerSecond;
-								type.$__perSecond = type.$__totalHour / diff;
-								oldPerSecond.push(type.$__perSecond);
-								if (oldPerSecond.length >= 15) {
-									type.$__perSecond = tools.reduce(oldPerSecond, function(sum, perSec) {
-										return sum + perSec;
-									}, 0.0) / oldPerSecond.length;
-									oldPerSecond.shift();
-								};
-								type.$__perMinute = type.$__perSecond * 60.0;
-								type.$__perHour = type.$__perMinute * 60.0;
-								getTime = false;
-							};
-						};
-
-						if (getTime) {
+						const time = type.$__time;
+						if (time) {
+							type.$compileStats();
+							type.$__statsUpdated = true;
+						} else {
 							type.$__time = _shared.Natives.globalProcess.hrtime();
 						};
+
+						if (!type.$__noActivityTimeout) {
+							type.$watchNoActivity();
+						};
+
 					}),
 					
 					destroy: doodad.OVERRIDE(function destroy() {
