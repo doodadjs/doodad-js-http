@@ -108,9 +108,9 @@ module.exports = {
 					nodeJsStream: doodad.PROTECTED(null),
 
 					nodeJsStreamOnError: doodad.NODE_EVENT('error', function nodeJsStreamOnError(context, err) {
-						// When 'error' is raised ?
-						debugger;
-						console.error(err);
+						if (!this.ended) {
+							this.end(true);
+						};
 					}),
 					
 					nodeJsStreamOnClose: doodad.NODE_EVENT(['close'], function nodeJsStreamOnClose(context) {
@@ -648,9 +648,9 @@ module.exports = {
 					})),
 
 					nodeJsStreamOnError: doodad.NODE_EVENT('error', function nodeJsStreamOnError(context, err) {
-						// When 'error' is raised ?
-						debugger;
-						console.error(err);
+						if (!this.ended) {
+							this.end(true);
+						};
 					}),
 					
 					nodeJsStreamOnClose: doodad.NODE_EVENT(['close'], function nodeJsStreamOnClose(context) {
