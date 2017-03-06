@@ -1634,7 +1634,7 @@ module.exports = {
 						};
 						
 						const proceedHandler = function proceedHandler(index) {
-							if ((index < handlersOptions.length) && (!this.ended)) {
+							if ((index < handlersOptions.length) && !this.ended) {
 								const options = handlersOptions[index];
 								return runHandler.call(this, options)
 									.then(function proceedGivenHandlers(newHandlersOptions) {
@@ -1665,16 +1665,10 @@ module.exports = {
 									doodad.trapException(ex);
 								} catch(o) {
 								};
+								throw ex;
 							} else if (this.isDestroyed()) {
-								if (ex.critical) {
+								if (ex.critical || !ex.bubble) {
 									throw ex;
-								} else if (ex.bubble) {
-									// Do nothing
-								} else {
-									try {
-										doodad.trapException(ex);
-									} catch(o) {
-									};
 								};
 							} else {
 								count++;
@@ -2738,6 +2732,11 @@ module.exports = {
 							};
 
 							const stream = new ioJson.Stream({encoding: encoding});
+
+							request.onSanitize.attachOnce(null, function() {
+								types.DESTROY(stream);
+							});
+
 							request.addPipe(stream);
 						};
 					}),
@@ -2831,10 +2830,17 @@ module.exports = {
 							};
 
 							const options = {encoding: encoding};
+
 							if (this.options.maxStringLength) {
 								options.maxStringLength = this.options.maxStringLength;
 							};
+
 							const stream = new io.UrlDecoderStream(options);
+
+							request.onSanitize.attachOnce(null, function () {
+								types.DESTROY(stream);
+							});
+
 							request.addPipe(stream);
 						};
 					}),
@@ -2873,6 +2879,11 @@ module.exports = {
 
 						if (contentEncoding === 'base64') {
 							const stream = new io.Base64DecoderStream();
+
+							request.onSanitize.attachOnce(null, function () {
+								types.DESTROY(stream);
+							});
+
 							request.addPipe(stream);
 						};
 					}),
@@ -2912,6 +2923,11 @@ module.exports = {
 							};
 
 							const stream = new io.TextDecoderStream({encoding: encoding});
+
+							request.onSanitize.attachOnce(null, function () {
+								types.DESTROY(stream);
+							});
+
 							request.addPipe(stream);
 						};
 					}),
@@ -2973,6 +2989,11 @@ module.exports = {
 						const contentType = request.contentType;
 						if (!mpStream || (contentType.name === 'multipart/mixed')) {
 							mpStream = new io.FormMultipartDecoderStream({boundary: contentType.params.boundary});
+
+							request.onSanitize.attachOnce(null, function () {
+								types.DESTROY(mpStream);
+							});
+
 							request.addPipe(mpStream);
 
 							mpStream.onBOF.attach(this, this.__onBOF, 10, [request, mpStream])
