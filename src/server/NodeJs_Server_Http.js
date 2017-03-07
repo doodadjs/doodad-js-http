@@ -713,7 +713,7 @@ module.exports = {
 					}),
 
 					proceed: doodad.OVERRIDE(function proceed(handlersOptions) {
-						return Promise.race([this.__endRacer.promise, this._super(handlersOptions)]);
+						return this.__endRacer.race(this._super(handlersOptions));
 					}),
 
 					end: doodad.OVERRIDE(function end(/*optional*/forceDisconnect) {
