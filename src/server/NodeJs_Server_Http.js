@@ -758,7 +758,6 @@ module.exports = {
 							.catch(this.catchError, this)
 							.nodeify(function (err, dummy) {
 								const type = types.getType(this);
-								type.$__actives--;
 								if (forceDisconnect || this.response.isDestroyed()) {
 									type.$__aborted++;
 								} else {
@@ -975,7 +974,7 @@ module.exports = {
 											};
 										})
 										.catch(request.catchError)
-										.nodeify(function(err, result) {
+										.nodeify(function requestCleanup(err, result) {
 											types.DESTROY(request);
 											types.DESTROY(nodeRequest);
 											types.DESTROY(nodeResponse);

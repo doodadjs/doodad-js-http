@@ -1226,6 +1226,9 @@ module.exports = {
 
 						types.DESTROY(this.response);
 
+						const type = types.getType(this);
+						type.$__actives--;
+
 						this._super();
 					}),
 
