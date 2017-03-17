@@ -141,7 +141,7 @@ module.exports = {
 					}),
 					
 					end: doodad.PUBLIC(doodad.ASYNC(function end(forceDisconnect) {
-						// NOTE: MUST ALWAYS REJECTS WITH "EndOfRequest""
+						// NOTE: MUST ALWAYS REJECTS
 
 						const Promise = types.getPromise();
 
@@ -163,7 +163,7 @@ module.exports = {
 							.finally(function() {
 								if (!forceDisconnect) {
 									const stream = this.stream;
-									if (stream && !stream.isDestroyed()) {
+									if (!_shared.DESTROYED(stream)) {
 										return stream.flushAsync();
 									};
 								};
@@ -171,7 +171,7 @@ module.exports = {
 							.finally(function() {
 								let promise;
 								const stream = this.stream,
-									destroyed = stream && stream.isDestroyed();
+									destroyed = _shared.DESTROYED(stream);
 								if (forceDisconnect || destroyed || this.nodeJsStream.finished) {
 									types.DESTROY(this.nodeJsStream);
 								} else {
@@ -185,8 +185,17 @@ module.exports = {
 										}, this);
 									if (stream) {
 										// EOF
-										stream.write(io.EOF);
-										stream.flush()
+										if (stream.canWrite()) {
+											stream.write(io.EOF);
+											stream.flush()
+										} else {
+											stream.flush({callback: function(err) {
+												if (!err) {
+													stream.write(io.EOF);
+													stream.flush()
+												};
+											}});
+										};
 									} else {
 										// EOF
 										this.nodeJsStream.end();
@@ -250,12 +259,12 @@ module.exports = {
 						};
 					}),
 					
-					//__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
-					//	ev.preventDefault(); // error handled
-					//	if (!this.ended) {
-					//		this.request.end(true);
-					//	};
-					//}),
+					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
+						ev.preventDefault(); // error handled
+						if (!this.ended) {
+							this.request.end(true);
+						};
+					}),
 					
 					getStream: doodad.OVERRIDE(doodad.NOT_REENTRANT(function getStream(/*optional*/options) {
 						// NOTE: "getStream" is NOT_REENTRANT
@@ -302,7 +311,6 @@ module.exports = {
 						const responseStream = new nodejsIO.BinaryOutputStream({nodeStream: this.nodeJsStream});
 
 						responseStream.onWrite.attachOnce(this, this.__streamOnWrite, 10);
-						//responseStream.onError.attachOnce(this, this.__streamOnError, 10);
 
 						const ev = new doodad.Event({
 							stream: responseStream,
@@ -349,6 +357,8 @@ module.exports = {
 										responseStream = new nodejsIO.BinaryOutputStream({nodeStream: responseStream});
 									};
 								};
+
+								responseStream.onError.attachOnce(this, this.__streamOnError, 10);
 
 								this.stream = responseStream;
 
@@ -535,6 +545,8 @@ module.exports = {
 
 					startTime: doodad.PROTECTED(null),
 
+					__aborted: doodad.PROTECTED(false),
+
 					$__time: doodad.PROTECTED(doodad.TYPE(null)),
 					$__totalHour: doodad.PROTECTED(doodad.TYPE(0)),
 					$__perSecond: doodad.PROTECTED(doodad.TYPE(0.0)),
@@ -660,7 +672,9 @@ module.exports = {
 					}),
 					
 					nodeJsStreamOnClose: doodad.NODE_EVENT(['close'], function nodeJsStreamOnClose(context) {
-						if (!this.ended) {
+						if (this.ended) {
+							this.__aborted = true;
+						} else {
 							this.__endRacer.resolve(this.end(true));
 						};
 					}),
@@ -717,7 +731,7 @@ module.exports = {
 					}),
 
 					end: doodad.OVERRIDE(function end(/*optional*/forceDisconnect) {
-						// NOTE: MUST ALWAYS REJECTS WITH "EndOfRequest""
+						// NOTE: MUST ALWAYS REJECTS
 						
 						const Promise = types.getPromise();
 
@@ -758,7 +772,7 @@ module.exports = {
 							.catch(this.catchError, this)
 							.nodeify(function (err, dummy) {
 								const type = types.getType(this);
-								if (forceDisconnect || this.response.isDestroyed()) {
+								if (this.__aborted || forceDisconnect || _shared.DESTROYED(this.response)) {
 									type.$__aborted++;
 								} else {
 									const status = this.response.status;
@@ -786,12 +800,12 @@ module.exports = {
 							}, this);
 					}),
 
-					//__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
-					//	ev.preventDefault(); // error handled
-					//	if (!this.ended) {
-					//		this.__endRacer.resolve(this.end(true));
-					//	};
-					//}),
+					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
+						ev.preventDefault(); // error handled
+						if (!this.ended) {
+							this.__endRacer.resolve(this.end(true));
+						};
+					}),
 					
 					getStream: doodad.OVERRIDE(doodad.NOT_REENTRANT(function getStream(/*optional*/options) {
 						// NOTE: "getStream" is NOT_REENTRANT
@@ -864,8 +878,6 @@ module.exports = {
 									requestEncoding = options.encoding; // default encoding
 								};
 							
-								//requestStream.onError.attachOnce(this, this.__streamOnError, 10);
-
 								tools.forEach(this.__pipes, function forEachPipe(pipe) {
 									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
 									if (!types._implements(requestStream, io.Stream) && types._implements(pipe.stream, io.Stream)) {
@@ -888,6 +900,8 @@ module.exports = {
 										requestStream = new nodejsIO.BinaryInputStream({nodeStream: requestStream});
 									};
 								};
+
+								requestStream.onError.attachOnce(this, this.__streamOnError, 10);
 
 								this.stream = requestStream;
 
@@ -964,7 +978,7 @@ module.exports = {
 									request.proceed(this.handlersOptions)
 										.catch(request.catchError)
 										.then(function endRequest() {
-											if (!request.isDestroyed() && !request.ended) {
+											if (!_shared.DESTROYED(request) && !request.ended) {
 												if (request.isFullfilled()) {
 													return request.end();
 												} else {
@@ -1375,8 +1389,9 @@ module.exports = {
 										inputStream
 											.once('error', reject)
 											.pipe(iwritable, {end: true});
-										outputStream.onError.attachOnce(null, function(err) {
-											reject(err.error)
+										outputStream.onError.attachOnce(null, function(ev) {
+											ev.preventDefault();
+											reject(ev.error)
 										});
 										outputStream.onEOF.attachOnce(null, resolve)
 									}, this);
@@ -1591,10 +1606,10 @@ module.exports = {
 
 						if (this.__headersCompiled || eof) {
 							if (buf) {
-								this.push({raw: buf, valueOf: function() {return this.raw}});
+								this.push(new io.BinaryData(buf), {callback: data.defer()});
 							};
 							if (eof) {
-								this.push({raw: io.EOF, valueOf: function() {return this.raw}});
+								this.push(new io.Data(io.EOF), {callback: data.defer()});
 							};
 						} else {
 							let index,
@@ -1602,7 +1617,7 @@ module.exports = {
 							while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
 								if (index === lastIndex) {
 									this.__headersCompiled = true;
-									this.push({raw: io.BOF, headers: this.__headers, status: {code: this.__status, message: this.__message}, encoding: this.__encoding, valueOf: function() {return this.raw}});
+									this.push(new io.Data(io.BOF, {callback: data.defer(), headers: this.__headers, status: {code: this.__status, message: this.__message}, encoding: this.__encoding}));
 									break;
 								};
 								const str = buf.slice(lastIndex, index).toString('utf-8');
@@ -1631,7 +1646,7 @@ module.exports = {
 								lastIndex = index + 1;
 							};
 							if (this.__headersCompiled && this.options.headersOnly) {
-								this.push({raw: io.EOF, valueOf: function() {return this.raw}});
+								this.push(new io.Data(io.EOF), {callback: data.defer()});
 								this.stopListening();
 							} else {
 								let remaining = null;
@@ -1640,7 +1655,7 @@ module.exports = {
 								};
 								if (remaining) {
 									if (this.__headersCompiled) {
-										this.push({raw: remaining, valueOf: function() {return this.raw}});
+										this.push(new io.BinaryData(remaining), {callback: data.defer()});
 									} else {
 										this.__remaining = remaining;
 									};
@@ -2000,11 +2015,11 @@ module.exports = {
 											ev.preventDefault();
 											if (!cached.section) {
 												request.response.clearHeaders();
-												request.response.addHeaders(ev.data.headers);
+												request.response.addHeaders(ev.data.options.headers);
 												//ev.data.status.code && request.response.setStatus(ev.data.status.code, ev.data.status.message);
 											};
-											if (ev.data.encoding) {
-												const decoder = new io.TextDecoderStream();
+											if (ev.data.options.encoding && (ev.data.options.encoding !== 'raw')) {
+												const decoder = new io.TextDecoderStream({encoding: ev.data.options.encoding});
 												return cacheStream.pipe(decoder);
 											};
 											return cacheStream;
@@ -2113,7 +2128,8 @@ module.exports = {
 										headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
 									};
 
-									stream.write(headers + '\n', {encoding: 'utf-8'}); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
+									const dta = new io.TextData(headers + '\n', {encoding: 'utf-8'}); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
+									stream.write(dta);
 
 									request.waitFor(stream.onEOF.promise());
 

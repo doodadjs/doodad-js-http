@@ -816,7 +816,7 @@ module.exports = {
 					onStatus: doodad.EVENT(false),
 					onSendHeaders: doodad.EVENT(false),
 
-					ended: doodad.PUBLIC(doodad.READ_ONLY(false)),
+					ended: doodad.PUBLIC(doodad.PERSISTENT(doodad.READ_ONLY(false))),
 					request: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					status: doodad.PUBLIC(doodad.READ_ONLY(types.HttpStatus.OK)),
 					message: doodad.PUBLIC(doodad.READ_ONLY('OK')),
@@ -1056,7 +1056,7 @@ module.exports = {
 					onGetStream: doodad.EVENT(false),
 					
 					__ending: doodad.PROTECTED(false),
-					ended: doodad.PUBLIC(doodad.READ_ONLY(false)),
+					ended: doodad.PUBLIC(doodad.PERSISTENT(doodad.READ_ONLY(false))),
 					response: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					verb: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					url: doodad.PUBLIC(doodad.READ_ONLY(null)),
@@ -1135,6 +1135,7 @@ module.exports = {
 								__handlersStates: new types.Map(),
 								stream: null,
 								__fullfilled: false,
+								__contentEncodings: [],
 							});
 						};
 					}),
@@ -1669,7 +1670,7 @@ module.exports = {
 								} catch(o) {
 								};
 								throw ex;
-							} else if (this.isDestroyed()) {
+							} else if (_shared.DESTROYED(this)) {
 								if (ex.critical || !ex.bubble) {
 									throw ex;
 								};
@@ -1722,7 +1723,7 @@ module.exports = {
 						};
 
 						// To validate later on getStream
-						this.__contentEncodings = types.append([], this.__contentEncodings, encodings.map(encoding => encoding.toLowerCase())); // case-insensitive
+						types.append(this.__contentEncodings, encodings.map(encoding => encoding.toLowerCase())); // case-insensitive
 					}),
 				})));
 				
