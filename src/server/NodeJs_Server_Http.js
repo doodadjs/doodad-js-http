@@ -171,7 +171,7 @@ module.exports = {
 							.finally(function() {
 								let promise;
 								const stream = this.stream,
-									destroyed = _shared.DESTROYED(stream);
+									destroyed = stream && _shared.DESTROYED(stream);
 								if (forceDisconnect || destroyed || this.nodeJsStream.finished) {
 									types.DESTROY(this.nodeJsStream);
 								} else {
@@ -1393,7 +1393,7 @@ module.exports = {
 											ev.preventDefault();
 											reject(ev.error)
 										});
-										outputStream.onEOF.attachOnce(null, resolve)
+										outputStream.onEOF.attachOnce(null, ev => resolve())
 									}, this);
 								}, null, this)
 								.then(function() {
@@ -1525,13 +1525,12 @@ module.exports = {
 				
 				
 				nodejsHttp.REGISTER(io.Stream.$extend(
-									io.InputStream,
+									//io.InputStream,
 									io.OutputStream,
 				{
 					$TYPE_NAME: 'CacheStream',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CacheStream')), true) */,
 
-					__listening: doodad.PROTECTED(false),
 					__remaining: doodad.PROTECTED(null),
 					__headersCompiled: doodad.PROTECTED(false),
 					__headers: doodad.PROTECTED(null),
@@ -1552,7 +1551,6 @@ module.exports = {
 					reset: doodad.OVERRIDE(function reset() {
 						this._super();
 
-						this.__listening = false;
 						this.__remaining = null;
 						this.__headersCompiled = false;
 						this.__headers = types.nullObject();
@@ -1563,25 +1561,6 @@ module.exports = {
 						//this.__key = null;
 						//this.__section = null;
 						this.__encoding = null;
-					}),
-
-					isListening: doodad.OVERRIDE(function isListening() {
-						return this.__listening;
-					}),
-					
-					listen: doodad.OVERRIDE(function listen(/*optional*/options) {
-						options = types.nullObject(options);
-						if (!this.__listening) {
-							this.__listening = true;
-							this.onListen(new doodad.Event());
-						};
-					}),
-					
-					stopListening: doodad.OVERRIDE(function stopListening() {
-						if (this.__listening) {
-							this.__listening = false;
-							this.onStopListening(new doodad.Event());
-						};
 					}),
 
 					onWrite: doodad.OVERRIDE(function onWrite(ev) {
