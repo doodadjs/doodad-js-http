@@ -1647,7 +1647,7 @@ module.exports = {
 										};
 									}, null, this)
 									.catch(this.catchError, this)
-									.then(function proceedCatchOrNext() {
+									.then(function proceedNext() {
 										return proceedHandler.call(this, index + 1);
 									}, null, this);
 							} else {
