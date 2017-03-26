@@ -114,7 +114,7 @@ module.exports = {
 						};
 					}),
 					
-					nodeJsStreamOnClose: doodad.NODE_EVENT(['close'], function nodeJsStreamOnClose(context) {
+					nodeJsStreamOnClose: doodad.NODE_EVENT('close', function nodeJsStreamOnClose(context) {
 						// Response stream has been closed
 						if (!this.ended) {
 							this.end(true);
@@ -163,7 +163,7 @@ module.exports = {
 							.finally(function() {
 								if (!forceDisconnect) {
 									const stream = this.stream;
-									if (!_shared.DESTROYED(stream)) {
+									if (!_shared.DESTROYED(stream) && stream._implements(ioMixIns.BufferedStreamBase)) {
 										return stream.flushAsync();
 									};
 								};
@@ -171,7 +171,8 @@ module.exports = {
 							.finally(function() {
 								let promise;
 								const stream = this.stream,
-									destroyed = stream && _shared.DESTROYED(stream);
+									destroyed = stream && _shared.DESTROYED(stream),
+									buffered = stream && !destroyed && stream._implements(ioMixIns.BufferedStreamBase);
 								if (forceDisconnect || destroyed || this.nodeJsStream.finished) {
 									types.DESTROY(this.nodeJsStream);
 								} else {
@@ -183,21 +184,16 @@ module.exports = {
 											this.nodeJsStream.once('finish', resolve);
 											this.nodeJsStream.once('error', reject);
 										}, this);
-									if (stream) {
-										// EOF
-										if (stream.canWrite()) {
-											stream.write(io.EOF);
+									if (buffered) {
+										stream.flush()
+									};
+									// EOF
+									if (stream && stream.canWrite()) {
+										stream.write(io.EOF);
+										if (buffered) {
 											stream.flush()
-										} else {
-											stream.flush({callback: function(err) {
-												if (!err) {
-													stream.write(io.EOF);
-													stream.flush()
-												};
-											}});
 										};
 									} else {
-										// EOF
 										this.nodeJsStream.end();
 									};
 								};
@@ -343,7 +339,7 @@ module.exports = {
 								const encoding = this.contentType.params.charset;
 								if (types._implements(responseStream, io.Stream)) {
 									if (encoding && !types._implements(responseStream, ioMixIns.TextOutputStream)) {
-										const textStream = new io.TextOutputStream({encoding: encoding});
+										const textStream = new io.TextDecoderStream({encoding: encoding});
 										textStream.pipe(responseStream);
 										responseStream = textStream;
 									};
@@ -671,7 +667,7 @@ module.exports = {
 						};
 					}),
 					
-					nodeJsStreamOnClose: doodad.NODE_EVENT(['close'], function nodeJsStreamOnClose(context) {
+					nodeJsStreamOnClose: doodad.NODE_EVENT('close', function nodeJsStreamOnClose(context) {
 						if (this.ended) {
 							this.__aborted = true;
 						} else {
@@ -1384,16 +1380,16 @@ module.exports = {
 											types.DESTROY(inputStream);
 										});
 										request.onEnd.attachOnce(null, function() {
-											reject(new server.EndOfRequest);
+											reject(new server.EndOfRequest());
 										});
-										inputStream
-											.once('error', reject)
-											.pipe(iwritable, {end: true});
 										outputStream.onError.attachOnce(null, function(ev) {
 											ev.preventDefault();
 											reject(ev.error)
 										});
 										outputStream.onEOF.attachOnce(null, ev => resolve())
+										inputStream
+											.once('error', reject)
+											.pipe(iwritable, {end: true});
 									}, this);
 								}, null, this)
 								.then(function() {
@@ -1525,8 +1521,7 @@ module.exports = {
 				
 				
 				nodejsHttp.REGISTER(io.Stream.$extend(
-									//io.InputStream,
-									io.OutputStream,
+									io.BufferedOutputStream,
 				{
 					$TYPE_NAME: 'CacheStream',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CacheStream')), true) */,
@@ -1571,7 +1566,7 @@ module.exports = {
 						ev.preventDefault();
 
 						const eof = (data.raw === io.EOF);
-						let buf = !eof && data.raw;
+						let buf = data.valueOf();
 
 						let remaining = this.__remaining;
 						this.__remaining = null;
@@ -1585,10 +1580,10 @@ module.exports = {
 
 						if (this.__headersCompiled || eof) {
 							if (buf) {
-								this.push(new io.BinaryData(buf), {callback: data.defer()});
+								this.submit(new io.BinaryData(buf));
 							};
 							if (eof) {
-								this.push(new io.Data(io.EOF), {callback: data.defer()});
+								this.submit(new io.Data(io.EOF));
 							};
 						} else {
 							let index,
@@ -1596,7 +1591,7 @@ module.exports = {
 							while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
 								if (index === lastIndex) {
 									this.__headersCompiled = true;
-									this.push(new io.Data(io.BOF, {callback: data.defer(), headers: this.__headers, status: {code: this.__status, message: this.__message}, encoding: this.__encoding}));
+									this.submit(new io.Data(io.BOF, {headers: this.__headers, status: {code: this.__status, message: this.__message}, encoding: this.__encoding}));
 									break;
 								};
 								const str = buf.slice(lastIndex, index).toString('utf-8');
@@ -1625,7 +1620,7 @@ module.exports = {
 								lastIndex = index + 1;
 							};
 							if (this.__headersCompiled && this.options.headersOnly) {
-								this.push(new io.Data(io.EOF), {callback: data.defer()});
+								this.submit(new io.Data(io.EOF));
 								this.stopListening();
 							} else {
 								let remaining = null;
@@ -1634,7 +1629,7 @@ module.exports = {
 								};
 								if (remaining) {
 									if (this.__headersCompiled) {
-										this.push(new io.BinaryData(remaining), {callback: data.defer()});
+										this.submit(new io.BinaryData(remaining));
 									} else {
 										this.__remaining = remaining;
 									};
@@ -1986,29 +1981,29 @@ module.exports = {
 							.then(function proceed(fileStream) {
 								if (fileStream) {
 									const cacheStream = new nodejsHttp.CacheStream({headersOnly: (request.verb === 'HEAD')});
+									const iwritable = cacheStream.getInterface(nodejsIOInterfaces.IWritable);
 									request.onSanitize.attachOnce(this, function sanitize(ev) {
 										types.DESTROY(cacheStream);
 									});
-									const promise = cacheStream.onReady.promise(function(ev) {
+									const promise = cacheStream.onData.promise(function(ev) {
+										ev.preventDefault();
 										if (ev.data.raw === io.BOF) {
-											ev.preventDefault();
 											if (!cached.section) {
 												request.response.clearHeaders();
 												request.response.addHeaders(ev.data.options.headers);
-												//ev.data.status.code && request.response.setStatus(ev.data.status.code, ev.data.status.message);
+												//ev.data.options.status.code && request.response.setStatus(ev.data.options.status.code, ev.data.options.status.message);
 											};
-											if (ev.data.options.encoding && (ev.data.options.encoding !== 'raw')) {
-												const decoder = new io.TextDecoderStream({encoding: ev.data.options.encoding});
-												return cacheStream.pipe(decoder);
-											};
+											cacheStream.setOptions({flushMode: 'manual'});
+											cacheStream.onFlush.attachOnce(this, function(ev) {
+												cacheStream.setOptions({flushMode: 'auto'});
+											});
 											return cacheStream;
 										} else {
-											// Cancels resolve and waits next 'onReady' event
+											// Cancels resolve and waits next 'onData' event
 											return false;
 										};
 									}, this);
-									cacheStream.listen();
-									fileStream.pipe(cacheStream.getInterface(nodejsIOInterfaces.IWritable));
+									fileStream.pipe(iwritable);
 									return promise;
 								};
 							}, null, this);
@@ -2216,7 +2211,6 @@ module.exports = {
 						const encoding = (request.getHeader('Content-Encoding') || 'identity').toLowerCase(); // case insensitive
 
 						if (tools.indexOf(this.options.encodings, encoding) < 0) {
-							////////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 							ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 							return;
 						};
@@ -2234,7 +2228,6 @@ module.exports = {
 								stream = nodeZlib.createInflate(optionsPerEncoding.deflate);
 								break;
 							default:
-								///////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								return;
 						};
