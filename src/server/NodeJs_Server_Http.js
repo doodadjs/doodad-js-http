@@ -1521,6 +1521,7 @@ module.exports = {
 				
 				
 				nodejsHttp.REGISTER(io.Stream.$extend(
+									io.BufferedInputStream,
 									io.BufferedOutputStream,
 				{
 					$TYPE_NAME: 'CacheStream',
@@ -1536,6 +1537,8 @@ module.exports = {
 					//__key: doodad.PROTECTED(null),
 					//__section: doodad.PROTECTED(null),
 					__encoding: doodad.PROTECTED(null),
+
+					__listening: doodad.PROTECTED(false),
 
 					create: doodad.OVERRIDE(function create(/*optional*/options) {
 						this._super(options);
@@ -1561,83 +1564,104 @@ module.exports = {
 					onWrite: doodad.OVERRIDE(function onWrite(ev) {
 						const retval = this._super(ev);
 
-						const data = ev.data;
+						if (this.__listening) {
+							ev.preventDefault();
 
-						ev.preventDefault();
+							const data = ev.data;
+							const eof = (data.raw === io.EOF);
+							let buf = data.valueOf();
 
-						const eof = (data.raw === io.EOF);
-						let buf = data.valueOf();
+							let remaining = this.__remaining;
+							this.__remaining = null;
+							if (remaining) {
+								if (buf) {
+									buf = _shared.Natives.globalBuffer.concat([remaining, buf], remaining.length + buf.length);
+								} else {
+									buf = remaining;
+								};
+							};
 
-						let remaining = this.__remaining;
-						this.__remaining = null;
-						if (remaining) {
-							if (buf) {
-								buf = _shared.Natives.globalBuffer.concat([remaining, buf], remaining.length + buf.length);
+							if (this.__headersCompiled || eof) {
+								if (buf) {
+									this.submit(new io.BinaryData(buf));
+								};
+								if (eof) {
+									this.submit(new io.Data(io.EOF));
+								};
 							} else {
-								buf = remaining;
-							};
-						};
-
-						if (this.__headersCompiled || eof) {
-							if (buf) {
-								this.submit(new io.BinaryData(buf));
-							};
-							if (eof) {
-								this.submit(new io.Data(io.EOF));
-							};
-						} else {
-							let index,
-								lastIndex = 0;
-							while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
-								if (index === lastIndex) {
-									this.__headersCompiled = true;
-									this.submit(new io.Data(io.BOF, {headers: this.__headers, status: {code: this.__status, message: this.__message}, encoding: this.__encoding}));
-									break;
+								let index,
+									lastIndex = 0;
+								while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
+									if (index === lastIndex) {
+										this.__headersCompiled = true;
+										this.submit(new io.Data(io.BOF, {headers: this.__headers, status: {code: this.__status, message: this.__message, encoding: this.__encoding}}));
+										break;
+									};
+									const str = buf.slice(lastIndex, index).toString('utf-8');
+									const header = tools.split(str, ':', 2);
+									const name = tools.trim(header[0] || '');
+									const value = tools.trim(header[1] || '');
+									if (name === 'X-Cache-Key') {
+										//this.__key = value;
+									} else if (name === 'X-Cache-File') {
+										//const val = tools.split(value, ' ', 2);
+										//this.__verb = val[0] || '';
+										//this.__file = val[1] || '';
+									} else if (name === 'X-Cache-Status') {
+										const val = tools.split(value, ' ', 2);
+										this.__status = parseInt(val[0]) || 200;
+										this.__message = val[1] || '';
+									} else if (name === 'X-Cache-Section') {
+										//this.__section = value;
+									} else if (name === 'X-Cache-Encoding') {
+										this.__encoding = value;
+									} else if (name.slice(0, 8) === 'X-Cache-') {
+										// Ignored
+									} else if (name) {
+										this.__headers[name] = value;
+									};
+									lastIndex = index + 1;
 								};
-								const str = buf.slice(lastIndex, index).toString('utf-8');
-								const header = tools.split(str, ':', 2);
-								const name = tools.trim(header[0] || '');
-								const value = tools.trim(header[1] || '');
-								if (name === 'X-Cache-Key') {
-									//this.__key = value;
-								} else if (name === 'X-Cache-File') {
-									//const val = tools.split(value, ' ', 2);
-									//this.__verb = val[0] || '';
-									//this.__file = val[1] || '';
-								} else if (name === 'X-Cache-Status') {
-									const val = tools.split(value, ' ', 2);
-									this.__status = parseInt(val[0]) || 200;
-									this.__message = val[1] || '';
-								} else if (name === 'X-Cache-Section') {
-									//this.__section = value;
-								} else if (name === 'X-Cache-Encoding') {
-									this.__encoding = value;
-								} else if (name.slice(0, 8) === 'X-Cache-') {
-									// Ignored
-								} else if (name) {
-									this.__headers[name] = value;
-								};
-								lastIndex = index + 1;
-							};
-							if (this.__headersCompiled && this.options.headersOnly) {
-								this.submit(new io.Data(io.EOF));
-								this.stopListening();
-							} else {
-								let remaining = null;
-								if ((index >= 0) && (index < buf.length - 1)) {
-									remaining = buf.slice(index + 1);
-								};
-								if (remaining) {
-									if (this.__headersCompiled) {
-										this.submit(new io.BinaryData(remaining));
-									} else {
-										this.__remaining = remaining;
+								if (this.__headersCompiled && this.options.headersOnly) {
+									this.submit(new io.Data(io.EOF));
+									this.stopListening();
+								} else {
+									let remaining = null;
+									if ((index >= 0) && (index < buf.length - 1)) {
+										remaining = buf.slice(index + 1);
+									};
+									if (remaining) {
+										if (this.__headersCompiled) {
+											this.submit(new io.BinaryData(remaining));
+										} else {
+											this.__remaining = remaining;
+										};
 									};
 								};
 							};
 						};
 
 						return retval;
+					}),
+
+					isListening: doodad.REPLACE(function isListening() {
+						return this.__listening;
+					}),
+
+					listen: doodad.REPLACE(function listen(/*optional*/options) {
+						if (!this.__listening) {
+							this.__listening = true;
+
+							this.onListen();
+						};
+					}),
+
+					stopListening: doodad.REPLACE(function stopListening() {
+						if (this.__listening) {
+							this.__listening = false;
+
+							this.onStopListening();
+						};
 					}),
 				}));
 
@@ -1981,6 +2005,7 @@ module.exports = {
 							.then(function proceed(fileStream) {
 								if (fileStream) {
 									const cacheStream = new nodejsHttp.CacheStream({headersOnly: (request.verb === 'HEAD')});
+									cacheStream.listen();
 									const iwritable = cacheStream.getInterface(nodejsIOInterfaces.IWritable);
 									request.onSanitize.attachOnce(this, function sanitize(ev) {
 										types.DESTROY(cacheStream);
