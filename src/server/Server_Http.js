@@ -2730,7 +2730,6 @@ module.exports = {
 							const encoding = contentType.params.charset || 'utf-8';
 
 							if (!ioJson.Stream.$isValidEncoding(encoding)) {
-								///////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								return;
 							};
@@ -2779,7 +2778,6 @@ module.exports = {
 							const encoding = contentType.params.charset || 'utf-8';
 
 							if (!ioXml.Stream.$isValidEncoding(encoding)) {
-								//////////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								return;
 							};
@@ -2828,7 +2826,6 @@ module.exports = {
 							const encoding = contentType.params.charset || 'utf-8';
 
 							if (!io.UrlDecoderStream.$isValidEncoding(encoding)) {
-								////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								return;
 							};
@@ -2921,7 +2918,6 @@ module.exports = {
 							const encoding = contentType.params.charset || 'utf-8';
 
 							if (!io.TextDecoderStream.$isValidEncoding(encoding)) {
-								////return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								ev.data.stream = request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 								return;
 							};
