@@ -105,19 +105,21 @@ module.exports = {
 					$TYPE_NAME: 'Response',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('NodeJsResponse')), true) */,
 
+					__endRacer: doodad.PRIVATE(null),
+
 					nodeJsStream: doodad.PROTECTED(null),
 
 					nodeJsStreamOnError: doodad.NODE_EVENT('error', function nodeJsStreamOnError(context, err) {
 						err.trapped = true;
 						if (!this.ended) {
-							this.end(true);
+							this.__endRacer.resolve(this.end(true));
 						};
 					}),
 					
 					nodeJsStreamOnClose: doodad.NODE_EVENT('close', function nodeJsStreamOnClose(context) {
 						// Response stream has been closed
 						if (!this.ended) {
-							this.end(true);
+							this.__endRacer.resolve(this.end(true));
 						};
 					}),
 					
@@ -125,6 +127,10 @@ module.exports = {
 						_shared.setAttribute(this, 'message', nodeHttp.STATUS_CODES[this.status]);
 
 						this._super(request);
+
+						const Promise = types.getPromise();
+
+						this.__endRacer = Promise.createRacer();
 
 						this.nodeJsStream = nodeJsStream;
 						this.nodeJsStreamOnError.attach(nodeJsStream);
@@ -161,14 +167,6 @@ module.exports = {
 								};
 							}, this)
 							.finally(function() {
-								if (!forceDisconnect) {
-									const stream = this.stream;
-									if (!_shared.DESTROYED(stream) && stream._implements(ioMixIns.BufferedStreamBase)) {
-										return stream.flushAsync();
-									};
-								};
-							}, this)
-							.finally(function() {
 								let promise;
 								const stream = this.stream,
 									destroyed = stream && _shared.DESTROYED(stream),
@@ -179,21 +177,23 @@ module.exports = {
 									if (!this.trailersSent) {
 										this.sendTrailers();
 									};
-									promise = Promise.create(function(resolve, reject) {
-											this.nodeJsStream.once('close', resolve);
-											this.nodeJsStream.once('finish', resolve);
-											this.nodeJsStream.once('error', reject);
-										}, this);
 									if (buffered) {
-										stream.flush()
-									};
-									// EOF
-									if (stream && stream.canWrite()) {
-										stream.write(io.EOF);
-										if (buffered) {
-											stream.flush()
-										};
+										promise = stream.flushAsync({purge: true})
+											.then(function() {
+												if (stream.canWrite()) {
+													stream.write(io.EOF);
+													return stream.flushAsync({purge: true});
+												};
+											});
+									} else if (stream && stream.canWrite()) {
+										promise = stream.writeAsync(io.EOF);
 									} else {
+										promise = Promise.create(function(resolve, reject) {
+												this.nodeJsStream.once('destroy', resolve);
+												this.nodeJsStream.once('close', resolve);
+												this.nodeJsStream.once('finish', resolve);
+												this.nodeJsStream.once('error', reject);
+											}, this);
 										this.nodeJsStream.end();
 									};
 								};
@@ -258,7 +258,7 @@ module.exports = {
 					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
 						ev.preventDefault(); // error handled
 						if (!this.ended) {
-							this.request.end(true);
+							this.__endRacer.resolve(this.end(true));
 						};
 					}),
 					
@@ -316,7 +316,7 @@ module.exports = {
 						this.onGetStream(ev);
 						
 						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream itself.
-						return Promise.resolve(ev.data.stream)
+						return this.__endRacer.race(Promise.resolve(ev.data.stream)
 							.then(function(responseStream) {
 								if (types.isNothing(responseStream)) {
 									throw new http.StreamAborted();
@@ -366,7 +366,7 @@ module.exports = {
 								types.DESTROY(responseStream);
 
 								throw err;
-							}, this);
+							}, this));
 					})),
 					
 					sendTrailers: doodad.PROTECTED(function sendTrailers(/*optional*/trailers) {
@@ -760,8 +760,16 @@ module.exports = {
 							.then(function (dummy) {
 								this.__ending = false; // now blocks any operation
 
-								if (forceDisconnect) {
+								const stream = this.stream,
+									destroyed = stream && _shared.DESTROYED(stream),
+									buffered = stream && !destroyed && stream._implements(ioMixIns.BufferedStreamBase);
+
+								if (forceDisconnect || destroyed) {
 									types.DESTROY(this.nodeJsStream);
+								} else {
+									if (buffered) {
+										stream.flush({purge: true})
+									};
 								};
 							}, null, this)
 							.then(wait, null, this)
@@ -819,7 +827,7 @@ module.exports = {
 							return currentStream;
 						};
 
-						const acceptContentEncodings = this.__contentEncodings || ['identity'];
+						const acceptContentEncodings = (this.__contentEncodings.length ? this.__contentEncodings : ['identity']);
 						const contentEncoding = (this.getHeader('Content-Encoding') || 'identity').toLowerCase(); // case-insensitive
 						if (acceptContentEncodings.indexOf(contentEncoding) < 0) { 
 							return this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
@@ -835,7 +843,7 @@ module.exports = {
 						this.onGetStream(ev);
 						
 						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream itself.
-						return Promise.resolve(ev.data.stream)
+						return this.__endRacer.race(Promise.resolve(ev.data.stream)
 							.then(function(requestStream) {
 								if (types.isNothing(requestStream)) {
 									throw new http.StreamAborted();
@@ -909,7 +917,7 @@ module.exports = {
 								types.DESTROY(requestStream);
 
 								throw err;
-							}, this);
+							}, this));
 					})),
 					
 					getTime: doodad.PUBLIC(function getTime() {
@@ -1523,6 +1531,8 @@ module.exports = {
 				nodejsHttp.REGISTER(io.Stream.$extend(
 									io.BufferedInputStream,
 									io.BufferedOutputStream,
+									ioMixIns.BinaryTransformableIn,
+									ioMixIns.BinaryTransformableOut,
 				{
 					$TYPE_NAME: 'CacheStream',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CacheStream')), true) */,
