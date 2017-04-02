@@ -146,7 +146,7 @@ module.exports = {
 						this._super();
 					}),
 					
-					end: doodad.PUBLIC(doodad.ASYNC(function end(forceDisconnect) {
+					end: doodad.PUBLIC(doodad.NOT_REENTRANT(doodad.ASYNC(function end(forceDisconnect) {
 						// NOTE: MUST ALWAYS REJECTS
 
 						const Promise = types.getPromise();
@@ -208,7 +208,7 @@ module.exports = {
 							.then(function() {
 								throw new server.EndOfRequest();
 							});
-					})),
+					}))),
 
 					setStatus: doodad.OVERRIDE(function setStatus(status, /*optional*/message) {
 						status = status || types.HttpStatus.OK;
@@ -1203,13 +1203,15 @@ module.exports = {
 
 						this.path = path;
 
-						const state = request.getHandlerState(cacheHandler);
+						if (cacheHandler) {
+							const state = request.getHandlerState(cacheHandler);
 
-						state.onCreateCurrent.attachOnce(this, function(handler, cached) {
-							files.watch(this.path.toString(), function() {
-								cached.invalidate();
+							state.onCreateCurrent.attachOnce(this, function(handler, cached) {
+								files.watch(this.path.toString(), function() {
+									cached.invalidate();
+								});
 							});
-						});
+						};
 					}),
 
 					readDir: doodad.PUBLIC(doodad.ASYNC(function readDir() {
@@ -1596,7 +1598,7 @@ module.exports = {
 									this.submit(new io.BinaryData(buf));
 								};
 								if (eof) {
-									this.submit(new io.Data(io.EOF));
+									this.submit(new io.BinaryData(io.EOF), {callback: data.defer()});
 								};
 							} else {
 								let index,
@@ -1604,7 +1606,7 @@ module.exports = {
 								while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
 									if (index === lastIndex) {
 										this.__headersCompiled = true;
-										this.submit(new io.Data(io.BOF, {headers: this.__headers, status: {code: this.__status, message: this.__message, encoding: this.__encoding}}));
+										this.submit(new io.BinaryData(io.BOF, {headers: this.__headers, status: {code: this.__status, message: this.__message, encoding: this.__encoding}}));
 										break;
 									};
 									const str = buf.slice(lastIndex, index).toString('utf-8');
@@ -1633,7 +1635,7 @@ module.exports = {
 									lastIndex = index + 1;
 								};
 								if (this.__headersCompiled && this.options.headersOnly) {
-									this.submit(new io.Data(io.EOF));
+									this.submit(new io.BinaryData(io.EOF), {callback: data.defer()});
 									this.stopListening();
 								} else {
 									let remaining = null;
@@ -2137,8 +2139,7 @@ module.exports = {
 										headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
 									};
 
-									const dta = new io.TextData(headers + '\n', {encoding: 'utf-8'}); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
-									stream.write(dta);
+									stream.write(io.TextData.$encode(headers + '\n', 'utf-8')); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
 
 									request.waitFor(stream.onEOF.promise());
 
