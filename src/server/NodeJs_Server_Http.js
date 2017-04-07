@@ -882,6 +882,8 @@ module.exports = {
 									requestEncoding = options.encoding; // default encoding
 								};
 							
+								requestStream.onError.attachOnce(this, this.__streamOnError, 10);
+
 								tools.forEach(this.__pipes, function forEachPipe(pipe) {
 									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
 									if (!types._implements(requestStream, io.Stream) && types._implements(pipe.stream, io.Stream)) {
@@ -904,8 +906,6 @@ module.exports = {
 										requestStream = new nodejsIO.BinaryInputStream({nodeStream: requestStream});
 									};
 								};
-
-								requestStream.onError.attachOnce(this, this.__streamOnError, 10);
 
 								this.stream = requestStream;
 
