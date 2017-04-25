@@ -1595,7 +1595,7 @@ module.exports = {
 
 							if (this.__headersCompiled || eof) {
 								if (buf) {
-									this.submit(new io.BinaryData(buf));
+									this.submit(new io.BinaryData(buf), {callback: data.defer()});
 								};
 								if (eof) {
 									this.submit(new io.BinaryData(io.EOF), {callback: data.defer()});
@@ -1606,7 +1606,7 @@ module.exports = {
 								while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
 									if (index === lastIndex) {
 										this.__headersCompiled = true;
-										this.submit(new io.BinaryData(io.BOF, {headers: this.__headers, status: {code: this.__status, message: this.__message, encoding: this.__encoding}}));
+										this.submit(new io.BinaryData(io.BOF, {headers: this.__headers, status: {code: this.__status, message: this.__message, encoding: this.__encoding}}), {callback: data.defer()});
 										break;
 									};
 									const str = buf.slice(lastIndex, index).toString('utf-8');
@@ -1644,7 +1644,7 @@ module.exports = {
 									};
 									if (remaining) {
 										if (this.__headersCompiled) {
-											this.submit(new io.BinaryData(remaining));
+											this.submit(new io.BinaryData(remaining), {callback: data.defer()});
 										} else {
 											this.__remaining = remaining;
 										};
