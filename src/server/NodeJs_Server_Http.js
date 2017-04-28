@@ -746,8 +746,6 @@ module.exports = {
 							};
 						};
 
-						var self = this;
-
 						return Promise.try(function tryEndRequest() {
 							_shared.setAttribute(this, 'ended', true); // blocks additional operations...
 							this.__ending = true; // ...but some operations are still allowed
