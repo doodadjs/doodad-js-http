@@ -2175,20 +2175,18 @@ module.exports = {
 								ev.data.stream = this.createFile(request, cached)
 									.then(function(cacheStream) {
 										if (cacheStream) {
-											request.waitFor(
-												cacheStream.onEOF.promise(function onEOF() {
-														cached.validate();
-														if (ev.data.options.watch) {
-															files.watch(ev.data.options.watch, function() {
-																cached.invalidate();
-															}, {once: true});
-														};
-													}, this)
-													.catch(function(err) {
-														cached.abort();
-														throw err;
-													}, this)
-											);
+											cacheStream.onEOF.promise(function onEOF() {
+													cached.validate();
+													if (ev.data.options.watch) {
+														files.watch(ev.data.options.watch, function() {
+															cached.invalidate();
+														}, {once: true});
+													};
+												}, this)
+												.catch(function(err) {
+													cached.abort();
+													throw err;
+												}, this)
 											output.pipe(cacheStream);
 										};
 										return output;
