@@ -1308,7 +1308,7 @@ module.exports = {
 					getAcceptables: doodad.PUBLIC(function getAcceptables(/*optional*/contentTypes, /*optional*/options) {
 						options = types.nullObject(options);
 
-						// Get negociated mime types between the handler and the client
+						// Get negociated mime types between the handler and the client. Defaults to the "Accept" header.
 						const handlerState = options.handler && this.getHandlerState(options.handler);
 						let handlerTypes = handlerState && handlerState.mimeTypes || this.__parsedAccept;
 
