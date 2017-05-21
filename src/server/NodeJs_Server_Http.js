@@ -1333,12 +1333,12 @@ module.exports = {
 								};
 
 								let contentTypes,
-									handler = request.currentHandler;
+									handler = null;
 								if (stats.isFile()) {
 									contentTypes = mime.getTypes(path.file);
+									handler = request.currentHandler;
 								} else {
 									contentTypes = ['text/html; charset=utf-8', 'application/json; charset=utf-8'];
-									handler = null;
 								};
 								
 								let contentType;
