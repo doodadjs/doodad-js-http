@@ -2613,20 +2613,22 @@ module.exports = {
 						const routes = this.routes;
 
 						tools.forEach(newRoutes, function(route, matcher) {
-							root.DD_ASSERT && root.DD_ASSERT(types.isJsObject(route), "Invalid route.");
+							if (!types.isNothing(route)) {
+								root.DD_ASSERT && root.DD_ASSERT(types.isJsObject(route), "Invalid route.");
 							
-							route = types.nullObject(route);
+								route = types.nullObject(route);
 
-							if (route.handlers && route.handlers.length) {
-								if (types.isString(matcher)) {
-									matcher = new http.UrlMatcher(matcher);
+								if (route.handlers && route.handlers.length) {
+									if (types.isString(matcher)) {
+										matcher = new http.UrlMatcher(matcher);
+									};
+									root.DD_ASSERT && root.DD_ASSERT((matcher instanceof http.RequestMatcher), "Invalid request matcher.");
+							
+									route.id = types.getSymbol();
+									route.prepared = false;
+
+									routes.set(matcher, route);
 								};
-								root.DD_ASSERT && root.DD_ASSERT((matcher instanceof http.RequestMatcher), "Invalid request matcher.");
-							
-								route.id = types.getSymbol();
-								route.prepared = false;
-
-								routes.set(matcher, route);
 							};
 						}, this);
 					}),
