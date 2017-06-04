@@ -138,8 +138,17 @@ module.exports = {
 					}),
 
 					destroy: doodad.OVERRIDE(function destroy() {
+						if (!types.DESTROYED(this.nodeJsStream)) {
+							this.nodeJsStream.end();
+						};
+
 						this.nodeJsStreamOnError.clear();
 						this.nodeJsStreamOnClose.clear();
+
+						
+						if (!this.__endRacer.isSolved()) {
+							this.__endRacer.reject(new types.ScriptInterruptedError("Response object is about to be destroyed."));
+						};
 
 						types.DESTROY(this.stream);
 
@@ -167,7 +176,7 @@ module.exports = {
 								};
 							}, this)
 							.finally(function() {
-								let promise;
+								let promise = null;
 								const stream = this.stream,
 									destroyed = stream && _shared.DESTROYED(stream),
 									buffered = stream && !destroyed && stream._implements(ioMixIns.BufferedStreamBase);
@@ -177,35 +186,38 @@ module.exports = {
 									if (!this.trailersSent) {
 										this.sendTrailers();
 									};
-									if (buffered) {
-										promise = stream.flushAsync({purge: true})
-											.then(function() {
-												if (stream.canWrite()) {
-													stream.write(io.EOF);
-													return stream.flushAsync({purge: true});
-												};
-											});
-									} else if (stream && stream.canWrite()) {
-										promise = stream.writeAsync(io.EOF);
-									} else {
-										promise = Promise.create(function(resolve, reject) {
-												this.nodeJsStream.once('destroy', resolve);
-												this.nodeJsStream.once('close', resolve);
-												this.nodeJsStream.once('finish', resolve);
-												this.nodeJsStream.once('error', reject);
-											}, this);
-										this.nodeJsStream.end();
-									};
+									promise = Promise.create(function(resolve, reject) {
+											this.nodeJsStream.once('destroy', resolve);
+											this.nodeJsStream.once('close', resolve);
+											this.nodeJsStream.once('finish', resolve);
+											this.nodeJsStream.once('error', reject);
+											if (buffered) {
+												stream.flushAsync({purge: true})
+													.then(function(dummy) {
+														if (stream.canWrite()) {
+															stream.write(io.EOF);
+															return stream.flushAsync({purge: true});
+														} else {
+															this.nodeJsStream.end();
+														};
+													}, null, this)
+													.catch(reject);
+											} else if (stream && stream.canWrite()) {
+												stream.write(io.EOF);
+											} else {
+												this.nodeJsStream.end();
+											};
+										}, this);
 								};
 								_shared.setAttribute(this, 'ended', true);
 								return promise;
 							}, this)
-							.then(function() {
+							.then(function(dummy) {
 								if (!this.request.ended) {
 									return this.request.end(forceDisconnect);
 								};
 							}, null, this)
-							.then(function() {
+							.then(function(dummy) {
 								throw new server.EndOfRequest();
 							});
 					}))),
@@ -447,21 +459,23 @@ module.exports = {
 
 						if (ex.critical) {
 							throw ex;
-						} else if (ex.bubble) {
-							// Do nothing
 						} else {
-							this.clear();
+							ex.trapped = true;
 
-							this.request.setFullfilled(true);
+							if (!ex.bubble) {
+								this.clear();
 
-							if (!this.nodeJsStream) {
-								// Too late !
-								return this.end();
-							} else if (this.headersSent) {
-								// Too late !
-								return this.request.end();
-							} else {
-								return this.respondWithStatus(types.HttpStatus.InternalError, null, null, ex);
+								this.request.setFullfilled(true);
+
+								if (!this.nodeJsStream) {
+									// Too late !
+									return this.end();
+								} else if (this.headersSent) {
+									// Too late !
+									return this.request.end();
+								} else {
+									return this.respondWithStatus(types.HttpStatus.InternalError, null, null, ex);
+								};
 							};
 						};
 					}),
@@ -715,6 +729,10 @@ module.exports = {
 
 						types.DESTROY(this.stream);
 
+						if (!this.__endRacer.isSolved()) {
+							this.__endRacer.reject(new types.ScriptInterruptedError("Request object is about to be destroyed."));
+						};
+
 						this._super();
 					}),
 					
@@ -740,7 +758,7 @@ module.exports = {
 								const queue = this.__waitQueue;
 								if (queue.length) {
 									this.__waitQueue = [];
-									return Promise.all(queue)
+									return this.__endRacer.race(Promise.all(queue))
 										.then(wait, null, this);
 								};
 							};
@@ -766,7 +784,7 @@ module.exports = {
 									types.DESTROY(this.nodeJsStream);
 								} else {
 									if (buffered) {
-										stream.flush({purge: true})
+										return stream.flushAsync({purge: true})
 									};
 								};
 							}, null, this)
@@ -1394,7 +1412,9 @@ module.exports = {
 											ev.preventDefault();
 											reject(ev.error)
 										});
-										outputStream.onEOF.attachOnce(null, ev => resolve())
+										outputStream.onEOF.attachOnce(null, function(ev) {
+											resolve();
+										});
 										inputStream
 											.once('error', reject)
 											.pipe(iwritable, {end: true});
@@ -2081,16 +2101,12 @@ module.exports = {
 										openCb = null;
 									stream.once('error', errorCb = doodad.Callback(this, function streamOnError(err) {
 										stream.removeListener('open', openCb);
-										// Abort writing of cache file, but give the response to the client
-										cached.path = null;
-										cached.abort();
 										reject(err);
 									}, reject));
 									stream.once('open', openCb = doodad.Callback(this, function streamOnOpen(fd) {
 										stream.removeListener('error', errorCb);
 										const ddStream = (encoding ? new nodejsIO.TextOutputStream({nodeStream: stream, encoding: encoding}) : new nodejsIO.BinaryOutputStream({nodeStream: stream}));
 										request.onSanitize.attachOnce(null, function sanitize() {
-											//stream.close();
 											types.DESTROY(stream);
 											types.DESTROY(ddStream);
 											cached.abort();
@@ -2101,10 +2117,16 @@ module.exports = {
 								.catch(function catchOpen(err) {
 									if ((err.code === 'EEXIST') && (count > 1)) {
 										return loopOpenFile.call(this, count - 1);
-									} else if (err.code === 'EPERM') {
-										return null;
 									} else {
-										throw err;
+										// Abort writing of cache file, but give the response to the client
+										cached.path = null;
+										cached.abort();
+
+										if (err.code === 'EPERM') {
+											return null;
+										} else {
+											throw err;
+										};
 									};
 								}, this);
 						};
@@ -2175,7 +2197,7 @@ module.exports = {
 								ev.data.stream = this.createFile(request, cached)
 									.then(function(cacheStream) {
 										if (cacheStream) {
-											cacheStream.onEOF.promise(function onEOF() {
+											request.waitFor(cacheStream.onEOF.promise(function onEOF() {
 													cached.validate();
 													if (ev.data.options.watch) {
 														files.watch(ev.data.options.watch, function() {
@@ -2186,7 +2208,7 @@ module.exports = {
 												.catch(function(err) {
 													cached.abort();
 													throw err;
-												}, this)
+												}, this));
 											output.pipe(cacheStream);
 										};
 										return output;
