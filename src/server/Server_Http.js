@@ -816,6 +816,7 @@ module.exports = {
 					onStatus: doodad.EVENT(false),
 					onSendHeaders: doodad.EVENT(false),
 
+					__ending: doodad.PROTECTED(false),
 					ended: doodad.PUBLIC(doodad.PERSISTENT(doodad.READ_ONLY(false))),
 					request: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					status: doodad.PUBLIC(doodad.READ_ONLY(types.HttpStatus.OK)),
@@ -951,6 +952,10 @@ module.exports = {
 					}),
 
 					clearTrailers: doodad.PUBLIC(function clearTrailers(/*optional*/names) {
+						if (this.ended) {
+							throw new server.EndOfRequest();
+						};							
+
 						let changedTrailers;
 						if (names) {
 							if (!types.isArray(names)) {

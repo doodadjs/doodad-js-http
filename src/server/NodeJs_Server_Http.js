@@ -158,13 +158,15 @@ module.exports = {
 					end: doodad.PUBLIC(doodad.NOT_REENTRANT(doodad.ASYNC(function end(forceDisconnect) {
 						// NOTE: MUST ALWAYS REJECTS
 
-						const Promise = types.getPromise();
-
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
 
+						const Promise = types.getPromise();
+
 						return Promise.try(function tryEnd() {
+								_shared.setAttribute(this, 'ended', true); // blocks additional operations...
+								this.__ending = true; // ...but some operations are still allowed
 								if (!forceDisconnect) {
 									if (this.status !== types.HttpStatus.OK) {
 										const ev = new doodad.Event({promise: Promise.resolve()});
@@ -209,7 +211,7 @@ module.exports = {
 											};
 										}, this);
 								};
-								_shared.setAttribute(this, 'ended', true);
+								this.__ending = false; // now blocks any operation
 								return promise;
 							}, this)
 							.then(function(dummy) {
@@ -230,9 +232,9 @@ module.exports = {
 					}),
 
 					sendHeaders: doodad.PUBLIC(function sendHeaders() {
-						//if (this.ended) {
-						//	throw new server.EndOfRequest();
-						//};
+						if (this.ended && !this.__ending) {
+							throw new server.EndOfRequest();
+						};
 
 						if (this.headersSent) {
 							throw new types.Error("Can't respond with a new status or new headers because the headers have already been sent to the client.");
@@ -277,11 +279,11 @@ module.exports = {
 					getStream: doodad.OVERRIDE(doodad.NOT_REENTRANT(function getStream(/*optional*/options) {
 						// NOTE: "getStream" is NOT_REENTRANT
 
-						const Promise = types.getPromise();
-
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};
+
+						const Promise = types.getPromise();
 
 						options = types.nullObject(options);
 
@@ -382,13 +384,12 @@ module.exports = {
 					})),
 					
 					sendTrailers: doodad.PROTECTED(function sendTrailers(/*optional*/trailers) {
-						//if (this.ended) {
-						//	throw new server.EndOfRequest();
-						//};
+						if (this.ended && !this.__ending) {
+							throw new server.EndOfRequest();
+						};
 
 						if (this.trailersSent) {
-							//throw new types.Error("Trailers have already been sent and the request will be closed.");
-							return;
+							throw new types.Error("Trailers have already been sent and the request will be closed.");
 						};
 						
 						if (!this.headersSent) {
