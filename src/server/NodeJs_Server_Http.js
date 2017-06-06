@@ -155,7 +155,7 @@ module.exports = {
 						this._super();
 					}),
 					
-					end: doodad.PUBLIC(doodad.NOT_REENTRANT(doodad.ASYNC(function end(forceDisconnect) {
+					end: doodad.PUBLIC(doodad.NON_REENTRANT(doodad.ASYNC(function end(forceDisconnect) {
 						// NOTE: MUST ALWAYS REJECTS
 
 						if (this.ended) {
@@ -276,8 +276,8 @@ module.exports = {
 						};
 					}),
 					
-					getStream: doodad.OVERRIDE(doodad.NOT_REENTRANT(function getStream(/*optional*/options) {
-						// NOTE: "getStream" is NOT_REENTRANT
+					getStream: doodad.OVERRIDE(doodad.NON_REENTRANT(function getStream(/*optional*/options) {
+						// NOTE: "getStream" is NON_REENTRANT
 
 						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
@@ -828,8 +828,8 @@ module.exports = {
 						};
 					}),
 					
-					getStream: doodad.OVERRIDE(doodad.NOT_REENTRANT(function getStream(/*optional*/options) {
-						// NOTE: "getStream" is NOT_REENTRANT
+					getStream: doodad.OVERRIDE(doodad.NON_REENTRANT(function getStream(/*optional*/options) {
+						// NOTE: "getStream" is NON_REENTRANT
 
 						const Promise = types.getPromise();
 
