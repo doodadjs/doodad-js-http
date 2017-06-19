@@ -1094,7 +1094,7 @@ module.exports = {
 					__fullfilled: doodad.PROTECTED(false),
 
 					$__actives: doodad.PROTECTED(doodad.TYPE(0)),
-					$__active_requests: doodad.PROTECTED(doodad.TYPE(null)), // available on debug mode only
+					$__active_requests: doodad.PROTECTED(doodad.TYPE( new types.Set() )),
 					
 					$__total: doodad.PROTECTED(doodad.TYPE(0)),
 					$__successful: doodad.PROTECTED(doodad.TYPE(0)),
@@ -1114,12 +1114,11 @@ module.exports = {
 					})),
 					
 					$getActives: doodad.PUBLIC(doodad.TYPE(function $getActives() {
-						if (!this.$__active_requests) {
-							throw new types.NotAvailable("The list of active requests is not available. Please try Doodad with the debug mode.");
-						};
-						return this.$__active_requests.map(function(request) {
-							return request.url.toString();
+						const actives = [];
+						this.$__active_requests.forEach(function(request) {
+							actives[actives.length] = request.url.toString();
 						});
+						return actives;
 					})),
 
 					$clearStats: doodad.PUBLIC(doodad.TYPE(function $clearStats() {
@@ -1132,10 +1131,6 @@ module.exports = {
 					
 					$create: doodad.OVERRIDE(function $create() {
 						this._super();
-
-						if (root.getOptions().debug) {
-							this.$__active_requests = [];
-						};
 
 						this.$clearStats();
 					}),
@@ -1170,7 +1165,7 @@ module.exports = {
 						type.$__actives++;
 
 						if (type.$__active_requests) {
-							type.$__active_requests.push(this);
+							type.$__active_requests.add(this);
 						};
 
 						try {
@@ -1255,7 +1250,7 @@ module.exports = {
 						type.$__actives--;
 
 						if (type.$__active_requests) {
-							types.popItem(type.$__active_requests, this);
+							type.$__active_requests.delete(this);
 						};
 
 						this._super();
