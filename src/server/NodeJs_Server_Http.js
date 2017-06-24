@@ -237,12 +237,12 @@ module.exports = {
 						};
 
 						if (this.headersSent) {
-							throw new types.Error("Can't respond with a new status or new headers because the headers have already been sent to the client.");
+							throw new types.NotAvailable("Can't respond with a new status or new headers because the headers have already been sent to the client.");
 						};
 
 						if (this.nodeJsStream.headersSent) {
 							// NOTE: Should not happen
-							throw new types.Error("Can't send the headers and the status because Node.js has already sent headers to the client.");
+							throw new types.NotAvailable("Can't send the headers and the status because Node.js has already sent headers to the client.");
 						};
 
 						this.onSendHeaders(new doodad.Event());
@@ -293,7 +293,7 @@ module.exports = {
 
 						if (status || headers) {
 							if (this.headersSent) {
-								throw new types.Error("Can't set a new status or new headers because the headers have been sent to the client.");
+								throw new types.NotAvailable("Can't set a new status or new headers because the headers have been sent to the client.");
 							};
 							if (headers) {
 								this.addHeaders(headers);
@@ -389,7 +389,7 @@ module.exports = {
 						};
 
 						if (this.trailersSent) {
-							throw new types.Error("Trailers have already been sent and the request will be closed.");
+							throw new types.NotAvailable("Trailers have already been sent and the request will be closed.");
 						};
 						
 						if (!this.headersSent) {
@@ -436,7 +436,7 @@ module.exports = {
 
 
 						if (this.headersSent) {
-							throw new types.Error("Can't respond with a new status or new headers because the headers have already been sent to the client.");
+							throw new types.NotAvailable("Can't respond with a new status or new headers because the headers have already been sent to the client.");
 						};
 						
 						this.addHeaders(headers);
@@ -2002,7 +2002,7 @@ module.exports = {
 						};
 
 						if (!cached.ready) {
-							throw new types.Error("Cache is not ready.");
+							throw new types.NotAvailable("Cache is not ready.");
 						};
 
 						return Promise.create(function openFile(resolve, reject) {
@@ -2075,7 +2075,7 @@ module.exports = {
 						};
 
 						if (cached.ready || cached.writing) {
-							throw new types.Error("Cache is ready or writing.");
+							throw new types.NotAvailable("Cache is ready or writing.");
 						};
 
 						options = types.nullObject(options);

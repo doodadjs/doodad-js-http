@@ -864,7 +864,7 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};							
 						if (this.headersSent) {
-							throw new types.Error("Can't add new headers because headers have been sent to the client.");
+							throw new types.NotAvailable("Can't add new headers because headers have been sent to the client.");
 						};
 						contentType = this.request.getAcceptables(contentType, options)[0];
 						if (!contentType) {
@@ -879,7 +879,7 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};							
 						if (this.headersSent) {
-							throw new types.Error("Can't add new headers because headers have been sent to the client.");
+							throw new types.NotAvailable("Can't add new headers because headers have been sent to the client.");
 						};
 						this._super(name, value);
 						this.request.setFullfilled(true);
@@ -890,7 +890,7 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};							
 						if (this.headersSent) {
-							throw new types.Error("Can't add new headers because headers have been sent to the client.");
+							throw new types.NotAvailable("Can't add new headers because headers have been sent to the client.");
 						};
 						this._super(headers);
 						this.request.setFullfilled(true);
@@ -901,7 +901,7 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};							
 						if (this.headersSent) {
-							throw new types.Error("Can't clear headers because they have been sent to the client.");
+							throw new types.NotAvailable("Can't clear headers because they have been sent to the client.");
 						};
 						this._super(names);
 					}),
@@ -911,7 +911,7 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};							
 						if (this.trailersSent) {
-							throw new types.Error("Can't add new trailers because trailers have been sent and the request has ended.");
+							throw new types.NotAvailable("Can't add new trailers because trailers have been sent and the request has ended.");
 						};
 						const responseTrailers = this.trailers;
 						const fixed = tools.title(tools.trim(name), '-');
@@ -930,7 +930,7 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};							
 						if (this.trailersSent) {
-							throw new types.Error("Can't add new trailers because trailers have been sent and the request has ended.");
+							throw new types.NotAvailable("Can't add new trailers because trailers have been sent and the request has ended.");
 						};
 						const responseTrailers = this.trailers;
 						const changed = types.nullObject();
@@ -986,7 +986,7 @@ module.exports = {
 						};							
 
 						if (this.headersSent) {
-							throw new types.Error("Can't respond with a new status because the headers have already been sent to the client.");
+							throw new types.NotAvailable("Can't respond with a new status because the headers have already been sent to the client.");
 						};
 
 						_shared.setAttributes(this, {
@@ -1410,7 +1410,7 @@ module.exports = {
 						};							
 						const maxRedirects = this.server.options.maxRedirects || 5;
 						if (this.response.headersSent) {
-							throw new types.Error("Unable to redirect because HTTP headers are already sent.");
+							throw new types.NotAvailable("Unable to redirect because HTTP headers are already sent.");
 						} else if (this.__redirectsCount >= maxRedirects) {
 							return this.end();
 						} else {
@@ -1436,7 +1436,7 @@ module.exports = {
 						options = types.nullObject(options);
 						const maxRedirects = this.server.options.maxRedirects || 5;
 						if (this.response.headersSent) {
-							throw new types.Error("Unable to redirect because HTTP headers are already sent.");
+							throw new types.NotAvailable("Unable to redirect because HTTP headers are already sent.");
 						} else if (this.__redirectsCount >= maxRedirects) {
 							return this.end();
 						} else {
@@ -1530,11 +1530,11 @@ module.exports = {
 						if (types.isString(type)) {
 							const tmp = namespaces.get(type);
 							if (!types._implements(tmp, base)) {
-								throw new types.Error("Invalid handler type : '~0~'.", [type]);
+								throw new types.TypeError("Invalid handler type : '~0~'.", [type]);
 							};
 							type = tmp;
 						} else if (!types._implements(type, base)) {
-							throw new types.Error("Invalid handler type : '~0~'.", [options.type.DD_FULL_NAME || '<unknown>']);
+							throw new types.TypeError("Invalid handler type : '~0~'.", [options.type.DD_FULL_NAME || '<unknown>']);
 						};
 
 						const resolveHandlers = function resolveHandlers(newHandlersOptions) {
@@ -1653,7 +1653,7 @@ module.exports = {
 								} else if (types.isJsFunction(handler)) {
 									return Promise.resolve(handler(this)); // "handler" is "function(request) {...}"
 								} else {
-									throw new types.Error("Invalid handler.");
+									throw new types.TypeError("Invalid handler.");
 								};
 							} else {
 								return Promise.resolve();
