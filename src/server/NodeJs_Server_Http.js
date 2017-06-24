@@ -70,12 +70,6 @@ module.exports = {
 					nodeHttp = require('http');
 
 
-				let nodeIConv = null;
-				try {
-					nodeIConv = require('iconv-lite');
-				} catch(ex) {
-				};
-				
 				const __Internal__ = {
 				};
 				
