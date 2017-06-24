@@ -55,9 +55,7 @@ module.exports = {
 					ioJson = io.Json,
 					ioXml = io.Xml,
 					moment = dates.Moment, // optional
-					unicode = tools.Unicode,
-					
-					Promise = types.getPromise();
+					unicode = tools.Unicode;
 					
 					
 				const __Internal__ = {
@@ -1599,6 +1597,8 @@ module.exports = {
 					}),
 
 					proceed: doodad.PUBLIC(doodad.ASYNC(function proceed(handlersOptions) {
+						const Promise = types.getPromise();
+
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
@@ -1606,8 +1606,6 @@ module.exports = {
 						if (!types.isArray(handlersOptions)) {
 							handlersOptions = [handlersOptions];
 						};
-
-						const Promise = types.getPromise();
 
 						const runHandler = function runHandler(options) {
 							options = types.nullObject(options);
