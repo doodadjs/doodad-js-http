@@ -1432,7 +1432,7 @@ module.exports = {
 							return templatesHtml.getTemplate(this.options.folderTemplate)
 								.then(function renderTemplate(templType) {
 									const templ = new templType(request, request.getHandlers(nodejsHttp.CacheHandler).slice(-1)[0], data.path);
-									return request.response.getStream({encoding: templType.$ddt.options.encoding})
+									return request.response.getStream({encoding: templType.$options.encoding})
 										.then(function(stream) {
 											templ.setStream(stream);
 											return templ.render();
