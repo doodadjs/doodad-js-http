@@ -1429,7 +1429,7 @@ module.exports = {
 						};
 						// Get negociated mime types between the handler and the client
 						function sendHtml(filesList) {
-							return templatesHtml.getTemplate(this.options.folderTemplate)
+							return templatesHtml.getTemplate(null, this.options.folderTemplate)
 								.then(function renderTemplate(templType) {
 									const templ = new templType(request, request.getHandlers(nodejsHttp.CacheHandler).slice(-1)[0], data.path);
 									return request.response.getStream({encoding: templType.$options.encoding})
