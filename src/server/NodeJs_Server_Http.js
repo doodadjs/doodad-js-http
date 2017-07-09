@@ -1496,9 +1496,7 @@ module.exports = {
 								if (data) {
 									if (data.stats.isFile()) {
 										return this.sendFile(request, data);
-									} else if ((data.contentType.name === 'text/html') && this.options.showFolders && templatesHtml.isAvailable()) {
-										return this.sendFolder(request, data);
-									} else if ((data.contentType.name === 'application/json') && this.options.showFolders) {
+									} else if (this.options.showFolders && ((data.contentType.name === 'text/html') || (data.contentType.name === 'application/json'))) {
 										return this.sendFolder(request, data);
 									};
 								} else {
