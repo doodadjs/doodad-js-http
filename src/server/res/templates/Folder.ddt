@@ -39,9 +39,9 @@
 	]]></t:script>
 -->
 
-	<t:variable name="url" expr="page.request.url.getPath()" />
-	
 	<html>
+		<t:variable name="url" expr="page.request.url.getPath()" />
+		
 		<head>
 			<link rel="stylesheet" type="text/css" t:href="url.setArgs({'res': 'css/Folder.css'})" t:integrity="auto" />
 		</head>
