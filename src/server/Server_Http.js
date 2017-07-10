@@ -858,7 +858,7 @@ module.exports = {
 					}),
 
 					setContentType: doodad.OVERRIDE(function setContentType(contentType, /*optional*/options) {
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};							
 						if (this.headersSent) {
@@ -873,7 +873,7 @@ module.exports = {
 					}),
 
 					addHeader: doodad.OVERRIDE(function addHeader(name, value) {
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};							
 						if (this.headersSent) {
@@ -884,7 +884,7 @@ module.exports = {
 					}),
 					
 					addHeaders: doodad.OVERRIDE(function addHeaders(headers) {
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};							
 						if (this.headersSent) {
@@ -895,7 +895,7 @@ module.exports = {
 					}),
 
 					clearHeaders: doodad.OVERRIDE(function clearHeaders(/*optional*/names) {
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};							
 						if (this.headersSent) {
@@ -905,7 +905,7 @@ module.exports = {
 					}),
 
 					addTrailer: doodad.PUBLIC(function addTrailer(name, value) {
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};							
 						if (this.trailersSent) {
@@ -924,7 +924,7 @@ module.exports = {
 					}),
 
 					addTrailers: doodad.PUBLIC(function addTrailers(trailers) {
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};							
 						if (this.trailersSent) {
@@ -950,7 +950,7 @@ module.exports = {
 					}),
 
 					clearTrailers: doodad.PUBLIC(function clearTrailers(/*optional*/names) {
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};							
 

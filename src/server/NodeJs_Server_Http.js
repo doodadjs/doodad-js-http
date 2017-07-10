@@ -258,7 +258,7 @@ module.exports = {
 					}),
 					
 					__streamOnWrite: doodad.PROTECTED(function __streamOnWrite(ev) {
-						if (!this.ended && !this.headersSent) {
+						if ((!this.ended || this.__ending) && !this.headersSent) {
 							this.sendHeaders();
 						};
 					}),
@@ -421,8 +421,6 @@ module.exports = {
 					}),
 					
 					respondWithStatus: doodad.OVERRIDE(function respondWithStatus(status, /*optional*/message, /*optional*/headers, /*optional*/data) {
-						const Promise = types.getPromise();
-
 						// NOTE: Must always throws an error.
 						if (this.ended) {
 							throw new server.EndOfRequest();
