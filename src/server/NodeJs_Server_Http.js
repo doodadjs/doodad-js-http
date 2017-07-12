@@ -2124,7 +2124,10 @@ module.exports = {
 						
 						cached.writing = true;
 
-						return loopOpenFile.call(this, 10)
+						return tools.Files.mkdirAsync(this.options.cachePath, {makeParents: true})
+							.then(function(dummy) {
+								return loopOpenFile.call(this, 10);
+							}, null, this)
 							.then(function afterOpen(stream) {
 								if (stream) {
 									let headers = '';
