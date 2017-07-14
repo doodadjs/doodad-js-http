@@ -1562,7 +1562,7 @@ module.exports = {
 							handlersOptions = [handlersOptions];
 						};
 
-						const resolveUrl = _shared.urlParser(types.get(options, 'resolveUrl', null));
+						const resolveUrl = files.parseUrl(types.get(options, 'resolveUrl', null));
 						//const prevHandler = resolveUrl && this.currentHandler;
 
 
@@ -2706,7 +2706,7 @@ module.exports = {
 
 					resolve: doodad.OVERRIDE(function resolve(request, url) {
 						// TODO: Validate domain with the server instead of just clearing it
-						//url = _shared.urlParser(url).set({domain: null});
+						//url = files.parseUrl(url).set({domain: null});
 						return this.createHandlers(request, url);
 					}),
 

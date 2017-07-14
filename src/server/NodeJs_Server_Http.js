@@ -1242,7 +1242,7 @@ module.exports = {
 						
 						options.defaultEncoding = options.defaultEncoding || 'utf-8';
 						
-						val = _shared.pathParser(options.path);
+						val = files.parsePath(options.path);
 						const stats = nodeFs.statSync(val.toApiString());
 						options.isFolder = !stats.isFile();
 						if (options.isFolder) {
