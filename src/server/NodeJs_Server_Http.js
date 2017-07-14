@@ -733,8 +733,8 @@ module.exports = {
 						return new nodejsHttp.Response(this, nodeJsRequest);
 					}),
 
-					proceed: doodad.OVERRIDE(function proceed(handlersOptions) {
-						return this.__endRacer.race(this._super(handlersOptions));
+					proceed: doodad.OVERRIDE(function proceed(handlersOptions, /*optional*/options) {
+						return this.__endRacer.race(this._super(handlersOptions, options));
 					}),
 
 					end: doodad.OVERRIDE(function end(/*optional*/forceDisconnect) {
@@ -1242,11 +1242,12 @@ module.exports = {
 						
 						options.defaultEncoding = options.defaultEncoding || 'utf-8';
 						
-						val = options.path;
-						if (!(val instanceof files.Path)) {
-							val = files.Path.parse(val);
+						val = _shared.pathParser(options.path);
+						const stats = nodeFs.statSync(val.toApiString());
+						options.isFolder = !stats.isFile();
+						if (options.isFolder) {
+							val = val.pushFile();
 						};
-						root.DD_ASSERT && root.DD_ASSERT((val instanceof files.Path), "Invalid path.");
 						options.path = val;
 
 						options.showFolders = types.toBoolean(options.showFolders);
@@ -1284,53 +1285,81 @@ module.exports = {
 					}),
 
 					getSystemPath: doodad.OVERRIDE(function getSystemPath(request, targetUrl) {
-						let path;
-						if (!request.url.file && targetUrl.args.has('res')) {
-							path = this.options.folderTemplate.set({file: null}).combine('./public/' + targetUrl.args.get('res', true), {isRelative: true, os: 'linux'});
-						} else {
-							path = this.options.path.combine(targetUrl, {isRelative: true});
+						let path = null;
+						if (targetUrl) {
+							if (!request.url.file && targetUrl.args.has('res')) {
+								path = this.options.folderTemplate.set({file: null}).combine('./public/' + targetUrl.args.get('res', true), {isRelative: true, os: 'linux'});
+							} else if (targetUrl.isRelative) {
+								path = this.options.path.set({file: null}).combine(targetUrl.set({domain: null}));
+							} else {
+								const handlerState = request.getHandlerState(this);
+								const handlerUrl = request.url.set({url: (this.options.isFolder ? handlerState.url.pushFile() : handlerState.url)});
+								const relativeUrl = targetUrl.relative(handlerUrl);
+								path = this.options.path.set({file: null}).combine(relativeUrl, {file: (this.options.isFolder ? relativeUrl.file : this.options.path.file)});
+							};
 						};
 						return path;
 					}),
 					
 					addHeaders: doodad.PROTECTED(doodad.ASYNC(function addHeaders(request) {
 						const Promise = types.getPromise();
+
 						const state = request.getHandlerState(this);
-						const path = this.getSystemPath(request, state.matcherResult.urlRemaining);
-						return Promise.create(function tryStat(resolve, reject) {
-								const pathStr = path.toApiString();
-								nodeFs.stat(pathStr, doodad.Callback(this, function getStatsCallback(err, stats) {
-									if (err) {
-										if (err.code === 'ENOENT') {
-											resolve(null);
+
+						const urlRemaining = state.matcherResult.urlRemaining;
+
+						// TODO: Avoid "urlRemaining.toString()"
+						const path = this.getSystemPath(request, (urlRemaining && urlRemaining.toString() ? urlRemaining : request.url));
+
+						if (!path) {
+							return null;
+						};
+
+						const stat = function(path) {
+							return Promise.create(function tryStat(resolve, reject) {
+									const pathStr = path.toApiString();
+									nodeFs.stat(pathStr, doodad.Callback(this, function getStatsCallback(err, stats) {
+										if (err) {
+											if (err.code === 'ENOENT') {
+												resolve(null);
+											} else {
+												reject(err);
+											};
 										} else {
-											reject(err);
+											if (path.file && !stats.isFile()) {
+												stats.path = path.pushFile().toApiString();
+											} else {
+												stats.path = pathStr;
+											};
+											resolve(stats);
 										};
-									} else {
-										if (path.file && !stats.isFile()) {
-											stats.path = path.pushFile().toApiString();
+									}));
+								}, this)
+								.then(function toCanonical(stats) {
+									if (stats) {
+										if (this.options.caseSensitive && this.options.forceCaseSensitive) {
+											// Windows/MacOS X : File systems are case-insensitive by default. 
+											//					If "forceCaseSensitive" is true, we scan the file system for the right name and require that exact name. 
+											//					But please note that it causes an overhead and enabling the case-sensitive option on the file system,
+											//					when possible, is a better choice.
+											return files.getCanonical(path, {async: true})
+												.then(function(canonicalPath) {
+													stats.realPath = canonicalPath.toApiString();
+													return stats;
+												});
 										} else {
-											stats.path = pathStr;
+											stats.realPath = stats.path;
 										};
-										resolve(stats);
 									};
-								}))
-							}, this)
-							.then(function toCanonical(stats) {
-								if (stats) {
-									if (this.options.caseSensitive && this.options.forceCaseSensitive) {
-										// Windows/MacOS X : File systems are case-insensitive by default. 
-										//					If "forceCaseSensitive" is true, we scan the file system for the right name and require that exact name. 
-										//					But please note that it causes an overhead and enabling the case-sensitive option on the file system,
-										//					when possible, is a better choice.
-										return files.getCanonical(path, {async: true})
-											.then(function(canonicalPath) {
-												stats.realPath = canonicalPath.toApiString();
-												return stats;
-											});
-									} else {
-										stats.realPath = stats.path;
-									};
+									return stats;
+								}, null, this);
+						};
+
+						return stat.call(this, path)
+							.then(function(stats) {
+								// TODO: Do not hardcode. Make options.
+								if (!stats && (path.extension === 'ddtx')) {
+									return stat.call(this, path.set({extension: 'ddt'}));
 								};
 								return stats;
 							}, null, this)
@@ -1368,10 +1397,19 @@ module.exports = {
 								
 								if (stats.isFile()) {
 									request.response.addHeaders({
-										'Content-Length': stats.size,
 										'Content-Disposition': 'filename="' + path.file.replace(/\"/g, '\\"') + '"',
 									});
+
+									// TODO: Allow to extend with other template engines.
+									if (((path.extension === 'ddtx') || (path.extension === 'ddt')) && (contentType.name === 'text/html')) {
+										request.response.clearHeaders('Content-Length');
+									} else {
+										request.response.addHeaders({
+											'Content-Length': stats.size,
+										});
+									};
 								} else {
+									state.matcherResult && _shared.setAttribute(state.matcherResult, 'url', state.matcherResult.url.pushFile());
 									request.response.setVary('Accept');
 								};
 
@@ -1383,6 +1421,38 @@ module.exports = {
 									path: path,
 								});
 							}, null, this);
+					})),
+
+					sendDDT: doodad.PROTECTED(doodad.ASYNC(function sendFile(request, data) {
+						// TODO: Allow to extend with other template engines.
+						request.data.isFolder = false;
+						if (request.url.extension === 'ddt') {
+							// We always show the extension "ddtx"
+							return request.redirectClient(request.url.set({extension: 'ddtx'}));
+						};
+						if (data.path) {
+							// NOTE: By changing the extension to "ddt", it will first try to serve the "ddtx". And if the 'ddtx' file doesn't exist, it will serve the "ddt".
+							return templatesHtml.getTemplate(null, data.path.set({extension: 'ddt'}))
+								.then(function renderTemplate(templType) {
+									const templ = new templType(request, request.getHandlers(nodejsHttp.CacheHandler).slice(-1)[0]);
+									return request.response.getStream({encoding: templType.$options.encoding})
+										.then(function(stream) {
+											templ.setStream(stream);
+											return templ.render();
+										}, null, this)
+										.nodeify(function cleanup(err, result) {
+											types.DESTROY(templ);
+											if (err) {
+												throw err;
+											} else {
+												return result;
+											};
+										});
+								}, null, this)
+								.then(function() {
+									return request.end();
+								});
+						};
 					})),
 
 					sendFile: doodad.PROTECTED(doodad.ASYNC(function sendFile(request, data) {
@@ -1493,7 +1563,14 @@ module.exports = {
 							.then(function(data) {
 								if (data) {
 									if (data.stats.isFile()) {
-										return this.sendFile(request, data);
+										// TODO: Allow to extend with other template engines.
+										const isDDT = (data.path.extension === 'ddt') || (data.path.extension === 'ddtx');
+										if (isDDT && (data.contentType.name === 'text/html')) {
+											return this.sendDDT(request, data);
+										// TODO: Use another flag than "showFolders" to mean if we can send the source file of a DDT or a DDTX
+										} else if (!isDDT || this.options.showFolders) {
+											return this.sendFile(request, data);
+										};
 									} else if (this.options.showFolders && ((data.contentType.name === 'text/html') || (data.contentType.name === 'application/json'))) {
 										return this.sendFolder(request, data);
 									};
