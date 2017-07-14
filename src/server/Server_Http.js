@@ -1149,6 +1149,8 @@ module.exports = {
 								__fullfilled: false,
 								__contentEncodings: [],
 							});
+
+							this.onSanitize.stackSize = 60;
 						};
 					}),
 
