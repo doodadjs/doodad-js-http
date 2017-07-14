@@ -1519,7 +1519,7 @@ module.exports = {
 						this.__fullfilled = !!fullfilled;
 					}),
 
-					resolve: doodad.PUBLIC(function resolve(url, type) {
+					resolve: doodad.PUBLIC(doodad.ASYNC(function resolve(url, type) {
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
@@ -1532,71 +1532,26 @@ module.exports = {
 							};
 							type = tmp;
 						} else if (!types._implements(type, base)) {
-							throw new types.TypeError("Invalid handler type : '~0~'.", [options.type.DD_FULL_NAME || '<unknown>']);
+							throw new types.TypeError("Invalid handler type : '~0~'.", [type.DD_FULL_NAME || '<unknown>']);
 						};
 
-						const resolveHandlers = function resolveHandlers(newHandlersOptions) {
-							if (!types.isArray(newHandlersOptions)) {
-								newHandlersOptions = [newHandlersOptions];
-							};
+						return this.proceed(this.server.handlersOptions, {resolveUrl: url})
+							.then(function(handlers) {
+								if (handlers) {
+									const len = handlers.length;
+									for (let i = 0; i < len; i++) {
+										const handler = handlers[i];
 
-							for (let i = 0; i < newHandlersOptions.length; i++) {
-								const options = types.nullObject(newHandlersOptions[i]);
-
-								let handler = options.handler;
-
-								if (!types._implements(handler, httpMixIns.Handler)) {
-									continue;
-								};
-
-								if (types.isLike(handler, type)) {
-									let mustDestroy = false;
-									if (types.isType(handler)) {
-										handler = handler.$createInstance(options);
-										mustDestroy = true;
-									};
-									if (!this.__handlersStates.has(handler)) {
-										this.applyHandlerState(handler, {
-											mustDestroy: doodad.PUBLIC(doodad.READ_ONLY(mustDestroy)),
-										});
-									};
-									return handler;
-								};
-
-								if (types.isImplemented(handler, 'resolve')) {
-									let mustDestroy = false;
-									if (types.isType(handler)) {
-										handler = handler.$createInstance(options);
-										mustDestroy = true;
-									};
-									try {
-										const targetUrl = (options.matcherResult ? options.matcherResult.urlRemaining : url);
-										const handlers = handler.resolve(this, targetUrl);
-										if (handlers) {
-											const resolved = resolveHandlers.call(this, handlers);
-											if (resolved) {
-												return resolved;
-											};
-										};
-									} catch(ex) {
-										throw ex;
-									} finally {
-										if (mustDestroy) {
-											types.DESTROY(handler);
-											handler = null;
+										if (types.isLike(handler, type)) {
+											return handler;
 										};
 									};
 								};
-							};
+								return null; // not found
+							});
+					})),
 
-							return null; // not found
-						};
-
-						const result = resolveHandlers.call(this, this.server.handlersOptions);
-						return result;
-					}),
-
-					proceed: doodad.PUBLIC(doodad.ASYNC(function proceed(handlersOptions) {
+					proceed: doodad.PUBLIC(doodad.ASYNC(function proceed(handlersOptions, /*optional*/options) {
 						const Promise = types.getPromise();
 
 						if (this.ended) {
@@ -1607,28 +1562,32 @@ module.exports = {
 							handlersOptions = [handlersOptions];
 						};
 
-						const runHandler = function runHandler(options) {
-							options = types.nullObject(options);
+						const resolveUrl = _shared.urlParser(types.get(options, 'resolveUrl', null));
+						//const prevHandler = resolveUrl && this.currentHandler;
 
-							let handler = options.handler;
 
-							const acceptedMimeTypes = this.getAcceptables(options.mimeTypes);
+						const runHandler = function runHandler(handlerOptions, resolved) {
+							handlerOptions = types.nullObject(handlerOptions);
 
-							if (!options.mimeTypes || (acceptedMimeTypes && acceptedMimeTypes.length)) {
-								const parentState = options.parent && this.getHandlerState(options.parent);
-								const stateUrl = options.matcherResult && (parentState && parentState.url ? parentState.url.combine(options.matcherResult.url, {isRelative: true}) : options.matcherResult.url);
-								const state = types.extend({}, options.state, {
-									parent: doodad.PUBLIC(doodad.READ_ONLY(options.parent || null)),
-									matcherResult: doodad.PUBLIC(doodad.READ_ONLY(options.matcherResult || null)),
+							let handler = handlerOptions.handler;
+
+							const acceptedMimeTypes = this.getAcceptables(handlerOptions.mimeTypes);
+
+							if (!handlerOptions.mimeTypes || (acceptedMimeTypes && acceptedMimeTypes.length)) {
+								const parentState = handlerOptions.parent && this.getHandlerState(handlerOptions.parent);
+								const stateUrl = handlerOptions.matcherResult && (parentState && parentState.url ? parentState.url.combine(handlerOptions.matcherResult.url, {isRelative: true}) : handlerOptions.matcherResult.url);
+								const stateProto = types.extend({}, handlerOptions.state, {
+									parent: doodad.PUBLIC(doodad.READ_ONLY(handlerOptions.parent || null)),
+									matcherResult: doodad.PUBLIC(doodad.READ_ONLY(handlerOptions.matcherResult || null)),
 									mimeTypes: doodad.PUBLIC(doodad.READ_ONLY(acceptedMimeTypes || null)),
 									url: doodad.PUBLIC(doodad.READ_ONLY(stateUrl || null)),
 								});
-								this.applyHandlerState(handler, state, {globalState: true});
+								this.applyHandlerState(handler, stateProto, {globalState: true});
 
 								let mustDestroy = false;
 								if (types.isType(handler)) {
 									// TODO: Reuse objects on "redirectServer"
-									handler = handler.$createInstance(options);
+									handler = handler.$createInstance(handlerOptions);
 									mustDestroy = true;
 								};
 
@@ -1638,45 +1597,64 @@ module.exports = {
 									});
 								};
 
-								tools.forEach(options.states, function(newState, handler) {
+								tools.forEach(handlerOptions.states, function(newState, handler) {
 									this.applyHandlerState(handler, newState);
 								}, this);
 							
 	//console.log(types.getTypeName(handler) + ": " + this.url.toString() + "   " + this.id);
 
-								_shared.setAttribute(this, 'currentHandler', handler);
-
 								if (types._implements(handler, httpMixIns.Handler)) {
-									return handler.execute(this);
+									if (resolveUrl) {
+										const currentState = resolveUrl && this.getHandlerState(handler);
+										const matcherResult = currentState && currentState.matcherResult;
+										if (matcherResult && matcherResult.full) {
+											resolved.push(handler);
+										};
+										if (types.isImplemented(handler, 'resolve')) {
+											return handler.resolve(this, matcherResult && matcherResult.urlRemaining || resolveUrl);
+										};
+									} else {
+										_shared.setAttribute(this, 'currentHandler', handler);
+										return handler.execute(this);
+									};
 								} else if (types.isJsFunction(handler)) {
-									return Promise.resolve(handler(this)); // "handler" is "function(request) {...}"
+									if (!resolveUrl) {
+										_shared.setAttribute(this, 'currentHandler', handler);
+										return handler(this); // "handler" is "function(request) {...}"
+									};
 								} else {
 									throw new types.TypeError("Invalid handler.");
 								};
-							} else {
-								return Promise.resolve();
+							};
+
+							return null;
+						};
+						
+						const loopProceedHandler = function proceedHandler(index, resolved) {
+							if (!this.ended) {
+								if (index < handlersOptions.length) {
+									const handlerOptions = handlersOptions[index];
+									return Promise.resolve(runHandler.call(this, handlerOptions, resolved))
+										.then(function proceedGivenHandlers(newHandlersOptions) {
+											if (newHandlersOptions && newHandlersOptions.length) {
+												return this.proceed(newHandlersOptions, {resolveUrl: resolveUrl})
+													.then(function(result) {
+														if (resolveUrl) {
+															types.append(resolved, result);
+														};
+													});
+											};
+										}, null, this)
+										.catch(this.catchError, this)
+										.then(function proceedNext(dummy) {
+											return loopProceedHandler.call(this, index + 1, resolved);
+										}, null, this);
+								};
+								return resolveUrl && resolved;
 							};
 						};
 						
-						const proceedHandler = function proceedHandler(index) {
-							if ((index < handlersOptions.length) && !this.ended) {
-								const options = handlersOptions[index];
-								return runHandler.call(this, options)
-									.then(function proceedGivenHandlers(newHandlersOptions) {
-										if (newHandlersOptions) {
-											return this.proceed(newHandlersOptions);
-										};
-									}, null, this)
-									.catch(this.catchError, this)
-									.then(function proceedNext() {
-										return proceedHandler.call(this, index + 1);
-									}, null, this);
-							} else {
-								return Promise.resolve();
-							};
-						};
-						
-						return proceedHandler.call(this, 0);
+						return Promise.resolve(loopProceedHandler.call(this, 0, []));
 					})),
 					
 					catchError: doodad.OVERRIDE(function catchError(ex) {
@@ -2521,12 +2499,16 @@ module.exports = {
 							if (requestUrl.file) {
 								file = ar.pop();
 							};
-							urlRemaining = files.Url.parse(null, {
-								isRelative: true,
-								path: ar,
-								file: file,
-								args: requestUrl.args,
-							});
+
+							//// TODO: Write a function in files.Url for "(requestUrl.args && requestUrl.args.__args && requestUrl.args.__args.length)"
+							//if (ar.length || file || (requestUrl.args && requestUrl.args.__args && requestUrl.args.__args.length)) {
+								urlRemaining = files.Url.parse(null, {
+									isRelative: true,
+									path: ar,
+									file: file,
+									args: requestUrl.args,
+								});
+							//};
 
 							if (allowArgs) {
 								// Query string matching and extraction : ex. "/invoice/edit?id&details=1" will match "/invoice/edit?id=194&details=1"
@@ -2681,6 +2663,7 @@ module.exports = {
 								const matcherResult = matcher.match(request, targetUrl, options);
 
 								if ((matcherResult.weight > 0) || matcherResult.full) {
+//matcherResult && matcherResult.urlRemaining && console.log(matcherResult.urlRemaining.toString());
 									options.parent = this;
 									options.routeId = routeId;
 									options.routeIndex = i;
@@ -2723,7 +2706,7 @@ module.exports = {
 
 					resolve: doodad.OVERRIDE(function resolve(request, url) {
 						// TODO: Validate domain with the server instead of just clearing it
-						url = _shared.urlParser(url).set({domain: null});
+						//url = _shared.urlParser(url).set({domain: null});
 						return this.createHandlers(request, url);
 					}),
 
