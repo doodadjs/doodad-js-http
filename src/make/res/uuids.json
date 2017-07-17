@@ -34,5 +34,6 @@
     "CacheHeaders": "c7b0aa5c-ffd1-448e-bde7-238f6b60318f",
     "CacheHandler": "8a3a9a96-19fc-4e26-92a3-fc0a338ae034",
     "CompressionBodyHandler": "7a219472-385b-4f50-b72f-21c492c7d704",
-    "CompressionHandler": "1d93dfda-746f-4fec-95d5-a16099f9563d"
+    "CompressionHandler": "1d93dfda-746f-4fec-95d5-a16099f9563d",
+    "CachedObject": "434166e8-8295-46ed-b210-ab8edad73553"
 }
