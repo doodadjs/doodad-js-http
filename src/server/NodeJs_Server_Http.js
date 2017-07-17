@@ -67,7 +67,10 @@ module.exports = {
 					
 					nodeFs = require('fs'),
 					nodeZlib = require('zlib'),
-					nodeHttp = require('http');
+					nodeHttp = require('http'),
+					nodeCrypto = require('crypto'),
+
+					modulePath = files.parsePath(module.filename).set({file: null});
 
 
 				const __Internal__ = {
@@ -317,14 +320,14 @@ module.exports = {
 						responseStream.onWrite.attachOnce(this, this.__streamOnWrite, 10);
 
 						const ev = new doodad.Event({
-							stream: responseStream,
+							stream: Promise.resolve(responseStream),
 							options: options,
 						});
 
 						this.onGetStream(ev);
 						
 						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream itself.
-						return this.__endRacer.race(Promise.resolve(ev.data.stream)
+						return this.__endRacer.race(ev.data.stream
 							.then(function(responseStream) {
 								if (types.isNothing(responseStream)) {
 									throw new http.StreamAborted();
@@ -722,7 +725,7 @@ module.exports = {
 
 						types.DESTROY(this.stream);
 
-						if (!this.__endRacer.isSolved()) {
+						if (this.__endRacer && !this.__endRacer.isSolved()) {
 							this.__endRacer.reject(new types.ScriptInterruptedError("Request object is about to be destroyed."));
 						};
 
@@ -766,7 +769,7 @@ module.exports = {
 									.catch(server.EndOfRequest, function () { });
 							};
 						}, this)
-							.then(function (dummy) {
+							.then(function(dummy) {
 								this.__ending = false; // now blocks any operation
 
 								const stream = this.stream,
@@ -775,15 +778,21 @@ module.exports = {
 
 								if (forceDisconnect || destroyed) {
 									types.DESTROY(this.nodeJsStream);
+									this.sanitize();
 								} else {
 									if (buffered) {
 										return stream.flushAsync({purge: true})
+											.then(function() {
+												this.sanitize();
+											}, null, this);
+									} else {
+										this.sanitize();
 									};
 								};
 							}, null, this)
 							.then(wait, null, this)
 							.catch(this.catchError, this)
-							.nodeify(function (err, dummy) {
+							.nodeify(function(err, dummy) {
 								const type = types.getType(this);
 								if (this.__aborted || forceDisconnect || _shared.DESTROYED(this.response)) {
 									type.$__aborted++;
@@ -845,14 +854,14 @@ module.exports = {
 						const requestStream = new nodejsIO.BinaryInputStream({nodeStream: this.nodeJsStream});
 
 						const ev = new doodad.Event({
-							stream: requestStream,
+							stream: Promise.resolve(requestStream),
 							options: options,
 						});
 
 						this.onGetStream(ev);
 						
 						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream itself.
-						return this.__endRacer.race(Promise.resolve(ev.data.stream)
+						return this.__endRacer.race(ev.data.stream
 							.then(function(requestStream) {
 								if (types.isNothing(requestStream)) {
 									throw new http.StreamAborted();
@@ -1255,7 +1264,7 @@ module.exports = {
 						if (options.showFolders) {
 							val = options.folderTemplate;
 							if (types.isNothing(val)) {
-								val = files.Path.parse(module.filename).set({file: null}).combine('./res/templates/Folder.ddt', {os: 'linux'});
+								val = modulePath.combine('./res/templates/Folder.ddt');
 							} else if (!(val instanceof files.Path)) {
 								val = files.Path.parse(val);
 							};
@@ -1288,7 +1297,7 @@ module.exports = {
 						let path = null;
 						if (targetUrl) {
 							if (!request.url.file && targetUrl.args.has('res')) {
-								path = this.options.folderTemplate.set({file: null}).combine('./public/' + targetUrl.args.get('res', true), {isRelative: true, os: 'linux'});
+								path = this.options.folderTemplate.set({file: null}).combine('./public/' + targetUrl.args.get('res', true));
 							} else if (targetUrl.isRelative) {
 								path = this.options.path.set({file: null}).combine(targetUrl.set({domain: null}));
 							} else {
@@ -1780,13 +1789,13 @@ module.exports = {
 							return str;
 						} else if (types.isPrimitive(val)) {
 							return str + key + ':' + types.toString(val) + '|';
-						} else if (types.getType(val)) {
+						} else if (types._instanceof(val, nodejsHttp.CacheHeaders)) {
 							return str + key + ':' + val.toString() + '|';
-						} else if (types.isArrayLike(val)) {
+						} else if (types.isArray(val)) {
 							return '[' + tools.reduce(str, function(item) {
 								return str + __Internal__.keyObjToString.call(item) + '|';
 							}, '') + ']';
-						} else if (types.isObject(val)) {
+						} else if (types.isJsObject(val)) {
 							if (types.has(val, 'toString')) {
 								return str + key + ':' + types.toString(val) + '|';
 							} else {
@@ -1796,6 +1805,14 @@ module.exports = {
 							throw new types.Error("Invalid cache key value encountered.");
 						};
 					}, '', this) + '}';
+				};
+
+				__Internal__.keyObjToHash = function toHash() {
+					const hashStream = nodeCrypto.createHash('sha256');
+					hashStream.update(this.toString());
+					const hash = hashStream.digest('base64');
+					_shared.DESTROY(hashStream);
+					return hash;
 				};
 
 				nodejsHttp.REGISTER(doodad.Object.$extend(
@@ -1831,6 +1848,78 @@ module.exports = {
 					}),
 				}));
 					
+				nodejsHttp.REGISTER(types.CustomEventTarget.$inherit(
+					/*typeProto*/
+					{
+						$TYPE_NAME: 'CachedObject',
+						$TYPE_UUID:  '' /*! INJECT('+' + TO_SOURCE(UUID('CachedObject')), true) */,
+					},
+					/*instanceProto*/
+					{
+						onvalidate: null,
+						oninvalidate: null,
+
+						created: true, // Boolean
+						key: null, // Key Object
+						hashedKey: null, // String
+						section: null, // Key Object
+						parent: null, // Cached object
+						disabled: null, // Boolean
+						duration: null, // Moment Duration
+
+						path: null, // Path
+						writing: false, // Boolean
+						ready: false, // Boolean
+						expiration: null, // Date
+						children: null, // objectof(Cached objects)
+
+						isInvalid: function() {
+							return !this.disabled && !this.ready && !this.writing;
+						},
+						isPending: function() {
+							return !this.disabled && !this.ready && this.writing;
+						},
+						isValid: function() {
+							return !this.disabled && this.ready && !this.writing;
+						},
+						validate: function() {
+							this.created = false;
+							if (!this.ready && this.writing) {
+								this.writing = false;
+								this.ready = true;
+								this.dispatchEvent(new types.CustomEvent('validate'));
+							};
+						},
+						abort: function() {
+							this.created = false;
+							if (!this.ready && this.writing) {
+								this.writing = false;
+								if (this.path) {
+									nodeFs.unlink(this.path.toString(), function(err) {}); // no need to get error feedbacks
+									this.path = null;
+								};
+								this.dispatchEvent(new types.CustomEvent('invalidate'));
+							};
+						},
+						invalidate: function() {
+							this.created = false;
+							const ok = this.ready && !this.writing;
+							if (ok) {
+								this.ready = false;
+								if (this.path) {
+									nodeFs.unlink(this.path.toString(), function(err) {}); // no need to get error feedbacks
+									this.path = null;
+								};
+							};
+							tools.forEach(this.children, function(child) {
+								child.invalidate();
+							});
+							if (ok) {
+								this.dispatchEvent(new types.CustomEvent('invalidate'));
+							};
+						},
+					}));
+
 				nodejsHttp.REGISTER(doodad.Object.$extend(
 									httpMixIns.Handler,
 				{
@@ -1884,6 +1973,7 @@ module.exports = {
 						const key = types.nullObject(data);
 
 						key.toString = __Internal__.keyObjToString;
+						key.toHash = __Internal__.keyObjToHash;
 
 						return key;
 					}),
@@ -1912,6 +2002,7 @@ module.exports = {
 						};
 
 						root.DD_ASSERT && root.DD_ASSERT(types.isJsObject(key), "Invalid cache key.");
+						root.DD_ASSERT && root.DD_ASSERT(types.isNothing(section) || types.isJsObject(section), "Invalid cache section key.");
 
 						if (!types.isFrozen(key)) {
 							state.generateKey(request, this, key);
@@ -1919,70 +2010,39 @@ module.exports = {
 							types.freezeObject(key); // TODO: depthFreeze
 						};
 
-						const keyStr = key.toString();
-
-						root.DD_ASSERT && root.DD_ASSERT(types.isStringAndNotEmpty(keyStr), "Problem generating a string from the key object.");
+						let keyHash = null;
 
 						if (type.$__cache.has(key)) {
-							return type.$__cache.get(key);
-						} else if (type.$__cache.has(keyStr)) {
-							return type.$__cache.get(keyStr);
+							const cached = type.$__cache.get(key);
+							cached.created = false;
+							return cached;
+						} else {
+							keyHash = key.toHash();
+
+							if (type.$__cache.has(keyHash)) {
+								const cached = type.$__cache.get(keyHash);
+								cached.created = false;
+								return cached;
+							};
 						};
 
-						const cached = types.nullObject({
-							key: key, // Object
-							section: section, // STring
-							parent: parent, // Cached object
-							disabled: !!types.get(options, 'defaultDisabled', state.defaultDisabled), // Bool
-							duration: state.defaultDuration, // Moment Duration
+						if (!keyHash) {
+							keyHash = key.toHash();
+						};
 
-							path: null, // Path
-							writing: false, // Bool
-							aborted: false, // Bool
-							ready: false, // Bool
-							expiration: null, // Date
-							children: types.nullObject(), // objectof(Cached objects)
-
-							isInvalid: function() {
-								return !this.disabled && !this.ready && !this.writing && (request.verb !== 'HEAD');
-							},
-							isPending: function() {
-								return !this.disabled && !this.ready && this.writing;
-							},
-							isValid: function() {
-								return !this.disabled && this.ready && !this.writing;
-							},
-							validate: function() {
-								if (!this.ready && this.writing) {
-									this.writing = false;
-									this.ready = !this.aborted;
-									if (this.aborted && this.path) {
-										nodeFs.unlink(this.path.toString(), function(err) {}); // no need to get error feedbacks
-										this.path = null;
-									};
-									this.aborted = false;
-								};
-							},
-							abort: function() {
-								if (!this.ready && this.writing && !this.aborted) {
-									this.aborted = true;
-									this.validate();
-								};
-							},
-							invalidate: function() {
-								if (this.ready && !this.writing) {
-									this.ready = false;
-									this.writing = true;
-									this.abort();
-								};
-								tools.forEach(this.children, function(child) {
-									child.invalidate();
-								});
-							},
-						});
+						const cached = new nodejsHttp.CachedObject();
+						cached.created = true;  // Boolean
+						cached.key = key; // Key Object
+						cached.hashedKey = keyHash; // String
+						cached.section = section; // Key Object
+						cached.hashedSection = section && section.toHash();  // String
+						cached.parent = parent; // Cached object
+						cached.disabled = !!types.get(options, 'defaultDisabled', state.defaultDisabled); // Boolean
+						cached.duration = state.defaultDuration; // Moment Duration
+						cached.children = types.nullObject(); // objectof(Cached objects)
 
 						type.$__cache.set(key, cached);
-						type.$__cache.set(keyStr, cached);
+						type.$__cache.set(keyHash, cached);
 
 						if (section) {
 							cached.parent.children[section] = cached;
@@ -2010,7 +2070,7 @@ module.exports = {
 
 							if (state.cached) {
 								cached = state.cached;
-								key = cached.key;
+								//key = cached.key;
 							};
 
 						} else if (types.isJsObject(key)) {
@@ -2018,11 +2078,11 @@ module.exports = {
 							cached = type.$__cache.get(key);
 
 						} else if (types.isString(key)) {
-							// Get from string key
+							// Get from hashed key
 							cached = type.$__cache.get(key);
-							if (cached) {
-								key = cached.key;
-							};
+							//if (cached) {
+							//	key = cached.key;
+							//};
 
 						} else {
 							throw new types.TypeError("Invalid cached object key '~0~'.", [key]);
@@ -2030,8 +2090,9 @@ module.exports = {
 						};
 						
 						if (cached && section) {
+							const sectionHash = section.toHash();
 							cached = tools.filter(cached.children, function(child) {
-								return child.section === section;
+								return (child.section === section) || (child.hashedSection === sectionHash);
 							})[0];
 						};
 
@@ -2076,26 +2137,30 @@ module.exports = {
 								const fileStream = nodeFs.createReadStream(cached.path.toString());
 								let openCb = null,
 									errorCb = null;
-								fileStream.once('open', openCb = doodad.Callback(this, function onOpen(fd) {
+								const cleanup = function _cleanup() {
+									fileStream.removeListener('open', openCb);
 									fileStream.removeListener('error', errorCb);
+									openCb = null;
+									errorCb = null;
+								};
+								fileStream.once('open', openCb = doodad.Callback(this, function onOpen(fd) {
+									cleanup();
 									request.onSanitize.attachOnce(this, function sanitize() {
 										fileStream.close();
 									});
 									resolve(fileStream);
 								}, reject));
 								fileStream.once('error', errorCb = doodad.Callback(this, function onError(err) {
-									fileStream.removeListener('open', openCb);
+									cleanup();
 									reject(err);
 								}, reject));
 							}, this)
 							.catch(function catchOpen(err) {
-								cached.path = null;
 								cached.invalidate();
-								if (cached.section) {
+								cached.path = null;
+								if ((err.code === 'ENOENT') || (err.code === 'EPERM')) {
+									// Cache file has been deleted or is not accessible
 									return null;
-								} else if ((err.code === 'ENOENT') || (err.code === 'EPERM')) {
-									// Cache file has been deleted or is not accessible, will restart the request and try to generate a new cache file
-									return request.redirectServer(request.url); // will throw
 								} else {
 									throw err;
 								};
@@ -2128,6 +2193,8 @@ module.exports = {
 									}, this);
 									fileStream.pipe(iwritable);
 									return promise;
+								} else {
+									return null;
 								};
 							}, null, this);
 					})),
@@ -2162,7 +2229,7 @@ module.exports = {
 						};
 
 						function loopOpenFile(count) {
-							cached.path = this.options.cachePath.combine(null, {file: tools.generateUUID()});
+							cached.path = this.options.cachePath.combine(tools.generateUUID());
 							return Promise.create(function tryOpen(resolve, reject) {
 									const stream = nodeFs.createWriteStream(cached.path.toString(), {autoClose: true, flags: 'wx', mode: this.options.cachedFilesMode || 0o644});
 									let errorCb = null,
@@ -2208,10 +2275,10 @@ module.exports = {
 							.then(function afterOpen(stream) {
 								if (stream) {
 									let headers = '';
-									headers += 'X-Cache-Key: ' + cached.key + '\n';
+									headers += 'X-Cache-Key: ' + cached.key.toHash() + '\n';
 									headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toString() + '\n';
 									if (cached.section) {
-										headers += 'X-Cache-Section: ' + cached.section + '\n';
+										headers += 'X-Cache-Section: ' + cached.section.toHash() + '\n';
 									} else {
 										// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
 										if (!request.response.headersSent) {
@@ -2247,44 +2314,52 @@ module.exports = {
 						const request = ev.handlerData[0];
 
 						if (!types.HttpStatus.isError(request.response.status) && !types.HttpStatus.isRedirect(request.response.status)) {
-							const cached = this.getCached(request, {create: true});
-							const output = ev.data.stream;
+							const start = function _start(output) {
+								const cached = this.getCached(request, {create: true});
 
-							if (cached.isValid()) {
-								ev.data.stream = this.openFile(request, cached)
-									.then(function sendCache(cacheStream) {
-										if (cacheStream) {
-											const promise = cacheStream.onEOF.promise();
-											cacheStream.pipe(output);
-											cacheStream.flush();
-											return promise;
-										};
-									}, null, this)
-									.then(function() {
-										return request.end();
-									}, null, this);
-
-							} else if (cached.isInvalid()) {
-								ev.data.stream = this.createFile(request, cached)
-									.then(function(cacheStream) {
-										if (cacheStream) {
-											request.waitFor(cacheStream.onEOF.promise(function onEOF() {
-													cached.validate();
-													if (ev.data.options.watch) {
-														files.watch(ev.data.options.watch, function() {
-															cached.invalidate();
-														}, {once: true});
-													};
-												}, this)
-												.catch(function(err) {
-													cached.abort();
-													throw err;
-												}, this));
-											output.pipe(cacheStream);
-										};
-										return output;
-									}, null, this);
+								if (cached.isValid()) {
+									return this.openFile(request, cached)
+										.then(function sendCache(cacheStream) {
+											if (cacheStream) {
+												const promise = cacheStream.onEOF.promise();
+												cacheStream.pipe(output);
+												cacheStream.flush();
+												return promise
+													.then(function() {
+														return request.end();
+													}, null, this);
+											} else {
+												// Cache file has been deleted or is no longer accessible. Will try to recreate the file.
+												return start.call(this, output);
+											};
+										}, null, this);
+								} else if (cached.isInvalid() && (request.verb !== 'HEAD')) {
+									return this.createFile(request, cached)
+										.then(function(cacheStream) {
+											if (cacheStream) {
+												request.waitFor(cacheStream.onEOF.promise(function onEOF() {
+														cached.validate();
+														if (ev.data.options.watch) {
+															files.watch(ev.data.options.watch, function() {
+																cached.invalidate();
+															}, {once: true});
+														};
+													}, this)
+													.catch(function(err) {
+														cached.abort();
+														throw err;
+													}, this));
+												output.pipe(cacheStream);
+											};
+											return output;
+										}, null, this);
+								} else {
+									return output;
+								};
 							};
+
+							ev.data.stream = ev.data.stream
+								.then(start, null, this);
 						};
 					}),
 
