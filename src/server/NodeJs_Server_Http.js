@@ -177,7 +177,7 @@ module.exports = {
 							.finally(function() {
 								let promise = null;
 								const stream = this.stream,
-									destroyed = stream && _shared.DESTROYED(stream),
+									destroyed = stream && types.DESTROYED(stream),
 									buffered = stream && !destroyed && stream._implements(ioMixIns.BufferedStreamBase);
 								if (forceDisconnect || destroyed || this.nodeJsStream.finished) {
 									types.DESTROY(this.nodeJsStream);
@@ -773,20 +773,15 @@ module.exports = {
 								this.__ending = false; // now blocks any operation
 
 								const stream = this.stream,
-									destroyed = stream && _shared.DESTROYED(stream),
+									destroyed = stream && types.DESTROYED(stream),
 									buffered = stream && !destroyed && stream._implements(ioMixIns.BufferedStreamBase);
 
 								if (forceDisconnect || destroyed) {
 									types.DESTROY(this.nodeJsStream);
-									this.sanitize();
+									this.sanitize(); // should prevents blocking on "wait" if everything is cleaned correctly on sanitize.
 								} else {
 									if (buffered) {
-										return stream.flushAsync({purge: true})
-											.then(function() {
-												this.sanitize();
-											}, null, this);
-									} else {
-										this.sanitize();
+										return stream.flushAsync({purge: true});
 									};
 								};
 							}, null, this)
@@ -794,7 +789,7 @@ module.exports = {
 							.catch(this.catchError, this)
 							.nodeify(function(err, dummy) {
 								const type = types.getType(this);
-								if (this.__aborted || forceDisconnect || _shared.DESTROYED(this.response)) {
+								if (this.__aborted || forceDisconnect || types.DESTROYED(this.response)) {
 									type.$__aborted++;
 								} else {
 									const status = this.response.status;
@@ -1000,7 +995,7 @@ module.exports = {
 									request.proceed(this.handlersOptions)
 										.catch(request.catchError)
 										.then(function endRequest() {
-											if (!_shared.DESTROYED(request) && !request.ended) {
+											if (!types.DESTROYED(request) && !request.ended) {
 												if (request.isFullfilled()) {
 													return request.end();
 												} else {
@@ -1637,8 +1632,8 @@ module.exports = {
 					__remaining: doodad.PROTECTED(null),
 					__headersCompiled: doodad.PROTECTED(false),
 					__headers: doodad.PROTECTED(null),
-					//__verb: doodad.PROTECTED(null),
-					//__file: doodad.PROTECTED(null),
+					__verb: doodad.PROTECTED(null),
+					__file: doodad.PROTECTED(null),
 					__status: doodad.PROTECTED(null),
 					__message: doodad.PROTECTED(null),
 					//__key: doodad.PROTECTED(null),
@@ -1659,8 +1654,8 @@ module.exports = {
 						this.__remaining = null;
 						this.__headersCompiled = false;
 						this.__headers = types.nullObject();
-						//this.__verb = null;
-						//this.__file = null;
+						this.__verb = null;
+						this.__file = null;
 						this.__status = null;
 						this.__message = null;
 						//this.__key = null;
@@ -1701,7 +1696,7 @@ module.exports = {
 								while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
 									if (index === lastIndex) {
 										this.__headersCompiled = true;
-										this.submit(new io.BinaryData(io.BOF, {headers: this.__headers, status: {code: this.__status, message: this.__message, encoding: this.__encoding}}), {callback: data.defer()});
+										this.submit(new io.BinaryData(io.BOF, {data: {code: this.__status, message: this.__message, verb: this.__verb, file: this.__file, encoding: this.__encoding, headers: this.__headers}}), {callback: data.defer()});
 										break;
 									};
 									const str = buf.slice(lastIndex, index).toString('utf-8');
@@ -1711,9 +1706,9 @@ module.exports = {
 									if (name === 'X-Cache-Key') {
 										//this.__key = value;
 									} else if (name === 'X-Cache-File') {
-										//const val = tools.split(value, ' ', 2);
-										//this.__verb = val[0] || '';
-										//this.__file = val[1] || '';
+										const val = tools.split(value, ' ', 2);
+										this.__verb = val[0] || '';
+										this.__file = val[1] || '';
 									} else if (name === 'X-Cache-Status') {
 										const val = tools.split(value, ' ', 2);
 										this.__status = parseInt(val[0]) || 200;
@@ -1811,7 +1806,7 @@ module.exports = {
 					const hashStream = nodeCrypto.createHash('sha256');
 					hashStream.update(this.toString());
 					const hash = hashStream.digest('base64');
-					_shared.DESTROY(hashStream);
+					types.DESTROY(hashStream);
 					return hash;
 				};
 
@@ -1860,6 +1855,7 @@ module.exports = {
 						oninvalidate: null,
 
 						created: true, // Boolean
+						mainFile: false, // Boolean
 						key: null, // Key Object
 						hashedKey: null, // String
 						section: null, // Key Object
@@ -2032,6 +2028,7 @@ module.exports = {
 
 						const cached = new nodejsHttp.CachedObject();
 						cached.created = true;  // Boolean
+						cached.mainFile = !!types.get(options, 'mainFile', false);
 						cached.key = key; // Key Object
 						cached.hashedKey = keyHash; // String
 						cached.section = section; // Key Object
@@ -2176,10 +2173,10 @@ module.exports = {
 									const promise = cacheStream.onData.promise(function(ev) {
 										ev.preventDefault();
 										if (ev.data.raw === io.BOF) {
-											if (!cached.section) {
+											if (ev.data.options.data.file) { // Main file
 												request.response.clearHeaders();
-												request.response.addHeaders(ev.data.options.headers);
-												//ev.data.options.status.code && request.response.setStatus(ev.data.options.status.code, ev.data.options.status.message);
+												request.response.addHeaders(ev.data.options.data.headers);
+												//ev.data.options.data.code && request.response.setStatus(ev.data.options.data.code, ev.data.options.data.message);
 											};
 											cacheStream.setOptions({flushMode: 'manual'});
 											cacheStream.onFlush.attachOnce(this, function(ev) {
@@ -2276,25 +2273,26 @@ module.exports = {
 								if (stream) {
 									let headers = '';
 									headers += 'X-Cache-Key: ' + cached.key.toHash() + '\n';
-									headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toString() + '\n';
 									if (cached.section) {
 										headers += 'X-Cache-Section: ' + cached.section.toHash() + '\n';
-									} else {
-										// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
-										if (!request.response.headersSent) {
-											request.response.sendHeaders();
-										};
-										const status = request.response.status || 200;
-										headers += 'X-Cache-Status: ' + types.toString(status) + ' ' + (request.response.message || nodeHttp.STATUS_CODES[status] || '') + '\n';
-										tools.forEach(request.response.getHeaders(), function(value, name) {
-											headers += (name + ': ' + value + '\n');
-										});
 									};
 									if (cached.expiration) {
 										headers += 'X-Cache-Expiration: ' + http.toRFC1123Date(cached.expiration) + '\n'; // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
 									};
 									if (encoding) {
 										headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
+									};
+									if (cached.mainFile) {
+										// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
+										if (!request.response.headersSent) {
+											request.response.sendHeaders();
+										};
+										const status = request.response.status || 200;
+										headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toString() + '\n';
+										headers += 'X-Cache-Status: ' + types.toString(status) + ' ' + (request.response.message || nodeHttp.STATUS_CODES[status] || '') + '\n';
+										tools.forEach(request.response.getHeaders(), function(value, name) {
+											headers += (name + ': ' + value + '\n');
+										});
 									};
 
 									stream.write(io.TextData.$encode(headers + '\n', 'utf-8')); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
@@ -2315,7 +2313,7 @@ module.exports = {
 
 						if (!types.HttpStatus.isError(request.response.status) && !types.HttpStatus.isRedirect(request.response.status)) {
 							const start = function _start(output) {
-								const cached = this.getCached(request, {create: true});
+								const cached = this.getCached(request, {create: true, mainFile: true});
 
 								if (cached.isValid()) {
 									return this.openFile(request, cached)
