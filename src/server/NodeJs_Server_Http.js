@@ -1427,7 +1427,7 @@ module.exports = {
 							}, null, this);
 					})),
 
-					sendDDT: doodad.PROTECTED(doodad.ASYNC(function sendFile(request, data) {
+					sendDDT: doodad.PROTECTED(doodad.ASYNC(function sendDDT(request, data) {
 						// TODO: Allow to extend with other template engines.
 						request.data.isFolder = false;
 						if (request.url.extension === 'ddt') {
@@ -1568,15 +1568,19 @@ module.exports = {
 								if (data) {
 									if (data.stats.isFile()) {
 										// TODO: Allow to extend with other template engines.
-										const isDDT = (data.path.extension === 'ddt') || (data.path.extension === 'ddtx');
+										const isDDT = (data.path.extension === 'ddt') || (data.path.extension === 'ddi') || (data.path.extension === 'ddtx');
 										if (isDDT && (data.contentType.name === 'text/html')) {
 											return this.sendDDT(request, data);
 										// TODO: Use another flag than "showFolders" to mean if we can send the source file of a DDT or a DDTX
 										} else if (!isDDT || this.options.showFolders) {
 											return this.sendFile(request, data);
+										} else {
+											return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 										};
 									} else if (this.options.showFolders && ((data.contentType.name === 'text/html') || (data.contentType.name === 'application/json'))) {
 										return this.sendFolder(request, data);
+									} else {
+										return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 									};
 								} else {
 									request.setFullfilled(false);
