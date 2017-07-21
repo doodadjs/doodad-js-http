@@ -1348,7 +1348,11 @@ module.exports = {
 											//					when possible, is a better choice.
 											return files.getCanonical(path, {async: true})
 												.then(function(canonicalPath) {
-													stats.realPath = canonicalPath.toApiString();
+													if (canonicalPath.file && !stats.isFile()) {
+														stats.realPath = canonicalPath.pushFile().toApiString();
+													} else {
+														stats.realPath = canonicalPath.toApiString();
+													};
 													return stats;
 												});
 										} else {
