@@ -1330,7 +1330,14 @@ module.exports = {
 												reject(err);
 											};
 										} else {
-											if (path.file && !stats.isFile()) {
+											if (stats.isFile()) {
+												if (path.file) {
+													stats.path = pathStr;
+												} else {
+													const newPath = path.popFile();
+													stats.path = (newPath ? newPath.toApiString() : pathStr);
+												};
+											} else if (path.file) {
 												stats.path = path.pushFile().toApiString();
 											} else {
 												stats.path = pathStr;
@@ -1348,7 +1355,14 @@ module.exports = {
 											//					when possible, is a better choice.
 											return files.getCanonical(path, {async: true})
 												.then(function(canonicalPath) {
-													if (canonicalPath.file && !stats.isFile()) {
+													if (stats.isFile()) {
+														if (canonicalPath.file) {
+															stats.realPath = canonicalPath.toApiString();
+														} else {
+															const newPath = canonicalPath.popFile();
+															stats.realPath = (newPath ? newPath.toApiString() : canonicalPath.toApiString());
+														};
+													} else if (canonicalPath.file) {
 														stats.realPath = canonicalPath.pushFile().toApiString();
 													} else {
 														stats.realPath = canonicalPath.toApiString();
