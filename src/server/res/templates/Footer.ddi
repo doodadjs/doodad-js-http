@@ -32,9 +32,13 @@
 		See the License for the specific language governing permissions and
 		limitations under the License.
 -->
-	<html>
-		<address>Your IP address is: <t:eval>page.request.getSource().address</t:eval></address>
-		<address>Processing time: <t:eval>page.request.getTime()</t:eval> ms</address>
-		<address>Copyright &copy; 2015-2017 Claude Petit</address>
-	</html>
+  <i:body>
+    <address>
+      Your IP address is: <t:eval>page.request.getSource().address</t:eval>
+    </address>
+    <address>
+      Processing time: <t:eval>page.request.getTime()</t:eval> ms
+    </address>
+    <address>Copyright &copy; 2015-2017 Claude Petit</address>
+  </i:body>
 </i:ddi>

@@ -32,7 +32,7 @@
 		See the License for the specific language governing permissions and
 		limitations under the License.
 -->
-	<html>
-		<h1>Welcome</h1>
-	</html>
+  <i:body>
+    <h1>Welcome</h1>
+  </i:body>
 </i:ddi>

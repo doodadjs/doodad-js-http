@@ -39,10 +39,10 @@
 	]]></t:script>
 -->
 
-	<html>
-		<t:variable name="url" expr="page.request.url.getPath()" />
-		
-		<head>
+  <t:variable name="url" expr="page.request.url.getPath()" />
+
+  <t:html>
+    <head>
 			<link rel="stylesheet" type="text/css" t:href="url.setArgs({'res': 'css/Folder.css'})" t:integrity="auto" />
 		</head>
 		
@@ -51,9 +51,6 @@
 			<t:cache id="content">
 				<header>
 					<t:include src="Header.ddi" />
-					<!--<t:script>
-					page.asyncWrite('ALLO');
-					</t:script>-->
 
 					<h3 class="current">
 						<span>
@@ -90,5 +87,5 @@
 				<t:include src="Footer.ddi" />
 			</footer>
 		</body>
-	</html>
+	</t:html>
 </t:ddt>
