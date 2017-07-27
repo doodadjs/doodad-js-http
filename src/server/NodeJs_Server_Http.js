@@ -1299,7 +1299,7 @@ module.exports = {
 								const handlerState = request.getHandlerState(this);
 								const handlerUrl = request.url.set({url: (this.options.isFolder ? handlerState.url.pushFile() : handlerState.url)});
 								const relativeUrl = targetUrl.relative(handlerUrl);
-								path = this.options.path.set({file: null}).combine(relativeUrl, {file: (this.options.isFolder ? relativeUrl.file : this.options.path.file)});
+								path = this.options.path.set({file: null}).combine(relativeUrl);
 							};
 						};
 						return path;
