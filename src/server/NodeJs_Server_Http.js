@@ -335,7 +335,18 @@ module.exports = {
 
 								root.DD_ASSERT && root.DD_ASSERT(types._implements(responseStream, ioMixIns.OutputStreamBase), "Invalid response stream.");
 
+								let headers = null;
+
 								tools.forEach(this.__pipes, function(pipe) {
+									const pipeHeaders = pipe.options.headers;
+									if (pipeHeaders) {
+										if (headers) {
+											types.extend(headers, pipeHeaders);
+										} else {
+											headers = types.nullObject(pipeHeaders);
+										};
+									};
+
 									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
 									if (!types._implements(pipe.stream, io.Stream) && types._implements(responseStream, io.Stream)) {
 										const iwritable = responseStream.getInterface(nodejsIOInterfaces.IWritable);
@@ -346,6 +357,13 @@ module.exports = {
 									responseStream = pipe.stream;
 								});
 								this.__pipes = null;  // disables "addPipe".
+
+								if (headers) {
+									this.onSendHeaders.attachOnce(this, function(ev) {
+										// Re-add pipe headers
+										this.addHeaders(headers);
+									});
+								};
 
 								const encoding = this.contentType.params.charset;
 								if (types._implements(responseStream, io.Stream)) {
@@ -2536,6 +2554,7 @@ module.exports = {
 						let stream = null;
 
 						const type = request.response.getHeader('Content-Type');
+
 						if (!type || request.getAcceptables(type, {handler: this}).length) {
 							switch (encoding) {
 								case 'gzip':
@@ -2557,11 +2576,10 @@ module.exports = {
 							});
 
 							// NOTE: Server MUST NOT include 'identity' in the 'Content-Encoding' header
-							request.response.addHeaders({
-								'Content-Encoding': encoding,
-							});
 
-							request.response.addPipe(stream, {unshift: true});
+							request.response.addPipe(stream, {unshift: true, headers: {
+								'Content-Encoding': encoding,
+							}});
 
 							request.response.onSendHeaders.attachOnce(this, function(ev) {
 								request.response.clearHeaders('Content-Length');

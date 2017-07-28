@@ -1006,9 +1006,15 @@ module.exports = {
 							throw new types.NotAvailable("'addPipe' is not available because pipes have already been proceed.");
 						};
 
+						options = types.nullObject(options);
+
+						const headers = options.headers;
+						if (headers) {
+							this.addHeaders(headers);
+						};
+
 						// TODO: Assert on "stream"
 						// NOTE: Pipes are made at "getStream".
-						options = types.nullObject(options);
 						const pipe = types.nullObject({stream: stream, options: options});
 						if (options.unshift) {
 							this.__pipes.unshift(pipe);
