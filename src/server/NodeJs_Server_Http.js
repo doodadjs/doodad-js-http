@@ -1309,15 +1309,19 @@ module.exports = {
 					getSystemPath: doodad.OVERRIDE(function getSystemPath(request, targetUrl) {
 						let path = null;
 						if (targetUrl) {
-							if (!request.url.file && targetUrl.args.has('res')) {
-								path = this.options.folderTemplate.set({file: null}).combine('./public/' + targetUrl.args.get('res', true));
-							} else if (targetUrl.isRelative) {
-								path = this.options.path.set({file: null}).combine(targetUrl.set({domain: null}));
-							} else {
-								const handlerState = request.getHandlerState(this);
-								const handlerUrl = request.url.set({url: (this.options.isFolder ? handlerState.url.pushFile() : handlerState.url)});
-								const relativeUrl = targetUrl.relative(handlerUrl);
-								path = this.options.path.set({file: null}).combine(relativeUrl);
+							if (this.options.isFolder) {
+								if (targetUrl.args.has('res')) {
+									path = this.options.folderTemplate.set({file: ''}).combine('./public/' + targetUrl.args.get('res', true));
+								} else if (targetUrl.isRelative) {
+									path = this.options.path.combine(targetUrl.set({domain: null}));
+								} else {
+									const handlerState = request.getHandlerState(this);
+									const handlerUrl = request.url.set({url: handlerState.url.pushFile()});
+									const relativeUrl = targetUrl.relative(handlerUrl);
+									path = this.options.path.combine(relativeUrl);
+								};
+							} else if (!targetUrl.isRelative && !targetUrl.args.has('res')) {
+								path = this.options.path;
 							};
 						};
 						return path;
@@ -1330,8 +1334,7 @@ module.exports = {
 
 						const urlRemaining = state.matcherResult.urlRemaining;
 
-						// TODO: Avoid "urlRemaining.toString()"
-						const path = this.getSystemPath(request, (urlRemaining && urlRemaining.toString() ? urlRemaining : request.url));
+						const path = this.getSystemPath(request, (urlRemaining && (urlRemaining.path.length || urlRemaining.file) ? urlRemaining : request.url));
 
 						if (!path) {
 							return null;
@@ -1466,6 +1469,9 @@ module.exports = {
 					sendDDT: doodad.PROTECTED(doodad.ASYNC(function sendDDT(request, data) {
 						// TODO: Allow to extend with other template engines.
 						request.data.isFolder = false;
+						if (!request.url.file) {
+							return request.redirectClient(request.url.popFile());
+						};
 						if (request.url.extension === 'ddt') {
 							// We always show the extension "ddtx"
 							return request.redirectClient(request.url.set({extension: 'ddtx'}));
@@ -1500,6 +1506,9 @@ module.exports = {
 
 						if (data.path) {
 							request.data.isFolder = false;
+							if (!request.url.file && !request.url.args.has('res')) {
+								return request.redirectClient(request.url.popFile());
+							};
 							return request.response.getStream(root.getOptions().debug ? {watch: data.path} : null)
 								.then(function(outputStream) {
 									const iwritable = outputStream.getInterface(nodejsIOInterfaces.IWritable);
