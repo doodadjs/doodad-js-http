@@ -2508,15 +2508,12 @@ module.exports = {
 								file = ar.pop();
 							};
 
-							//// TODO: Write a function in files.Url for "(requestUrl.args && requestUrl.args.__args && requestUrl.args.__args.length)"
-							//if (ar.length || file || (requestUrl.args && requestUrl.args.__args && requestUrl.args.__args.length)) {
-								urlRemaining = files.Url.parse(null, {
-									isRelative: true,
-									path: ar,
-									file: file,
-									args: requestUrl.args,
-								});
-							//};
+							urlRemaining = files.Url.parse(null, {
+								isRelative: true,
+								path: ar,
+								file: file,
+								args: requestUrl.args,
+							});
 
 							if (allowArgs) {
 								// Query string matching and extraction : ex. "/invoice/edit?id&details=1" will match "/invoice/edit?id=194&details=1"
