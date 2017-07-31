@@ -520,7 +520,7 @@ module.exports = {
 								};
 
 								if (!this.contentType) {
-									const contentTypes = mime.getTypes(path.file);
+									const contentTypes = mime.getTypes(path.file) || ['application/octet-stream'];
 									this.setContentType(contentTypes);
 								};
 								
@@ -1202,12 +1202,13 @@ module.exports = {
 										if (!handler.options.mimeTypes) {
 											return true;
 										};
-										const types = mime.getTypes(file.name);
-										return tools.some(handler.options.mimeTypes, function(mimeType) {
-											return (tools.findItem(types, function(type) {
-													return type === mimeType.name;
-												}) !== null);
+										const mimeTypes = mime.getTypes(file.name) || ['application/octet-stream'];
+										file.mimeTypes = mimeTypes.filter(function(type) {
+											return tools.some(handler.options.mimeTypes, function(mimeType) {
+												return mimeType.name === type;
+											});
 										});
+										return (file.mimeTypes.length > 0);
 									})
 									.sort(function(file1, file2) {
 										const n1 = file1.name.toUpperCase(),
@@ -1418,7 +1419,7 @@ module.exports = {
 								let contentTypes,
 									handler = null;
 								if (stats.isFile()) {
-									contentTypes = mime.getTypes(path.file);
+									contentTypes = mime.getTypes(path.file) || ['application/octet-stream'];
 									handler = request.currentHandler;
 								} else {
 									contentTypes = ['text/html; charset=utf-8', 'application/json; charset=utf-8'];
