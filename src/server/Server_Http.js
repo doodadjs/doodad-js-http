@@ -64,7 +64,6 @@ module.exports = {
 
 				types.complete(_shared.Natives, {
 					windowRegExp: global.RegExp,
-					windowArray: global.Array,
 				});
 				
 				
