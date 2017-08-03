@@ -1901,6 +1901,7 @@ module.exports = {
 					},
 					/*instanceProto*/
 					{
+						ondestroy: null,
 						onvalidate: null,
 						oninvalidate: null,
 
@@ -1918,6 +1919,12 @@ module.exports = {
 						ready: false, // Boolean
 						expiration: null, // Date
 						children: null, // objectof(Cached objects)
+
+						_delete: types.SUPER(function _delete() {
+							this.invalidate();
+							this.dispatchEvent(new types.CustomEvent('destroy'));
+							this._super();
+						}),
 
 						isInvalid: function() {
 							return !this.disabled && !this.ready && !this.writing;
@@ -2058,15 +2065,17 @@ module.exports = {
 
 						let keyHash = null;
 
-						if (type.$__cache.has(key)) {
-							const cached = type.$__cache.get(key);
+						const cacheMap = type.$__cache;
+
+						if (cacheMap.has(key)) {
+							const cached = cacheMap.get(key);
 							cached.created = false;
 							return cached;
 						} else {
 							keyHash = key.toHash();
 
-							if (type.$__cache.has(keyHash)) {
-								const cached = type.$__cache.get(keyHash);
+							if (cacheMap.has(keyHash)) {
+								const cached = cacheMap.get(keyHash);
 								cached.created = false;
 								return cached;
 							};
@@ -2088,8 +2097,17 @@ module.exports = {
 						cached.duration = state.defaultDuration; // Moment Duration
 						cached.children = types.nullObject(); // objectof(Cached objects)
 
-						type.$__cache.set(key, cached);
-						type.$__cache.set(keyHash, cached);
+						cached.addEventListener('destroy', function() {
+							cacheMap.delete(key);
+							cacheMap.delete(keyHash);
+
+							if (section && !types.DESTROYED(cached.parent)) {
+								delete cached.parent.children[section];
+							};
+						});
+
+						cacheMap.set(key, cached);
+						cacheMap.set(keyHash, cached);
 
 						if (section) {
 							cached.parent.children[section] = cached;
