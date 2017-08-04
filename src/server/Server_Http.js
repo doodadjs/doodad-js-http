@@ -468,6 +468,7 @@ module.exports = {
 						subtype: subtype,
 						params: types.freezeObject(params),
 						weight: weight,
+						customData: types.nullObject(), // Allows to store custom fields even if object is frozen.
 						toString: function toString() {
 							return this.name + tools.reduce(this.params, function(result, value, key) {
 								if (!types.isNothing(value)) {
@@ -484,8 +485,10 @@ module.exports = {
 						},
 						set: function set(attrs) {
 							const params = types.nullObject(this.params, types.get(attrs, 'params'));
+							const customData = types.nullObject(this.customData, types.get(attrs, 'customData'));
 							const newType = types.nullObject(this, attrs);
 							newType.params = types.freezeObject(params);
+							newType.customData = customData;
 							return types.freezeObject(newType);
 						},
 					}));
@@ -548,18 +551,14 @@ module.exports = {
 				});
 
 				http.ADD('compareMimeTypes', function compareMimeTypes(mimeType1, mimeType2) {
-					if (mimeType1.name === mimeType2.name) {
-						return 40;
-					} else if ((mimeType1.type === mimeType2.type) && (mimeType1.subtype === '*')) {
-						return 30;
-					} else if ((mimeType1.type === '*') && (mimeType1.subtype === mimeType2.subtype)) {
-						return 30;
-					} else if ((mimeType1.type === mimeType2.type) && (mimeType2.subtype === '*')) {
-						return 20;
-					} else if ((mimeType2.type === '*') && (mimeType1.subtype === mimeType2.subtype)) {
-						return 20;
-					} else if ((mimeType1.type === '*') && (mimeType1.subtype === '*')) {
+					if (((mimeType1.type === '*') && (mimeType1.subtype === '*')) || ((mimeType2.type === '*') && (mimeType2.subtype === '*'))) {
 						return 10;
+					} else if (((mimeType1.type === '*') || (mimeType2.type === '*')) && (mimeType1.subtype === mimeType2.subtype)) {
+						return 20;
+					} else if ((mimeType1.type === mimeType2.type) && ((mimeType1.subtype === '*') || (mimeType2.subtype === '*'))) {
+						return 30;
+					} else if (mimeType1.name === mimeType2.name) {
+						return 40;
 					} else {
 						return 0;
 					};
@@ -1348,58 +1347,45 @@ module.exports = {
 							contentTypes = [contentTypes];
 						};
 
-						let acceptedTypes = [];
+						const acceptedTypes = [];
 						
-						for (let i = 0; i < contentTypes.length; i++) {
-							let contentType = contentTypes[i];
-							if (types.isString(contentType)) {
-								contentType = http.parseContentTypeHeader(contentType);
-							};
-							
-							let score = 0,
-								ok = false,
-								weight = 1.0;
-								
-							if (handlerTypes) {
-								for (let j = 0; j < handlerTypes.length; j++) {
-									const entry = handlerTypes[j];
-									const newScore = http.compareMimeTypes(entry, contentType);
-									if (newScore > score) {
-										score = newScore;
-										weight = entry.weight;
-										ok = true;
-									};
+						if (handlerTypes) {
+							for (let i = 0; i < contentTypes.length; i++) {
+								let contentType = contentTypes[i];
+								if (types.isString(contentType)) {
+									contentType = http.parseContentTypeHeader(contentType);
 								};
-							} else {
-								ok = true;
-							};
-							
-							if (ok && (weight > 0.0)) {
-								contentType = contentType.set({weight: weight});
-								if (handlerTypes) {
+								if (contentType.weight > 0.0) {
 									// Get mime type parameters from the handler options (typicaly 'charset')
-									const result = tools.reduce(handlerTypes, function(result, handlerType) {
+									const result = tools.reduce(handlerTypes, function(result, handlerType, index) {
 										const score = http.compareMimeTypes(handlerType, contentType);
 										if (score > result.score) {
 											result.score = score;
 											result.mimeType = handlerType;
+											result.index = index;
 										};
 										return result;
-									}, {mimeType: null, score: 0});
+									}, {mimeType: null, score: 0, index: -1});
+									let newContentType;
 									if (result.mimeType) {
-										const newParams = types.complete({}, contentType.params, result.mimeType.params);
-										contentType = contentType.set({params: newParams});
+										const newParams = types.complete({}, result.mimeType.params, contentType.params);
+										newContentType = contentType.set({weight: result.mimeType.weight, params: newParams});
+										newContentType.customData.index = result.index; // for "sort"
+										acceptedTypes.push(newContentType);
 									};
 								};
-								acceptedTypes.push(contentType);
 							};
 						};
 						
-						acceptedTypes = acceptedTypes.sort(function(type1, type2) {
+						acceptedTypes.sort(function(type1, type2) {
 							if (type1.weight > type2.weight) {
 								return -1;
 							} else if (type1.weight < type2.weight) {
 								return 1;
+							} else if (type1.customData.index > type2.customData.index) {
+								return 1;
+							} else if (type1.customData.index < type2.customData.index) {
+								return -1;
 							} else {
 								return 0;
 							};
