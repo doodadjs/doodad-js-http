@@ -954,7 +954,13 @@ module.exports = {
 								});
 								this.__pipes = null;  // disables "addPipe".
 							
-								if (!types._implements(requestStream, io.Stream)) {
+								if (types._implements(requestStream, io.Stream)) {
+									if (requestEncoding && !types._implements(requestStream, ioMixIns.TextInputStream)) {
+										const textStream = new io.TextDecoderStream({encoding: requestEncoding});
+										requestStream.pipe(textStream);
+										requestStream = textStream;
+									};
+								} else {
 									if (requestEncoding) {
 										if (!nodejsIO.TextInputStream.$isValidEncoding(requestEncoding)) {
 											return this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
