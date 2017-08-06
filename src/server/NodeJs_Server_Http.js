@@ -348,13 +348,27 @@ module.exports = {
 									};
 
 									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
-									if (!types._implements(pipe.stream, io.Stream) && types._implements(responseStream, io.Stream)) {
-										const iwritable = responseStream.getInterface(nodejsIOInterfaces.IWritable);
-										pipe.stream.pipe(iwritable, pipe.options.pipeOptions);
-									} else {
-										pipe.stream.pipe(responseStream, pipe.options.pipeOptions);
+
+									// <PRB> No longer works since Node 8.2.1 : Sometimes it generates incomplete files.
+										//if (!types._implements(pipe.stream, io.Stream) && types._implements(responseStream, io.Stream)) {
+										//	const iwritable = responseStream.getInterface(nodejsIOInterfaces.IWritable);
+										//	pipe.stream.pipe(iwritable, pipe.options.pipeOptions);
+										//} else {
+										//	pipe.stream.pipe(responseStream, pipe.options.pipeOptions);
+										//};
+										//responseStream = pipe.stream;
+
+									const pipeStream = pipe.stream;
+									const isNodeStream = !types._implements(pipeStream, io.Stream);
+									let sourceStream = pipeStream;
+									if (isNodeStream) {
+										sourceStream = new nodejsIO.BinaryInputStream({nodeStream: sourceStream});
 									};
-									responseStream = pipe.stream;
+									sourceStream.pipe(responseStream, pipe.options.pipeOptions);
+									responseStream = pipeStream;
+									if (isNodeStream) {
+										responseStream = new nodejsIO.BinaryOutputStream({nodeStream: responseStream});
+									};
 								});
 								this.__pipes = null;  // disables "addPipe".
 
@@ -917,13 +931,26 @@ module.exports = {
 
 								tools.forEach(this.__pipes, function forEachPipe(pipe) {
 									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
-									if (!types._implements(requestStream, io.Stream) && types._implements(pipe.stream, io.Stream)) {
-										const iwritable = pipe.stream.getInterface(nodejsIOInterfaces.IWritable);
-										requestStream.pipe(iwritable, pipe.options.pipeOptions);
-									} else {
-										requestStream.pipe(pipe.stream, pipe.options.pipeOptions);
+
+										//if (!types._implements(requestStream, io.Stream) && types._implements(pipe.stream, io.Stream)) {
+										//	const iwritable = pipe.stream.getInterface(nodejsIOInterfaces.IWritable);
+										//	requestStream.pipe(iwritable, pipe.options.pipeOptions);
+										//} else {
+										//	requestStream.pipe(pipe.stream, pipe.options.pipeOptions);
+										//};
+										//requestStream = pipe.stream;
+
+									const pipeStream = pipe.stream;
+									const isNodeStream = !types._implements(pipeStream, io.Stream);
+									let destStream = pipeStream;
+									if (isNodeStream) {
+										destStream = new nodejsIO.BinaryOutputStream({nodeStream: destStream});
 									};
-									requestStream = pipe.stream;
+									requestStream.pipe(destStream, pipe.options.pipeOptions);
+									requestStream = pipeStream;
+									if (isNodeStream) {
+										requestStream = new nodejsIO.BinaryInputStream({nodeStream: requestStream});
+									};
 								});
 								this.__pipes = null;  // disables "addPipe".
 							
