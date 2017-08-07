@@ -2231,6 +2231,10 @@ module.exports = {
 							throw new types.NotAvailable("Cache is not ready.");
 						};
 
+						if (cached.writing) {
+							throw new types.NotAvailable("Cache is writing.");
+						};
+
 						return Promise.create(function openFile(resolve, reject) {
 								const fileStream = nodeFs.createReadStream(cached.path.toString());
 								let openCb = null,
@@ -2306,8 +2310,16 @@ module.exports = {
 							return null;
 						};
 
-						if (cached.ready || cached.writing) {
-							throw new types.NotAvailable("Cache is ready or writing.");
+						if (cached.disabled) {
+							throw new types.NotAvailable("Cache is disabled.");
+						};
+
+						if (cached.ready) {
+							throw new types.NotAvailable("Cache is ready.");
+						};
+
+						if (cached.writing) {
+							throw new types.NotAvailable("Cache is writing.");
 						};
 
 						options = types.nullObject(options);
