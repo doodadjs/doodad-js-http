@@ -955,7 +955,7 @@ module.exports = {
 								this.__pipes = null;  // disables "addPipe".
 							
 								if (types._implements(requestStream, io.Stream)) {
-									if (requestEncoding && !types._implements(requestStream, ioMixIns.TextInputStream)) {
+									if (requestEncoding && !types._implements(requestStream, [ioMixIns.TextInputStream, ioMixIns.ObjectTransformableOut])) {
 										const textStream = new io.TextDecoderStream({encoding: requestEncoding});
 										requestStream.pipe(textStream);
 										requestStream = textStream;
