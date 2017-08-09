@@ -2272,10 +2272,9 @@ module.exports = {
 					}),
 
 					execute: doodad.OVERRIDE(function execute(request) {
-						const csp = http.ContentSecurityPolicyHandler;
-						const cspState = request.getHandlerState(csp);
+						const cspState = request.getHandlerState(http.ContentSecurityPolicyHandler);
 						if (!cspState) {
-							throw new types.Error("The handler '~0~' is missing or not loaded.", [types.getTypeName(csp)]);
+							return;
 						};
 
 						const uirs = request.getHeader('Upgrade-Insecure-Requests');
