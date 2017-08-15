@@ -2292,7 +2292,7 @@ module.exports = {
 											// Cancels resolve and waits next 'onData' event
 											return false;
 										};
-									}, this);
+									}, this, _shared.SECRET);
 									fileStream.pipe(iwritable);
 									return promise;
 								} else {
@@ -2455,7 +2455,7 @@ module.exports = {
 																cached.invalidate();
 															}, {once: true});
 														};
-													}, this)
+													}, this, _shared.SECRET)
 													.catch(function(err) {
 														cached.abort();
 														throw err;
