@@ -25,80 +25,98 @@
 	"//": "",
 	"version": "1.1.0",
 	"stage": "a",
-	"dependencies": [
-		{
-			"name": "doodad-js",
-			"client": false,
-			"server": true,
-			"browserify": false
-		},
-		{
-			"name": "doodad-js-io",
-			"client": false,
-			"server": true,
-			"browserify": false
-		},
-		{
-			"name": "doodad-js-mime",
-			"client": false,
-			"server": true,
-			"browserify": false
-		},
-		{
-			"name": "doodad-js-locale",
-			"client": false,
-			"server": true,
-			"browserify": false
-		},
-		{
-			"name": "doodad-js-dates",
-			"client": false,
-			"server": true,
-			"browserify": false
-		},
-		{
-			"name": "doodad-js-server",
-			"client": false,
-			"server": true,
-			"browserify": false
-		},
-		{
-			"name": "doodad-js-minifiers",
-			"client": false,
-			"server": true,
-			"browserify": false
-		},
-		{
-			"name": "doodad-js-templates",
-			"client": false,
-			"server": true,
-			"browserify": false
-		},
-		{
-			"name": "doodad-js-widgets",
-			"client": false,
-			"server": true,
-			"browserify": false
-		},
-		{
-			"name": "doodad-js-json",
-			"client": false,
-			"server": true,
-			"browserify": false
-		},
-		{
-			"name": "doodad-js-xml",
-			"client": false,
-			"server": true,
-			"browserify": false
-		},
-		{
-			"name": "doodad-js-unicode",
-			"client": false,
-			"server": true,
-			"browserify": false
-		}
-	],
+  "dependencies": [
+    {
+      "name": "doodad-js",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-io",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-mime",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-locale",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-dates",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-server",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-minifiers",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-templates",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-widgets",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-json",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-xml",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-unicode",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-cluster",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-ipc",
+      "client": false,
+      "server": true,
+      "browserify": false
+    },
+    {
+      "name": "doodad-js-make",
+      "client": false,
+      "server": true,
+      "browserify": false
+    }
+  ],
 	"modules": [
 		{
 			"src": "server/Server_Http.js",
