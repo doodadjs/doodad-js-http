@@ -50,18 +50,21 @@ module.exports = {
 					ioInterfaces = io.Interfaces,
 					ioMixIns = io.MixIns,
 					nodejs = doodad.NodeJs,
+					cluster = nodejs.Cluster,
 					nodejsIO = nodejs.IO,
 					nodejsIOInterfaces = nodejsIO.Interfaces,
 					server = doodad.Server,
 					serverInterfaces = server.Interfaces,
+					//ipc = server.Ipc,
 					http = server.Http,
-					httpInterfaces = http.Interfaces,
+					//httpInterfaces = http.Interfaces,
 					httpMixIns = http.MixIns,
 					nodejsServer = nodejs.Server,
 					nodejsHttp = nodejsServer.Http,
 					minifiers = io.Minifiers,
 					templates = doodad.Templates,
 					templatesHtml = templates.Html,
+					make = root.Make,
 					dates = tools.Dates,
 					moment = dates.Moment, // Optional
 					
@@ -69,6 +72,7 @@ module.exports = {
 					nodeZlib = require('zlib'),
 					nodeHttp = require('http'),
 					nodeCrypto = require('crypto'),
+					nodeCluster = require('cluster'),
 
 					modulePath = files.parsePath(module.filename).set({file: null});
 
@@ -1361,14 +1365,49 @@ module.exports = {
 						return path;
 					}),
 					
+					__getFileUrl: doodad.PROTECTED(function getFileUrl(request) {
+						const state = request.getHandlerState(this);
+						const urlRemaining = state.matcherResult.urlRemaining;
+
+						const url = (urlRemaining && (urlRemaining.path.length || urlRemaining.file) ? urlRemaining : request.url);
+
+						return url;
+					}),
+
+					createStream: doodad.OVERRIDE(function createStream(request, /*optional*/options) {
+						let url = types.get(options, 'url', null);
+
+						if (!url) {
+							url = this.__getFileUrl(request);
+						};
+
+						const path = this.getSystemPath(request, url);
+
+						if (!path) {
+							return null;
+						};
+
+						const nodeStream = nodeFs.createReadStream(path.toApiString());
+						const inputStream = new nodejsIO.BinaryInputStream({nodeStream: nodeStream});
+
+						inputStream.onError.attachOnce(this, function(ev) {
+							request.onError(ev);
+						});
+
+						request.onSanitize.attachOnce(null, function() {
+							types.DESTROY(inputStream);
+							types.DESTROY(nodeStream);
+						});
+
+						return inputStream;
+					}),
+
 					addHeaders: doodad.PROTECTED(doodad.ASYNC(function addHeaders(request) {
 						const Promise = types.getPromise();
 
-						const state = request.getHandlerState(this);
+						const url = this.__getFileUrl(request);
 
-						const urlRemaining = state.matcherResult.urlRemaining;
-
-						const path = this.getSystemPath(request, (urlRemaining && (urlRemaining.path.length || urlRemaining.file) ? urlRemaining : request.url));
+						const path = this.getSystemPath(request, url);
 
 						if (!path) {
 							return null;
@@ -1476,25 +1515,23 @@ module.exports = {
 									request.response.addHeaders({
 										'Content-Disposition': 'filename="' + path.file.replace(/\"/g, '\\"') + '"',
 									});
-
-									// TODO: Allow to extend with other template engines.
-									if (((path.extension === 'ddtx') || (path.extension === 'ddt')) && (contentType.name === 'text/html')) {
-										request.response.clearHeaders('Content-Length');
-									} else {
-										request.response.addHeaders({
-											'Content-Length': stats.size,
-										});
-									};
 								} else {
-									state.matcherResult && _shared.setAttribute(state.matcherResult, 'url', state.matcherResult.url.pushFile());
+									const state = request.getHandlerState(this);
+									if (state.matcherResult) {
+										_shared.setAttribute(state.matcherResult, 'url', state.matcherResult.url.pushFile());
+									};
 									request.response.setVary('Accept');
 								};
+
+								// Use HTTP 1.1 chunks, or let Node.js provide it.
+								request.response.clearHeaders('Content-Length');
 
 								request.response.setContentType(contentType, {handler: handler});
 
 								return types.nullObject({
 									contentType: contentType,
 									stats: stats,
+									url: url,
 									path: path,
 								});
 							}, null, this);
@@ -1540,35 +1577,25 @@ module.exports = {
 
 						if (data.path) {
 							request.data.isFolder = false;
+
 							if (!request.url.file && !request.url.args.has('res')) {
 								return request.redirectClient(request.url.popFile());
 							};
-							return request.response.getStream(root.getOptions().debug ? {watch: data.path} : null)
+
+							// TODO: Refactor "watch" without using "options". See CacheHandler.__onGetStream
+							const options = (root.getOptions().debug ? {watch: data.path} : null);
+
+							return request.response.getStream(options)
 								.then(function(outputStream) {
-									const iwritable = outputStream.getInterface(nodejsIOInterfaces.IWritable);
-									return Promise.create(function(resolve, reject) {
-										const inputStream = nodeFs.createReadStream(data.path.toString());
-										request.onSanitize.attachOnce(null, function() {
-											types.DESTROY(inputStream);
-										});
-										request.onEnd.attachOnce(null, function() {
-											reject(new server.EndOfRequest());
-										});
-										outputStream.onError.attachOnce(null, function(ev) {
-											ev.preventDefault();
-											reject(ev.error)
-										});
-										outputStream.onEOF.attachOnce(null, function(ev) {
-											resolve();
-										});
-										inputStream
-											.once('error', reject)
-											.pipe(iwritable, {end: true});
-									}, this);
-								}, null, this)
+										return this.createStream(request, {url: data.url})
+											.then(function(inputStream) {
+													inputStream.pipe(outputStream);
+													return outputStream.onEOF.promise();
+												}, null, this);
+									}, null, this)
 								.then(function() {
-									return request.end();
-								});
+										return request.end();
+									});
 						};
 					})),
 					
@@ -1674,31 +1701,193 @@ module.exports = {
 					$TYPE_NAME: 'JavascriptPage',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JavascriptPage')), true) */,
 					
+					// TODO: URGENT: Refactor with a specific handler for exchanging datas instead of doing it in Javascript.
+					// TODO: URGENT: Flood protection on "$setJsVars".
+					// FUTURE: Reuse id for the same request url and session, or just the url (depends if data is common to a session or not).
+					$__jsVars: doodad.PROTECTED(null),
+					$__jsVarsTimeoutId: doodad.PROTECTED(null),
+
+					// TODO: Find the best default values
+					$jsVarsTimeoutDelay: doodad.PUBLIC(1 * 60), // (seconds) 1 minute by default
+					$jsVarsTTL: doodad.PUBLIC(1 * 60 * 60),  // (seconds) 1 hour by default
+
+					$setJsVars: doodad.PUBLIC(doodad.TYPE(doodad.ASYNC(function $setJsVars(request, vars, /*optional*/id) {
+						const MAX_RETRIES = 5;
+
+						let jsVars = this.$__jsVars;
+						if (!jsVars) {
+							this.$__jsVars = jsVars = types.nullObject();
+						};
+
+						let varsId = null;
+
+						if (id) {
+							// NOTE: "$setJsVars" called with an ID should comes from IPC
+							if (types.has(jsVars, id)) {
+								// Signal the collision.
+								// TODO: LOW: Create a specific error type (types.SyncingError ?).
+								throw new types.Error("That id is not available : ~0~.", [id]);
+							};
+							varsId = id;
+						} else {
+							varsId = tools.generateUUID();
+							let retries = 0;
+							while ((retries < MAX_RETRIES) && types.has(jsVars, varsId)) {
+								varsId = tools.generateUUID();
+								retries++;
+							};
+							if (retries >= MAX_RETRIES) {
+								throw new types.Error("Can't generate a new ID for the javascript variables.");
+							};
+						};
+
+						jsVars[varsId] = types.freezeObject({
+							time: process.hrtime(),
+							vars: vars,
+						}, 1 + 15);
+
+						if (!this.$__jsVarsTimeoutId) {
+							const createTimeout = function _createTimeout() {
+								return tools.callAsync(function() {
+									try {
+										const jsVars = this.$__jsVars;
+										const TTL = this.$jsVarsTTL;
+										// TODO: Make sure the main thread will not lock for too long by doing X items per tick
+										tools.forEach(jsVars, function(data, id) {
+											const diff = process.hrtime(data.time);
+											const seconds = diff[0] + (diff[1] / 1e9);
+											if (seconds >= TTL) {
+												delete jsVars[id];
+											};
+										}, this);
+									} catch(o) {
+										if (root.getOptions().debug) {
+											types.DEBUGGER();
+										};
+									};
+
+									if (this.$__jsVarsTimeoutId) { // if not canceled...
+										this.$__jsVarsTimeoutId = createTimeout.call(this);
+									};
+								}, this.$jsVarsTimeoutDelay * 1000, this, null, true);
+							};
+
+							this.$__jsVarsTimeoutId = createTimeout.call(this);
+						};
+
+						if (nodeCluster.isWorker) {
+							const messenger = !id && request.server.options.messenger;
+							if (messenger) {
+								// TODO: LOW: Handle ID collisions while syncing by generating a new ID and syncing 1 more time.
+								return messenger.callService('Doodad.Server.Http.JsVarsIpcServiceMaster', 'syncJsVars', [nodeCluster.worker.id, varsId, vars], /*{ttl: ... , ...}*/)
+									.then(function(dummy) {
+										return varsId;
+									});
+									//.catch(function(ex) {
+
+									//});
+							};
+						};
+
+						return varsId;
+					}))),
+
+					$getJsVars: doodad.PUBLIC(doodad.TYPE(doodad.ASYNC(function $getJsVars(request, varsId) {
+						const jsVars = this.$__jsVars; 
+						const data = types.get(jsVars, varsId, null);
+						if (data) {
+							return data.vars;
+						};
+						return null;
+					}))),
+
+					$destroy: doodad.OVERRIDE(function $destroy() {
+						if (this.$__jsVarsTimeoutId) {
+							this.$__jsVarsTimeoutId.cancel();
+							this.$__jsVarsTimeoutId = null;
+						};
+
+						this._super();
+					}),
+
 					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
 						options = this._super(options, parentOptions);
 						
-						let val;
+						//let val;
 						
+						options.useMake = types.toBoolean(options.useMake);
+						options.runDirectives = types.toBoolean(options.runDirectives);
+						options.keepComments = types.toBoolean(options.keepComments);
+						options.keepSpaces = types.toBoolean(options.keepSpaces);
+
 						options.variables = options.variables || {};
 
 						return options;
 					}),
 
-					sendFile: doodad.OVERRIDE(function sendFile(request, data) {
-						const jsStream = new minifiers.Javascript();
+					createStream: doodad.OVERRIDE(function createStream(request, /*optional*/options) {
+						const Promise = types.getPromise();
 
-						request.onSanitize.attachOnce(this, function sanitize() {
-							types.DESTROY(jsStream); // stops the stream in case of abort
-						});
+						return this._super(request, options)
+							.then(function(inputStream) {
+								if (!inputStream) {
+									return null;
+								};
 
-						tools.forEach(this.options.variables, function forEachVar(value, name) {
-							jsStream.define(name, value);
-						});
+								//if (!types._implements(inputStream, ioMixIns.TextInputStream)) {
+								//	const encoding = types.get(options, 'encoding', 'utf-8');
+								//	const textStream = new io.TextDecoderStream({encoding: encoding});
+								//	inputStream.pipe(textStream);
+								//	inputStream = textStream;
+								//};
 
-						request.response.clearHeaders('Content-Length');
-						request.response.addPipe(jsStream);
+								const jsType = (this.options.useMake ? make.JavascriptBuilder : minifiers.Javascript);
 
-						return this._super(request, data);
+								const mimeType = request.getAcceptables('application/javascript', {handler: this})[0];
+								//const encoding = types.get(options, 'encoding', (mimeType ? mimeType.params.charset : null) || 'utf-8');
+								const encoding = (mimeType && mimeType.params.charset || 'utf-8');
+
+								const jsStream = new jsType({
+									runDirectives: this.options.runDirectives,
+									keepComments: this.options.keepComments,
+									keepSpaces: this.options.keepSpaces,
+									encoding: encoding,
+								});
+
+								jsStream.onError.attachOnce(this, function(ev) {
+									request.onError(ev);
+								});
+
+								request.onSanitize.attachOnce(this, function sanitize() {
+									types.DESTROY(jsStream); // stops the stream in case of abort
+								});
+
+								let promise = Promise.resolve();
+
+								const url = types.get(options, 'url', request.url);
+
+								const varsId = url.getArg('vars');
+								if (varsId) {
+									promise = promise
+										.then(function(dummy) {
+												return types.getType(this).$getJsVars(request, varsId);
+											}, null, this)
+										.then(function(vars) {
+												tools.forEach(vars, function forEachVar(value, name) {
+													jsStream.define(name, value);
+												});
+											}, null, this);
+								};
+
+								return promise
+									.then(function(dummy) {
+										tools.forEach(this.options.variables, function forEachVar(value, name) {
+											jsStream.define(name, value);
+										});
+
+										return inputStream.pipe(jsStream);
+									}, null, this);
+							}, null, this);
 					}),
 				}));
 				
@@ -2450,6 +2639,7 @@ module.exports = {
 											if (cacheStream) {
 												request.waitFor(cacheStream.onEOF.promise(function onEOF() {
 														cached.validate();
+														// TODO: Refactor "watch" without using "options". See StaticPage.sendFile
 														if (ev.data.options.watch) {
 															files.watch(ev.data.options.watch, function() {
 																cached.invalidate();

@@ -1897,6 +1897,7 @@ module.exports = {
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('StaticPageBase')), true) */,
 
 					getSystemPath: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request)
+					createStream: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function(request, /*optional*/options)
 
 					execute_HEAD: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
 					execute_GET: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
