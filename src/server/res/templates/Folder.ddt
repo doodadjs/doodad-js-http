@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE ddt SYSTEM "../../../../../doodad-js-templates/src/common/res/schemas/ddt/html5_ddt.dtd">
-<t:ddt 
-	xmlns="http://www.doodad-js.local/schemas/html5" 
-	xmlns:t="http://www.doodad-js.local/schemas/ddt" 
+<t:ddt
+	xmlns="http://www.doodad-js.local/schemas/html5"
+	xmlns:t="http://www.doodad-js.local/schemas/ddt"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation=
 		"http://www.doodad-js.local/schemas/ddt ../../../../../doodad-js-templates/src/common/res/schemas/ddt/ddt.xsd"
 
 	type="Doodad.NodeJs.Server.Http.FolderPageTemplate"
+	defaultIntegrity="auto"
 >
-<!--
+  <!--
 	 doodad-js  -  Object-oriented programming framework
 	 File: Folder.ddt - Folder page template
 	 Project home: https://github.com/doodadjs/
@@ -34,7 +35,7 @@
 		limitations under the License.
 -->
 
-	<!--<t:script vars="url"><![CDATA[
+  <!--<t:script vars="url"><![CDATA[
 		url = page.request.url;
 	]]></t:script>
 -->
@@ -43,49 +44,56 @@
 
   <t:html>
     <head>
-			<link rel="stylesheet" type="text/css" t:href="url.setArgs({'res': 'css/Folder.css'})" t:integrity="auto" />
-		</head>
-		
-		<body>
-			<!--<t:cache id="content" duration="PT5M">-->
-			<t:cache id="content">
-				<header>
-					<t:include src="Header.ddi" />
+      <link rel="stylesheet" type="text/css" t:href="url.setArgs({'res': 'css/Folder.css'})" />
+    </head>
 
-					<h3 class="current">
-						<span>
-							Content of <a href="./"><t:eval>url</t:eval></a>
-						</span>
-					</h3>
-				</header>
-				<section>
-					<span class="parent">Jump to <a t:href="url.moveUp()">parent</a></span>
-					<ul class="content">
-						<t:for-each items="page.readDir()" item="file">
-							<li t:class="'item ' + (file.isFolder ? 'folder' : 'file')">
-								<div class="cell icon"/>
-								<div class="cell space"/>
-								<div class="cell name">
-									<div class="flex">
-									<a class="value" t:href="url.combine(file.name + (file.isFolder ? '/' : ''))">
-										<t:eval>file.name</t:eval>
-									</a>
-									<div class="cell space"/>
-										<div class="filler">&nbsp;</div>
-									</div>
-								</div>
-								<div class="cell space"/>
-								<div class="cell size">
-									<div class="value"><t:eval>file.size</t:eval> <t:eval>(file.size > 1 ? "bytes" : "byte")</t:eval></div>
-								</div>
-							</li>
-						</t:for-each>
-					</ul>
-				</section>
-			</t:cache>
-			<footer>
-				<t:include src="Footer.ddi" />
-			</footer>
-		</body>
-	</t:html>
+    <body>
+      <!--<t:cache id="content" duration="PT5M">-->
+      <t:cache id="content">
+        <header>
+          <t:include src="Header.ddi" />
+
+          <h3 class="current">
+            <span>
+              Content of <a href="./">
+                <t:eval>url</t:eval>
+              </a>
+            </span>
+          </h3>
+        </header>
+        <section>
+          <span class="parent">
+            Jump to <a t:href="url.moveUp()">parent</a>
+          </span>
+          <ul class="content">
+            <t:for-each items="page.readDir()" item="file">
+              <li t:class="'item ' + (file.isFolder ? 'folder' : 'file')">
+                <div class="cell icon"/>
+                <div class="cell space"/>
+                <div class="cell name">
+                  <div class="flex">
+                    <a class="value" t:href="url.combine(file.name + (file.isFolder ? '/' : ''))">
+                      <t:eval>file.name</t:eval>
+                    </a>
+                    <div class="cell space"/>
+                    <div class="filler">&nbsp;</div>
+                  </div>
+                </div>
+                <div class="cell space"/>
+                <div class="cell size">
+                  <div class="value">
+                    <t:eval>file.size</t:eval>
+                    <t:eval>(file.size > 1 ? "bytes" : "byte")</t:eval>
+                  </div>
+                </div>
+              </li>
+            </t:for-each>
+          </ul>
+        </section>
+      </t:cache>
+      <footer>
+        <t:include src="Footer.ddi" />
+      </footer>
+    </body>
+  </t:html>
 </t:ddt>
