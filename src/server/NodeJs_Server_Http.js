@@ -1554,7 +1554,7 @@ module.exports = {
 									const templ = new templType(request, request.getHandlers(nodejsHttp.CacheHandler).slice(-1)[0]);
 									return request.response.getStream({encoding: templType.$options.encoding})
 										.then(function(stream) {
-											templ.setStream(stream);
+											templ.pipe(stream);
 											return templ.render();
 										}, null, this)
 										.nodeify(function cleanup(err, result) {
