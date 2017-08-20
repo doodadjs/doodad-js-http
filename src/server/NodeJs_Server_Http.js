@@ -524,7 +524,7 @@ module.exports = {
 						};
 
 						return Promise.create(function tryStat(resolve, reject) {
-								nodeFs.stat(path.toString(), doodad.Callback(this, function getStatsCallback(err, stats) {
+								nodeFs.stat(path.toApiString(), doodad.Callback(this, function getStatsCallback(err, stats) {
 									if (err) {
 										reject(err);
 									} else {
@@ -558,7 +558,7 @@ module.exports = {
 							.then(function (outputStream) {
 								if (outputStream) {
 									const iwritable = outputStream.getInterface(nodejsIOInterfaces.IWritable);
-									const inputStream = nodeFs.createReadStream(path.toString());
+									const inputStream = nodeFs.createReadStream(path.toApiString());
 									inputStream.pipe(iwritable);
 									return outputStream.onEOF.promise();
 								};
@@ -1276,7 +1276,7 @@ module.exports = {
 							const state = request.getHandlerState(cacheHandler);
 
 							state.onCreateCurrent.attachOnce(this, function(handler, cached) {
-								files.watch(this.path.toString(), function() {
+								files.watch(this.path.toApiString(), function() {
 									cached.invalidate();
 								});
 							});
@@ -1605,6 +1605,7 @@ module.exports = {
 						if (request.url.file) {
 							return request.redirectClient(request.url.pushFile());
 						};
+
 						// Get negociated mime types between the handler and the client
 						function sendHtml(filesList) {
 							return templatesHtml.getTemplate(null, this.options.folderTemplate)
@@ -1625,9 +1626,11 @@ module.exports = {
 										});
 								}, null, this);
 						};
+
 						function sendJson() {
 							// TODO: Create helper functions in the request object, with an option to use a specific format handler
 							// TODO: JSON Stream (instead of global.JSON)
+							// TODO: Use template from "this.options.folderTemplate" for $readDir
 							return nodejsHttp.FolderPageTemplate.$readDir(this, data.path)
 								.then(function stringifyDir(filesList) {
 									filesList = tools.map(filesList, function(file) {
@@ -1644,6 +1647,7 @@ module.exports = {
 										}, null, this);
 								}, null, this);
 						};
+
 						function send(filesList) {
 							if (data.contentType.name === 'text/html') {
 								return sendHtml.call(this, filesList);
@@ -2170,7 +2174,7 @@ module.exports = {
 							if (!this.ready && this.writing) {
 								this.writing = false;
 								if (this.path) {
-									nodeFs.unlink(this.path.toString(), function(err) {}); // no need to get error feedbacks
+									nodeFs.unlink(this.path.toApiString(), function(err) {}); // no need to get error feedbacks
 									this.path = null;
 								};
 								this.dispatchEvent(new types.CustomEvent('invalidate'));
@@ -2182,7 +2186,7 @@ module.exports = {
 							if (ok) {
 								this.ready = false;
 								if (this.path) {
-									nodeFs.unlink(this.path.toString(), function(err) {}); // no need to get error feedbacks
+									nodeFs.unlink(this.path.toApiString(), function(err) {}); // no need to get error feedbacks
 									this.path = null;
 								};
 							};
@@ -2425,7 +2429,7 @@ module.exports = {
 						};
 
 						return Promise.create(function openFile(resolve, reject) {
-								const fileStream = nodeFs.createReadStream(cached.path.toString());
+								const fileStream = nodeFs.createReadStream(cached.path.toApiString());
 								let openCb = null,
 									errorCb = null;
 								const cleanup = function _cleanup() {
@@ -2530,7 +2534,7 @@ module.exports = {
 						function loopOpenFile(count) {
 							cached.path = this.options.cachePath.combine(tools.generateUUID());
 							return Promise.create(function tryOpen(resolve, reject) {
-									const stream = nodeFs.createWriteStream(cached.path.toString(), {autoClose: true, flags: 'wx', mode: this.options.cachedFilesMode || 0o644});
+									const stream = nodeFs.createWriteStream(cached.path.toApiString(), {autoClose: true, flags: 'wx', mode: this.options.cachedFilesMode || 0o644});
 									let errorCb = null,
 										openCb = null;
 									stream.once('error', errorCb = doodad.Callback(this, function streamOnError(err) {
@@ -2590,7 +2594,7 @@ module.exports = {
 											request.response.sendHeaders();
 										};
 										const status = request.response.status || 200;
-										headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toString() + '\n';
+										headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toApiString() + '\n';
 										headers += 'X-Cache-Status: ' + types.toString(status) + ' ' + (request.response.message || nodeHttp.STATUS_CODES[status] || '') + '\n';
 										tools.forEach(request.response.getHeaders(), function(value, name) {
 											headers += (name + ': ' + value + '\n');
