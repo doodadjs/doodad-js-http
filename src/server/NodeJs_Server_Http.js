@@ -1551,7 +1551,9 @@ module.exports = {
 							// NOTE: By changing the extension to "ddt", it will first try to serve the "ddtx". And if the 'ddtx' file doesn't exist, it will serve the "ddt".
 							return templatesHtml.getTemplate(null, data.path.set({extension: 'ddt'}))
 								.then(function renderTemplate(templType) {
-									const templ = new templType(request, request.getHandlers(nodejsHttp.CacheHandler).slice(-1)[0]);
+									const cacheHandlers = request.getHandlers(nodejsHttp.CacheHandler);
+									const cacheHandler = (cacheHandlers.length > 0 ? cacheHandlers[cacheHandlers.length - 1] : null);
+									const templ = new templType(request, cacheHandler);
 									return request.response.getStream({encoding: templType.$options.encoding})
 										.then(function(stream) {
 											templ.pipe(stream);
@@ -1610,10 +1612,12 @@ module.exports = {
 						function sendHtml(filesList) {
 							return templatesHtml.getTemplate(null, this.options.folderTemplate)
 								.then(function renderTemplate(templType) {
-									const templ = new templType(request, request.getHandlers(nodejsHttp.CacheHandler).slice(-1)[0], data.path);
+									const cacheHandlers = request.getHandlers(nodejsHttp.CacheHandler);
+									const cacheHandler = (cacheHandlers.length > 0 ? cacheHandlers[cacheHandlers.length - 1] : null);
+									const templ = new templType(request, cacheHandler, data.path);
 									return request.response.getStream({encoding: templType.$options.encoding})
 										.then(function(stream) {
-											templ.setStream(stream);
+											templ.pipe(stream);
 											return templ.render();
 										}, null, this)
 										.nodeify(function cleanup(err, result) {
