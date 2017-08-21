@@ -1786,8 +1786,8 @@ module.exports = {
 						if (nodeCluster.isWorker) {
 							const messenger = !id && request.server.options.messenger;
 							if (messenger) {
-								// TODO: LOW: Handle ID collisions while syncing by generating a new ID and syncing 1 more time.
-								return messenger.callService('Doodad.Server.Http.JsVarsIpcServiceMaster', 'syncJsVars', [nodeCluster.worker.id, varsId, vars], /*{ttl: ... , ...}*/)
+								// TODO: LOW: Handle ID collisions while syncing by generating a new ID and syncing X more time(s).
+								return messenger.callService('JsVarsIpcServiceMaster', 'syncJsVars', [varsId, vars], /*{ttl: ... , ...}*/)
 									.then(function(dummy) {
 										return varsId;
 									});
