@@ -1389,9 +1389,9 @@ module.exports = {
 						const nodeStream = nodeFs.createReadStream(path.toApiString());
 						const inputStream = new nodejsIO.BinaryInputStream({nodeStream: nodeStream});
 
-						inputStream.onError.attachOnce(this, function(ev) {
-							request.onError(ev);
-						});
+						//////inputStream.onError.attachOnce(this, function(ev) {
+						//////	request.onError(ev);
+						//////});
 
 						request.onSanitize.attachOnce(null, function() {
 							types.DESTROY(inputStream);
@@ -1555,6 +1555,9 @@ module.exports = {
 									const templ = new templType(request, cacheHandler);
 									return request.response.getStream({encoding: templType.$options.encoding})
 										.then(function(stream) {
+											/////templ.onError.attachOnce(this, function(ev) {
+											/////	request.onError(ev);
+											/////});
 											templ.pipe(stream);
 											return templ.render();
 										}, null, this)
@@ -1859,9 +1862,7 @@ module.exports = {
 									encoding: encoding,
 								});
 
-								jsStream.onError.attachOnce(this, function(ev) {
-									request.onError(ev);
-								});
+								////// jsStream.onError.attachOnce(request, request.onError);
 
 								request.onSanitize.attachOnce(this, function sanitize() {
 									types.DESTROY(jsStream); // stops the stream in case of abort
