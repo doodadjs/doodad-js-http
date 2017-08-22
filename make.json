@@ -109,12 +109,6 @@
       "client": false,
       "server": true,
       "browserify": false
-    },
-    {
-      "name": "doodad-js-make",
-      "client": false,
-      "server": true,
-      "browserify": false
     }
   ],
 	"modules": [
