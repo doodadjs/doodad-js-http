@@ -64,7 +64,6 @@ module.exports = {
 					minifiers = io.Minifiers,
 					templates = doodad.Templates,
 					templatesHtml = templates.Html,
-					make = root.Make,
 					dates = tools.Dates,
 					moment = dates.Moment, // Optional
 					
@@ -1716,14 +1715,15 @@ module.exports = {
 					$__jsVarsTimeoutId: doodad.PROTECTED(null),
 
 					// TODO: Find the best default values
-					$jsVarsTimeoutDelay: doodad.PUBLIC(1 * 60), // (seconds) 1 minute by default
-					$jsVarsTTL: doodad.PUBLIC(1 * 60 * 60),  // (seconds) 1 hour by default
+					$jsVarsTimeoutDelay: doodad.PUBLIC(30), // (seconds) 30 seconds by default
+					$jsVarsTTL: doodad.PUBLIC(5 * 60),  // (seconds) 5 minutes by default
 
 					$setJsVars: doodad.PUBLIC(doodad.TYPE(doodad.ASYNC(function $setJsVars(request, vars, /*optional*/id) {
 						const MAX_RETRIES = 5;
 
 						let jsVars = this.$__jsVars;
 						if (!jsVars) {
+							// TODO: Use a Map object (if it is faster)
 							this.$__jsVars = jsVars = types.nullObject();
 						};
 
@@ -1823,7 +1823,6 @@ module.exports = {
 						
 						//let val;
 						
-						options.useMake = types.toBoolean(options.useMake);
 						options.runDirectives = types.toBoolean(options.runDirectives);
 						options.keepComments = types.toBoolean(options.keepComments);
 						options.keepSpaces = types.toBoolean(options.keepSpaces);
@@ -1849,13 +1848,11 @@ module.exports = {
 								//	inputStream = textStream;
 								//};
 
-								const jsType = (this.options.useMake ? make.JavascriptBuilder : minifiers.Javascript);
-
 								const mimeType = request.getAcceptables('application/javascript', {handler: this})[0];
 								//const encoding = types.get(options, 'encoding', (mimeType ? mimeType.params.charset : null) || 'utf-8');
 								const encoding = (mimeType && mimeType.params.charset || 'utf-8');
 
-								const jsStream = new jsType({
+								const jsStream = new minifiers.Javascript({
 									runDirectives: this.options.runDirectives,
 									keepComments: this.options.keepComments,
 									keepSpaces: this.options.keepSpaces,
