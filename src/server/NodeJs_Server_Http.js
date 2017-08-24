@@ -320,6 +320,10 @@ module.exports = {
 
 						const responseStream = new nodejsIO.BinaryOutputStream({nodeStream: this.nodeJsStream});
 
+						this.request.onSanitize.attachOnce(null, function() {
+							types.DESTROY(responseStream);
+						});
+
 						responseStream.onWrite.attachOnce(this, this.__streamOnWrite, 10);
 
 						const ev = new doodad.Event({
@@ -362,17 +366,20 @@ module.exports = {
 										//responseStream = pipe.stream;
 
 									const pipeStream = pipe.stream;
-									const isNodeStream = !types._implements(pipeStream, io.Stream);
-									let sourceStream = pipeStream;
-									if (isNodeStream) {
-										sourceStream = new nodejsIO.BinaryInputStream({nodeStream: sourceStream});
-									};
+									const isNodeStream = !types._implements(pipeStream, ioMixIns.StreamBase);
+									const sourceStream = (isNodeStream ? new nodejsIO.BinaryInputStream({nodeStream: pipeStream}) : pipeStream);
+									//sourceStream.onError.attachOnce(this, this.onError);
 									sourceStream.pipe(responseStream, pipe.options.pipeOptions);
-									responseStream = pipeStream;
+									const destStream = (isNodeStream ? new nodejsIO.BinaryOutputStream({nodeStream: pipeStream}) : pipeStream);
+									//destStream.onError.attachOnce(this, this.onError);
 									if (isNodeStream) {
-										responseStream = new nodejsIO.BinaryOutputStream({nodeStream: responseStream});
+										this.request.onSanitize.attachOnce(null, function() {
+											types.DESTROY(sourceStream);
+											types.DESTROY(destStream);
+										});
 									};
-								});
+									responseStream = destStream;
+								}, this);
 								this.__pipes = null;  // disables "addPipe".
 
 								if (headers) {
@@ -386,6 +393,14 @@ module.exports = {
 								if (types._implements(responseStream, io.Stream)) {
 									if (encoding && !types._implements(responseStream, ioMixIns.TextOutputStream)) {
 										const textStream = new io.TextDecoderStream({encoding: encoding});
+										//textStream.onError.attachOnce(this, function(ev) {
+										//	if (!this.ended) {
+										//		this.respondWithError(ev.error);
+										//	};
+										//});
+										this.request.onSanitize.attachOnce(null, function() {
+											types.DESTROY(textStream);
+										});
 										textStream.pipe(responseStream);
 										responseStream = textStream;
 									};
@@ -398,6 +413,14 @@ module.exports = {
 									} else {
 										responseStream = new nodejsIO.BinaryOutputStream({nodeStream: responseStream});
 									};
+									//responseStream.onError.attachOnce(this, function(ev) {
+									//	if (!this.ended) {
+									//		this.respondWithError(ev.error);
+									//	};
+									//});
+									this.request.onSanitize.attachOnce(null, function() {
+										types.DESTROY(responseStream);
+									});
 								};
 
 								responseStream.onError.attachOnce(this, this.__streamOnError, 10);
@@ -883,6 +906,10 @@ module.exports = {
 
 						const requestStream = new nodejsIO.BinaryInputStream({nodeStream: this.nodeJsStream});
 
+						this.onSanitize.attachOnce(null, function() {
+							types.DESTROY(requestStream);
+						});
+
 						const ev = new doodad.Event({
 							stream: Promise.resolve(requestStream),
 							options: options,
@@ -944,22 +971,28 @@ module.exports = {
 										//requestStream = pipe.stream;
 
 									const pipeStream = pipe.stream;
-									const isNodeStream = !types._implements(pipeStream, io.Stream);
-									let destStream = pipeStream;
-									if (isNodeStream) {
-										destStream = new nodejsIO.BinaryOutputStream({nodeStream: destStream});
-									};
+									const isNodeStream = !types._implements(pipeStream, ioMixIns.StreamBase);
+									const destStream = (isNodeStream ? new nodejsIO.BinaryOutputStream({nodeStream: pipeStream}) : pipeStream);
+									//destStream.onError.attachOnce(this, this.onError);
 									requestStream.pipe(destStream, pipe.options.pipeOptions);
-									requestStream = pipeStream;
+									const sourceStream = (isNodeStream ? new nodejsIO.BinaryInputStream({nodeStream: pipeStream}) : pipeStream);
 									if (isNodeStream) {
-										requestStream = new nodejsIO.BinaryInputStream({nodeStream: requestStream});
+										this.onSanitize.attachOnce(null, function() {
+											types.DESTROY(destStream);
+											types.DESTROY(sourceStream);
+										});
 									};
-								});
+									requestStream = sourceStream;
+								}, this);
 								this.__pipes = null;  // disables "addPipe".
 							
 								if (types._implements(requestStream, io.Stream)) {
 									if (requestEncoding && !types._implements(requestStream, [ioMixIns.TextInputStream, ioMixIns.ObjectTransformableOut])) {
 										const textStream = new io.TextDecoderStream({encoding: requestEncoding});
+										//textStream.onError.attachOnce(this, this.onError);
+										//this.onSanitize.attachOnce(null, function() {
+										//	types.DESTROY(textStream);
+										//});
 										requestStream.pipe(textStream);
 										requestStream = textStream;
 									};
@@ -972,6 +1005,10 @@ module.exports = {
 									} else {
 										requestStream = new nodejsIO.BinaryInputStream({nodeStream: requestStream});
 									};
+									//requestStream.onError.attachOnce(this, this.onError);
+									//this.onSanitize.attachOnce(null, function() {
+									//	types.DESTROY(requestStream);
+									//});
 								};
 
 								this.stream = requestStream;
@@ -1389,10 +1426,6 @@ module.exports = {
 						const nodeStream = nodeFs.createReadStream(path.toApiString());
 						const inputStream = new nodejsIO.BinaryInputStream({nodeStream: nodeStream});
 
-						//////inputStream.onError.attachOnce(this, function(ev) {
-						//////	request.onError(ev);
-						//////});
-
 						request.onSanitize.attachOnce(null, function() {
 							types.DESTROY(inputStream);
 							types.DESTROY(nodeStream);
@@ -1555,9 +1588,6 @@ module.exports = {
 									const templ = new templType(request, cacheHandler);
 									return request.response.getStream({encoding: templType.$options.encoding})
 										.then(function(stream) {
-											/////templ.onError.attachOnce(this, function(ev) {
-											/////	request.onError(ev);
-											/////});
 											templ.pipe(stream);
 											return templ.render();
 										}, null, this)
@@ -1862,9 +1892,7 @@ module.exports = {
 									encoding: encoding,
 								});
 
-								////// jsStream.onError.attachOnce(request, request.onError);
-
-								request.onSanitize.attachOnce(this, function sanitize() {
+								request.onSanitize.attachOnce(null, function sanitize() {
 									types.DESTROY(jsStream); // stops the stream in case of abort
 								});
 
@@ -2442,7 +2470,7 @@ module.exports = {
 								};
 								fileStream.once('open', openCb = doodad.Callback(this, function onOpen(fd) {
 									cleanup();
-									request.onSanitize.attachOnce(this, function sanitize() {
+									request.onSanitize.attachOnce(null, function sanitize() {
 										fileStream.close();
 									});
 									resolve(fileStream);
@@ -2467,7 +2495,7 @@ module.exports = {
 									const cacheStream = new nodejsHttp.CacheStream({headersOnly: (request.verb === 'HEAD')});
 									cacheStream.listen();
 									const iwritable = cacheStream.getInterface(nodejsIOInterfaces.IWritable);
-									request.onSanitize.attachOnce(this, function sanitize(ev) {
+									request.onSanitize.attachOnce(null, function sanitize(ev) {
 										types.DESTROY(cacheStream);
 									});
 									const promise = cacheStream.onData.promise(function(ev) {

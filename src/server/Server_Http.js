@@ -1013,7 +1013,7 @@ module.exports = {
 
 						// TODO: Assert on "stream"
 						// NOTE: Pipes are made at "getStream".
-						const pipe = types.nullObject({stream: stream, options: options});
+						const pipe = {stream: stream, options: options};
 						if (options.unshift) {
 							this.__pipes.unshift(pipe);
 						} else {
@@ -2983,7 +2983,7 @@ module.exports = {
 						ev.preventDefault();
 
 						const contentType = request.contentType;
-						if (!mpStream || (contentType.name === 'multipart/mixed')) {
+						if (!mpStream || (contentType && (contentType.name === 'multipart/mixed'))) {
 							mpStream = new io.FormMultipartDecoderStream({boundary: contentType.params.boundary});
 
 							request.onSanitize.attachOnce(null, function () {
