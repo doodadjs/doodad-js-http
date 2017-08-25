@@ -55,7 +55,7 @@ module.exports = {
 					nodejsIOInterfaces = nodejsIO.Interfaces,
 					server = doodad.Server,
 					serverInterfaces = server.Interfaces,
-					//ipc = server.Ipc,
+					ipc = server.Ipc,
 					http = server.Http,
 					//httpInterfaces = http.Interfaces,
 					httpMixIns = http.MixIns,
@@ -1736,121 +1736,252 @@ module.exports = {
 					
 				}));
 
-				nodejsHttp.REGISTER(nodejsHttp.StaticPage.$extend(
+				nodejsHttp.REGISTER(doodad.Object.$extend(
+								ipc.MixIns.Service,
 				{
-					$TYPE_NAME: 'JavascriptPage',
-					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JavascriptPage')), true) */,
-					
-					// TODO: URGENT: Refactor with a specific handler for exchanging datas instead of doing it in Javascript.
-					// TODO: URGENT: Flood protection on "$setJsVars".
+					$TYPE_NAME: 'ClusterDataServiceMaster',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ClusterDataServiceMaster')), true) */,
+			
+					syncData: ipc.CALLABLE(function syncData(request, id, handlerName, token) {
+						const Promise = types.getPromise();
+						if (nodeCluster.isMaster) {
+							const keys = types.keys(nodeCluster.workers);
+							return Promise.map(keys, function(key) {
+								const worker = nodeCluster.workers[key];
+								// TODO: Get "worker" from Request and remove that argument.
+								if (worker.id !== request.msg.worker.id) {
+									return request.server.callService(nodejsHttp.ClusterDataServiceWorker.DD_FULL_NAME, 'setData', [id, handlerName, token], {worker: worker /*ttl: ..., ...*/});
+								};
+							});
+						};
+					}),
+				}));
+
+				nodejsHttp.REGISTER(doodad.Object.$extend(
+								ipc.MixIns.Service,
+				{
+					$TYPE_NAME: 'ClusterDataServiceWorker',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ClusterDataServiceWorker')), true) */,
+			
+					setData: ipc.CALLABLE(function setData(request, id, handlerName, token) {
+						if (nodeCluster.isWorker && id && handlerName && token && token.data) {
+							const handler = namespaces.get(handlerName);
+							if (handler) {
+								return nodejsHttp.ClusterDataHandler.$set(request, handler, token.data, {id: id, ttl: token.ttl});
+							};
+						};
+					}),
+				}));
+
+				nodejsHttp.REGISTER(doodad.Object.$extend(
+									httpMixIns.Handler,
+				{
+					$TYPE_NAME: 'DataHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('DataHandler')), true) */,
+
+					$timeoutDelay: doodad.PUBLIC(30), // seconds
+
+					$__exchangedDatas: doodad.PROTECTED(null),
+
+					$__dataTimeoutId: doodad.PROTECTED(null),
+
+					$createToken: doodad.PROTECTED(doodad.ASYNC(function $createToken(request, handler, id, tokenData, options) {
+						return tokenData;
+					})),
+
+					// TODO: URGENT: Flood protection on "$set".
 					// FUTURE: Reuse id for the same request url and session, or just the url (depends if data is common to a session or not).
-					$__jsVars: doodad.PROTECTED(null),
-					$__jsVarsTimeoutId: doodad.PROTECTED(null),
-
-					// TODO: Find the best default values
-					$jsVarsTimeoutDelay: doodad.PUBLIC(30), // (seconds) 30 seconds by default
-					$jsVarsTTL: doodad.PUBLIC(5 * 60),  // (seconds) 5 minutes by default
-
-					$setJsVars: doodad.PUBLIC(doodad.TYPE(doodad.ASYNC(function $setJsVars(request, vars, /*optional*/id) {
+					$set: doodad.PUBLIC(doodad.TYPE(doodad.ASYNC(function $set(request, handler, data, /*optional*/options) {
 						const MAX_RETRIES = 5;
 
-						let jsVars = this.$__jsVars;
-						if (!jsVars) {
-							// TODO: Use a Map object (if it is faster)
-							this.$__jsVars = jsVars = types.nullObject();
+						root.DD_ASSERT && root.DD_ASSERT(types._implements(handler, httpMixIns.Handler), "Invalid handler.");
+
+						const ttl = types.get(options, 'ttl', 5 * 60);
+						root.DD_ASSERT && root.DD_ASSERT(types.isInteger(ttl), "Invalid TTL option.");
+
+						const handlerType = types.getType(handler);
+
+						const exchanged = this.$__exchangedDatas;
+
+						let storage = exchanged.get(handlerType);
+						if (!storage) {
+							storage = types.nullObject();
+							exchanged.set(handlerType, storage);
 						};
 
-						let varsId = null;
+						let id = null;
 
-						if (id) {
-							// NOTE: "$setJsVars" called with an ID should comes from IPC
-							if (types.has(jsVars, id)) {
+						const foreignId = types.get(options, 'id');
+						if (foreignId) {
+							// NOTE: "$set" called with an ID should comes from IPC
+							if (types.has(storage, foreignId)) {
 								// Signal the collision.
 								// TODO: LOW: Create a specific error type (types.SyncingError ?).
-								throw new types.Error("That id is not available : ~0~.", [id]);
+								throw new types.Error("That id is not available : ~0~.", [foreignId]);
 							};
-							varsId = id;
+							id = foreignId;
+
 						} else {
-							varsId = tools.generateUUID();
+							id = tools.generateUUID();
 							let retries = 0;
-							while ((retries < MAX_RETRIES) && types.has(jsVars, varsId)) {
-								varsId = tools.generateUUID();
+							while ((retries < MAX_RETRIES) && types.has(storage, id)) {
+								id = tools.generateUUID();
 								retries++;
 							};
 							if (retries >= MAX_RETRIES) {
-								throw new types.Error("Can't generate a new ID for the javascript variables.");
+								throw new types.Error("Can't generate a new ID.");
 							};
 						};
 
-						jsVars[varsId] = types.freezeObject({
-							time: process.hrtime(),
-							vars: vars,
-						}, 1 + 15);
+						return this.$createToken(request, handler, id, {
+								time: process.hrtime(),
+								data: data,
+								ttl: ttl,
+							}, options)
+							.then(function(token) {
+								storage[id] = types.freezeObject(token);
 
-						if (!this.$__jsVarsTimeoutId) {
-							const createTimeout = function _createTimeout() {
-								return tools.callAsync(function() {
-									try {
-										const jsVars = this.$__jsVars;
-										const TTL = this.$jsVarsTTL;
-										// TODO: Make sure the main thread will not lock for too long by doing X items per tick
-										tools.forEach(jsVars, function(data, id) {
-											const diff = process.hrtime(data.time);
-											const seconds = diff[0] + (diff[1] / 1e9);
-											if (seconds >= TTL) {
-												delete jsVars[id];
+								if (!this.$__dataTimeoutId) {
+									const createTimeout = function _createTimeout() {
+										return tools.callAsync(function() {
+											try {
+												const exchanged = this.$__exchangedDatas;
+												tools.forEach(exchanged, function(storage, handlerType) {
+													// TODO: Make sure the main thread will not lock for too long by doing X items per tick
+													// TODO: Isolate Infinity ttls so that we don't loop through them.
+													tools.forEach(storage, function(token, id) {
+														const diff = process.hrtime(token.time);
+														const seconds = diff[0] + (diff[1] / 1e9);
+														if (seconds >= token.ttl) {
+															delete storage[id];
+														};
+													}, this);
+												}, this);
+											} catch(o) {
+												if (root.getOptions().debug) {
+													types.DEBUGGER();
+												};
 											};
-										}, this);
-									} catch(o) {
-										if (root.getOptions().debug) {
-											types.DEBUGGER();
-										};
+
+											if (this.$__dataTimeoutId) { // if not canceled...
+												this.$__dataTimeoutId = createTimeout.call(this);
+											};
+										}, this.$timeoutDelay * 1000, this, null, true);
 									};
 
-									if (this.$__jsVarsTimeoutId) { // if not canceled...
-										this.$__jsVarsTimeoutId = createTimeout.call(this);
-									};
-								}, this.$jsVarsTimeoutDelay * 1000, this, null, true);
-							};
+									this.$__dataTimeoutId = createTimeout.call(this);
+								};
 
-							this.$__jsVarsTimeoutId = createTimeout.call(this);
-						};
-
-						if (nodeCluster.isWorker) {
-							const messenger = !id && request.server.options.messenger;
-							if (messenger) {
-								// TODO: LOW: Handle ID collisions while syncing by generating a new ID and syncing X more time(s).
-								return messenger.callService('JsVarsIpcServiceMaster', 'syncJsVars', [varsId, vars], /*{ttl: ... , ...}*/)
-									.then(function(dummy) {
-										return varsId;
-									});
-									//.catch(function(ex) {
-
-									//});
-							};
-						};
-
-						return varsId;
+								return id;
+							}, null, this);
 					}))),
 
-					$getJsVars: doodad.PUBLIC(doodad.TYPE(doodad.ASYNC(function $getJsVars(request, varsId) {
-						const jsVars = this.$__jsVars; 
-						const data = types.get(jsVars, varsId, null);
-						if (data) {
-							return data.vars;
+					$get: doodad.PUBLIC(doodad.TYPE(doodad.ASYNC(function $get(request, handler, id, /*optional*/options) {
+						const exchanged = this.$__exchangedDatas;
+						const handlerType = types.getType(handler);
+						const storage = exchanged.get(handlerType);
+						if (storage) {
+							const token = types.get(storage, id, null);
+							if (token) {
+								return token.data;
+							};
 						};
 						return null;
 					}))),
 
+					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
+						options = this._super(options, parentOptions);
+						
+						//let val;
+
+						options.defaultTTL = types.toInteger(options.defaultTTL) || 5 * 60; // seconds
+						
+						return options;
+					}),
+
+					$create: doodad.OVERRIDE(function $create() {
+						this._super();
+
+						this.$__exchangedDatas = new types.Map();
+					}),
+
 					$destroy: doodad.OVERRIDE(function $destroy() {
-						if (this.$__jsVarsTimeoutId) {
-							this.$__jsVarsTimeoutId.cancel();
-							this.$__jsVarsTimeoutId = null;
+						if (this.$__dataTimeoutId) {
+							this.$__dataTimeoutId.cancel();
+							this.$__dataTimeoutId = null;
 						};
 
 						this._super();
 					}),
 
+					getData: doodad.PUBLIC(doodad.ASYNC(function getData(request, handler, id, /*optional*/options) {
+						return types.getType(this).$get(request, handler, id, options);
+					})),
+
+					setData: doodad.PUBLIC(doodad.ASYNC(function setData(request, handler, data, /*optional*/options) {
+						return types.getType(this).$set(request, handler, data, types.nullObject({
+								ttl: this.options.defaultTTL,
+							}, options));
+					})),
+
+					execute: doodad.OVERRIDE(function(request) {
+						return this._super(request);
+					}),
+				}));
+
+				nodejsHttp.REGISTER(nodejsHttp.DataHandler.$extend(
+				{
+					$TYPE_NAME: 'ClusterDataHandler',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ClusterDataHandler')), true) */,
+
+					$createToken: doodad.OVERRIDE(function $createToken(request, handler, id, tokenData, options) {
+						return this._super(request, handler, id, tokenData, options)
+							.then(function(tokenData) {
+								if (nodeCluster.isWorker && types.has(options, 'messenger') && !types.has(options, 'id')) {
+									const handlerType = types.getType(handler);
+									const handlerName = handlerType.DD_FULL_NAME;
+									root.DD_ASSERT && root.DD_ASSERT(namespaces.get(handlerName) === handlerType, "Handler is not registred.");
+
+									// TODO: LOW: Handle ID collisions while syncing by generating a new ID and syncing X more time(s).
+									return options.messenger.callService(nodejsHttp.ClusterDataServiceMaster.DD_FULL_NAME, 'syncData', [id, handlerName, tokenData])
+										.then(function(dummy) {
+											return tokenData;
+										});
+										//.catch(function(ex) {
+
+										//});
+								};
+
+								return tokenData;
+							});
+					}),
+
+					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
+						options = this._super(options, parentOptions);
+						
+						//let val;
+
+						if (nodeCluster.isWorker) {
+							if (!types._instanceof(options.messenger, cluster.ClusterMessenger)) {
+								throw new types.TypeError("Invalid or missing 'messenger' option.");
+							};
+						};
+						
+						return options;
+					}),
+
+					setData: doodad.OVERRIDE(function setData(request, handler, data, /*optional*/options) {
+						return this._super(request, handler, data, types.nullObject(options, {
+								messenger: this.options.messenger,
+							}));
+					}),
+				}));
+
+				nodejsHttp.REGISTER(nodejsHttp.StaticPage.$extend(
+				{
+					$TYPE_NAME: 'JavascriptPage',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JavascriptPage')), true) */,
+					
 					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
 						options = this._super(options, parentOptions);
 						
@@ -1864,6 +1995,25 @@ module.exports = {
 
 						return options;
 					}),
+
+					getJsVars: doodad.PUBLIC(doodad.ASYNC(function getJsVars(request, id, /*optional*/options) {
+						const dataHandlers = request.getHandlers(nodejsHttp.DataHandler);
+						const dataHandler = (dataHandlers.length > 0 ? dataHandlers[dataHandlers.length - 1] : null);
+						if (!dataHandler) {
+							throw new types.NotAvailable("Data handler is not loaded.");
+						};
+						return dataHandler.getData(request, this, id);
+					})),
+
+					setJsVars: doodad.PUBLIC(doodad.ASYNC(function setJsVars(request, vars, /*optional*/options) {
+						const dataHandlers = request.getHandlers(nodejsHttp.DataHandler);
+						const dataHandler = (dataHandlers.length > 0 ? dataHandlers[dataHandlers.length - 1] : null);
+						if (!dataHandler) {
+							throw new types.NotAvailable("Data handler is not loaded.");
+						};
+						const ttl = types.get(options, 'ttl', 5 * 60);
+						return dataHandler.setData(request, this, vars, {ttl: ttl});
+					})),
 
 					createStream: doodad.OVERRIDE(function createStream(request, /*optional*/options) {
 						const Promise = types.getPromise();
@@ -1904,7 +2054,7 @@ module.exports = {
 								if (varsId) {
 									promise = promise
 										.then(function(dummy) {
-												return types.getType(this).$getJsVars(request, varsId);
+												return this.getJsVars(request, varsId);
 											}, null, this)
 										.then(function(vars) {
 												tools.forEach(vars, function forEachVar(value, name) {
