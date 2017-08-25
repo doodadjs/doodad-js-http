@@ -1834,11 +1834,12 @@ module.exports = {
 						};
 
 						return this.$createToken(request, handler, id, {
-								time: process.hrtime(),
 								data: data,
 								ttl: ttl,
 							}, options)
 							.then(function(token) {
+								token.time = process.hrtime();
+
 								storage[id] = types.freezeObject(token);
 
 								if (!this.$__dataTimeoutId) {
