@@ -571,54 +571,11 @@ module.exports = {
 					};
 					return dates.strftime('%a, %d %b %Y %H:%M:%S GMT', date, __Internal__.enUSLocale, true);
 				});
-				
-				
-				http.ADD('prepareHandlersOptions', function prepareHandlersOptions(handlersOptions, /*optional*/parentOptions) {
-					if (!types.isArray(handlersOptions)) {
-						handlersOptions = [handlersOptions];
-					};
-					
-					parentOptions = types.nullObject(parentOptions);
-
-					return tools.map(handlersOptions, function(handlerOptions) {
-						let handler;
-						if (types.isJsObject(handlerOptions)) {
-							handlerOptions = types.nullObject(handlerOptions);
-							handler = handlerOptions.handler;
-						} else if (types.isJsFunction(handlerOptions)) {
-							handler = handlerOptions;
-							handlerOptions = types.nullObject(types.get(handler, 'options'), {handler: handler});
-						} else {
-							throw new types.TypeError("Invalid options.");
-						};
-						
-						if (types.isString(handler)) {
-							handlerOptions.handler = handler = namespaces.get(handler);
-						};
-						
-						if (types.isJsFunction(handler)) {
-							handlerOptions = httpMixIns.Handler.$prepare(handlerOptions, parentOptions);
-							if (handler.$prepare) {
-								handlerOptions = handler.$prepare(handlerOptions, parentOptions);
-							};
-							handler.options = handlerOptions;
-						} else if (types._implements(handler, httpMixIns.Handler)) {
-							handlerOptions = types.getType(handler).$prepare(handlerOptions, parentOptions);
-							if (!types.isType(handler)) {
-								types.extend(handler.options, handlerOptions);
-							};
-						} else {
-							throw new types.TypeError("Invalid handler type '~0~'.", [types.getTypeName(handler)]);
-						};
-						
-						return handlerOptions;
-					});
-				});
 
 				
 				httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
-									mixIns.Creatable,
 									mixIns.Events,
+									mixIns.Creatable,
 				{
 					$TYPE_NAME: 'Headers',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('HeadersMixIn')), true) */,
@@ -1051,6 +1008,12 @@ module.exports = {
 				{
 					$TYPE_NAME: 'HandlerState',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('HandlerState')), true) */,
+
+					parent: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					matcherResult: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					mimeTypes: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					url: doodad.PUBLIC(doodad.READ_ONLY(null)),
+					mustDestroy: doodad.PUBLIC(doodad.READ_ONLY(false)),
 				})));
 					
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
@@ -1292,38 +1255,42 @@ module.exports = {
 						return state;
 					}),
 
-					applyHandlerState: doodad.PUBLIC(function applyHandlerState(/*optional*/handler, /*optional*/newState, /*optional*/options) {
+					applyHandlerState: doodad.PUBLIC(function applyHandlerState(/*optional*/handler, /*optional*/newState) {
 						if (types.isNothing(handler)) {
 							handler = this.currentHandler;
 						} else if (types.isString(handler)) {
 							handler = namespaces.get(handler);
 						};
-						options = types.nullObject(options);
 						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(handler) || types._implements(handler, httpMixIns.Handler), "Invalid handler.");
-						if (!options.globalState && types.isType(handler)) {
+						const handlerType = types.getType(handler);
+						if (types.isType(handler)) {
 							handler = tools.filter(this.__handlersStates.keys(), function(hndlr) {
-								return types.isLike(hndlr, handler);
+								return !types.isType(hndlr) && types.isLike(hndlr, handlerType);
 							});
 						} else {
 							handler = [handler];
 						};
+						const globalProtos = [];
+						let globalType = handlerType;
+						while (globalType) {
+							const globalStates = this.server.getGlobalHandlerStates(globalType);
+							if (globalStates) {
+								types.prepend(globalProtos, globalStates);
+							};
+							globalType = types.getBase(globalType);
+							if (!types._implements(globalType, httpMixIns.Handler)) {
+								break;
+							};
+						};
 						tools.forEach(handler, function(hndlr) {
 							const protos = [];
-							let state = null;
-							if (!options.globalState && this.__handlersStates.has(hndlr)) {
-								state = this.__handlersStates.get(hndlr);
-							} else {
+							let state = this.__handlersStates.get(hndlr);
+							if (!state) {
 								state = new http.HandlerState();
-								if (!options.globalState) {
-									const handlerType = types.getType(hndlr);
-									const globalState = this.__handlersStates.get(handlerType);
-									if (globalState && !state._implements(globalState)) {
-										protos.push(globalState);
-									};
-								};
 								this.__handlersStates.set(hndlr, state);
+								types.append(protos, globalProtos);
 							};
-							if (newState && !state._implements(newState)) {
+							if (newState) {
 								protos.push(newState);
 							};
 							if (protos.length) {
@@ -1569,13 +1536,6 @@ module.exports = {
 							if (!handlerOptions.mimeTypes || (acceptedMimeTypes && acceptedMimeTypes.length)) {
 								const parentState = handlerOptions.parent && this.getHandlerState(handlerOptions.parent);
 								const stateUrl = handlerOptions.matcherResult && (parentState && parentState.url ? parentState.url.combine(handlerOptions.matcherResult.url, {isRelative: true}) : handlerOptions.matcherResult.url);
-								const stateProto = types.extend({}, handlerOptions.state, {
-									parent: doodad.PUBLIC(doodad.READ_ONLY(handlerOptions.parent || null)),
-									matcherResult: doodad.PUBLIC(doodad.READ_ONLY(handlerOptions.matcherResult || null)),
-									mimeTypes: doodad.PUBLIC(doodad.READ_ONLY(acceptedMimeTypes || null)),
-									url: doodad.PUBLIC(doodad.READ_ONLY(stateUrl || null)),
-								});
-								this.applyHandlerState(handler, stateProto, {globalState: true});
 
 								let mustDestroy = false;
 								if (types.isType(handler)) {
@@ -1584,21 +1544,21 @@ module.exports = {
 									mustDestroy = true;
 								};
 
-								if (!this.__handlersStates.has(handler)) {
-									this.applyHandlerState(handler, {
-										mustDestroy: doodad.PUBLIC(doodad.READ_ONLY(mustDestroy)),
-									});
-								};
-
-								tools.forEach(handlerOptions.states, function(newState, handler) {
-									this.applyHandlerState(handler, newState);
-								}, this);
-							
 	//console.log(types.getTypeName(handler) + ": " + this.url.toString() + "   " + this.id);
+
+								const stateValues = {
+									parent: handlerOptions.parent || null,
+									matcherResult: handlerOptions.matcherResult || null,
+									mimeTypes: acceptedMimeTypes || null,
+									url: stateUrl || null,
+									mustDestroy: mustDestroy,
+								};
+								const handlerState = this.getHandlerState(handler);
+								_shared.setAttributes(handlerState, stateValues);
 
 								if (types._implements(handler, httpMixIns.Handler)) {
 									if (resolveUrl) {
-										const currentState = resolveUrl && this.getHandlerState(handler);
+										const currentState = this.getHandlerState(handler);
 										const matcherResult = currentState && currentState.matcherResult;
 										if (matcherResult && matcherResult.full) {
 											resolved.push(handler);
@@ -1727,6 +1687,10 @@ module.exports = {
 					protocol: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					handlersOptions: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					options:  doodad.PUBLIC(doodad.READ_ONLY(null)),
+
+					getGlobalHandlerStates: doodad.PUBLIC(doodad.MUST_OVERRIDE()),  // function getGlobalHandlerStates(handlerType)
+					applyGlobalHandlerState: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function applyGlobalHandlerState(/*optional*/handlerType, /*optional*/newState)
+					prepareHandlersOptions: doodad.PUBLIC(doodad.MUST_OVERRIDE()),  // function prepareHandlersOptions(handlersOptions, /*optional*/parentOptions)
 				})));
 				
 				httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
@@ -2351,6 +2315,8 @@ module.exports = {
 					$TYPE_NAME: 'Server',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ServerBase')), true) */,
 
+					__globalHandlersStates: doodad.PROTECTED(null),
+
 					create: doodad.OVERRIDE(function create(handlersOptions, /*optional*/serverOptions) {
 						this._super();
 
@@ -2364,10 +2330,84 @@ module.exports = {
 						};
 						serverOptions.validHosts = val;
 
+						this.__globalHandlersStates = new types.WeakMap();
+
 						_shared.setAttributes(this, {
-							handlersOptions: http.prepareHandlersOptions(handlersOptions),
+							handlersOptions: this.prepareHandlersOptions(handlersOptions),
 							options: serverOptions,
 						});
+					}),
+
+					getGlobalHandlerStates: doodad.REPLACE(function getGlobalHandlerStates(handlerType) {
+						if (types.isString(handlerType)) {
+							handlerType = namespaces.get(handlerType);
+						};
+						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(handlerType) || types._implements(handlerType, httpMixIns.Handler), "Invalid handler.");
+						return this.__globalHandlersStates.get(handlerType);
+					}),
+
+					applyGlobalHandlerState: doodad.REPLACE(function applyGlobalHandlerState(handlerType, /*optional*/newState) {
+						if (types.isString(handlerType)) {
+							handlerType = namespaces.get(handlerType);
+						};
+						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(handlerType) || types._implements(handlerType, httpMixIns.Handler), "Invalid handler.");
+						handlerType = types.getType(handlerType) || handlerType;
+						if (newState) {
+							let globalStates = this.__globalHandlersStates.get(handlerType);
+							if (!globalStates) {
+								globalStates = [];
+								this.__globalHandlersStates.set(handlerType, globalStates);
+							};
+							globalStates.push(newState)
+						};
+					}),
+
+					prepareHandlersOptions: doodad.REPLACE(function prepareHandlersOptions(handlersOptions, /*optional*/parentOptions) {
+						if (!types.isArray(handlersOptions)) {
+							handlersOptions = [handlersOptions];
+						};
+					
+						parentOptions = types.nullObject(parentOptions);
+
+						return tools.map(handlersOptions, function(handlerOptions) {
+							let handler;
+							if (types.isJsObject(handlerOptions)) {
+								handlerOptions = types.nullObject(handlerOptions);
+								handler = handlerOptions.handler;
+							} else if (types.isJsFunction(handlerOptions)) {
+								handler = handlerOptions;
+								handlerOptions = types.nullObject(types.get(handler, 'options'), {handler: handler});
+							} else {
+								throw new types.TypeError("Invalid options.");
+							};
+						
+							if (types.isString(handler)) {
+								handlerOptions.handler = handler = namespaces.get(handler);
+							};
+						
+							if (types.isJsFunction(handler)) {
+								handlerOptions = httpMixIns.Handler.$prepare(handlerOptions, parentOptions);
+								if (handler.$prepare) {
+									handlerOptions = handler.$prepare(handlerOptions, parentOptions);
+								};
+								handler.options = handlerOptions;
+							} else if (types._implements(handler, httpMixIns.Handler)) {
+								handlerOptions = types.getType(handler).$prepare(handlerOptions, parentOptions);
+								if (!types.isType(handler)) {
+									types.extend(handler.options, handlerOptions);
+								};
+							} else {
+								throw new types.TypeError("Invalid handler type '~0~'.", [types.getTypeName(handler)]);
+							};
+						
+							this.applyGlobalHandlerState(handler, handlerOptions.state);
+
+							tools.forEach(handlerOptions.states, function(newState, handler) {
+								this.applyGlobalHandlerState(handler, newState);
+							}, this);
+
+							return handlerOptions;
+						}, this);
 					}),
 				})));
 
@@ -2392,9 +2432,9 @@ module.exports = {
 					create: doodad.OVERRIDE(function create(baseUrl) {
 						this._super();
 						if (types.isString(baseUrl)) {
-							baseUrl = files.Url.parse(baseUrl);
+							baseUrl = files.parseUrl(baseUrl);
 						};
-						root.DD_ASSERT && root.DD_ASSERT((baseUrl instanceof files.Url), "Invalid url.");
+						root.DD_ASSERT && root.DD_ASSERT(types._instanceof(baseUrl, files.Url), "Invalid url.");
 						this.baseUrl = baseUrl;
 					}),
 					
@@ -2631,7 +2671,7 @@ module.exports = {
 							const routeId = route.id;
 
 							if (!route.prepared) {
-								route.handlers = http.prepareHandlersOptions(route.handlers, this.options);
+								route.handlers = request.server.prepareHandlersOptions(route.handlers, this.options);
 								route.prepared = true;
 							};
 
