@@ -2025,6 +2025,16 @@ module.exports = {
 									return null;
 								};
 
+								const url = types.get(options, 'url', request.url);
+
+								const file = (url.hasArg('res') ? url.getArg('res', true) : url.file);
+								const fileTypes = mime.getTypes(file);
+								if (!tools.some(fileTypes, function(fileType) {
+									return fileType === 'application/javascript';
+								})) {
+									return inputStream;
+								};
+
 								//if (!types._implements(inputStream, ioMixIns.TextInputStream)) {
 								//	const encoding = types.get(options, 'encoding', 'utf-8');
 								//	const textStream = new io.TextDecoderStream({encoding: encoding});
@@ -2048,8 +2058,6 @@ module.exports = {
 								});
 
 								let promise = Promise.resolve();
-
-								const url = types.get(options, 'url', request.url);
 
 								const varsId = url.getArg('vars');
 								if (varsId) {
