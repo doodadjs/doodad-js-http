@@ -1240,16 +1240,17 @@ module.exports = {
 					}),
 
 					getHandlerState: doodad.PUBLIC(function getHandlerState(/*optional*/handler) {
-						root.DD_ASSERT && root.DD_ASSERT(types.isNothing(handler) || types.isJsFunction(handler) || types._implements(handler, httpMixIns.Handler), "Invalid handler.");
-						if (types.isNothing(handler)) {
-							handler = this.currentHandler;
-						};
 						let state = null;
-						if (handler) {
-							state = this.__handlersStates.get(handler);
-							if (!state) {
-								this.applyHandlerState(handler);
+						if (types.isNothing(handler) || types.isJsFunction(handler) || types._implements(handler, httpMixIns.Handler)) {
+							if (types.isNothing(handler)) {
+								handler = this.currentHandler;
+							};
+							if (handler) {
 								state = this.__handlersStates.get(handler);
+								if (!state) {
+									this.applyHandlerState(handler);
+									state = this.__handlersStates.get(handler);
+								};
 							};
 						};
 						return state;
@@ -1270,25 +1271,26 @@ module.exports = {
 						} else {
 							handler = [handler];
 						};
-						const globalProtos = [];
-						let globalType = handlerType;
-						while (globalType) {
-							const globalStates = this.server.getGlobalHandlerStates(globalType);
-							if (globalStates) {
-								types.prepend(globalProtos, globalStates);
-							};
-							globalType = types.getBase(globalType);
-							if (!types._implements(globalType, httpMixIns.Handler)) {
-								break;
-							};
-						};
 						tools.forEach(handler, function(hndlr) {
 							const protos = [];
 							let state = this.__handlersStates.get(hndlr);
 							if (!state) {
 								state = new http.HandlerState();
 								this.__handlersStates.set(hndlr, state);
-								types.append(protos, globalProtos);
+
+								let globalHandler = hndlr;
+								while (!types._implements(globalHandler, httpMixIns.GlobalHandlerStates)) {
+									 globalHandler = globalHandler.options.parent;
+								};
+
+								let globalType = handlerType;
+								while (types._implements(globalType, httpMixIns.Handler)) {
+									const globalStates = globalHandler.getGlobalHandlerStates(globalType);
+									if (globalStates) {
+										types.prepend(protos, globalStates);
+									};
+									globalType = types.getBase(globalType);
+								};
 							};
 							if (newState) {
 								protos.push(newState);
@@ -1679,7 +1681,98 @@ module.exports = {
 					}),
 				})));
 				
+				httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
+				{
+					$TYPE_NAME: 'GlobalHandlerStates',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('GlobalHandlerStatesMixIn')), true) */,
+
+					__globalHandlersStates: doodad.PROTECTED(null),
+
+					getGlobalHandlerStates: doodad.PUBLIC(function getGlobalHandlerStates(handlerType) {
+						if (types.isString(handlerType)) {
+							handlerType = namespaces.get(handlerType);
+						};
+						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(handlerType) || types._implements(handlerType, httpMixIns.Handler), "Invalid handler.");
+						const statesMap = this.__globalHandlersStates;
+						return statesMap && statesMap.get(handlerType);
+					}),
+
+					applyGlobalHandlerState: doodad.PROTECTED(function applyGlobalHandlerState(handlerType, /*optional*/newState) {
+						if (types.isString(handlerType)) {
+							handlerType = namespaces.get(handlerType);
+						};
+						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(handlerType) || types._implements(handlerType, httpMixIns.Handler), "Invalid handler.");
+						handlerType = types.getType(handlerType) || handlerType;
+						if (newState) {
+							let statesMap = this.__globalHandlersStates;
+							if (!statesMap) {
+								this.__globalHandlersStates = statesMap = new types.WeakMap();
+							};
+							let globalStates = statesMap.get(handlerType);
+							if (!globalStates) {
+								globalStates = [];
+								statesMap.set(handlerType, globalStates);
+							};
+							globalStates.push(newState)
+						};
+					}),
+
+					prepareHandlersOptions: doodad.PROTECTED(function prepareHandlersOptions(handlersOptions) {
+						if (!types.isArray(handlersOptions)) {
+							handlersOptions = [handlersOptions];
+						};
+					
+						return tools.map(handlersOptions, function(handlerOptions) {
+							let handler;
+							if (types.isJsObject(handlerOptions)) {
+								handlerOptions = types.nullObject(handlerOptions);
+								handler = handlerOptions.handler;
+							} else if (types.isJsFunction(handlerOptions)) {
+								handler = handlerOptions;
+								handlerOptions = types.nullObject(types.get(handler, 'options'), {handler: handler});
+							} else {
+								throw new types.TypeError("Invalid options.");
+							};
+						
+							if (types.isString(handler)) {
+								handlerOptions.handler = handler = namespaces.get(handler);
+							};
+						
+							handlerOptions.parent = this;
+
+							if (types.isJsFunction(handler)) {
+								handlerOptions = httpMixIns.Handler.$prepare(handlerOptions, this);
+								if (handler.$prepare) {
+									handlerOptions = handler.$prepare(handlerOptions, this);
+								};
+								handler.options = handlerOptions;
+							} else if (types._implements(handler, httpMixIns.Handler)) {
+								handlerOptions = types.getType(handler).$prepare(handlerOptions, this);
+								if (!types.isType(handler)) {
+									types.extend(handler.options, handlerOptions);
+								};
+							} else {
+								throw new types.TypeError("Invalid handler type '~0~'.", [types.getTypeName(handler)]);
+							};
+
+							const currentStates = this.options.parent && this.options.parent.getGlobalHandlerStates(handler);
+							tools.forEach(currentStates, function(newState) {
+								this.applyGlobalHandlerState(handler, newState);
+							}, this);
+
+							this.applyGlobalHandlerState(handler, handlerOptions.state);
+
+							tools.forEach(handlerOptions.states, function(newState, handler) {
+								this.applyGlobalHandlerState(handler, newState);
+							}, this);
+
+							return handlerOptions;
+						}, this);
+					}),
+				})));
+
 				httpMixIns.REGISTER(doodad.MIX_IN(serverMixIns.Server.$extend(
+									httpMixIns.GlobalHandlerStates,
 				{
 					$TYPE_NAME: 'Server',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ServerMixIn')), true) */,
@@ -1687,10 +1780,6 @@ module.exports = {
 					protocol: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					handlersOptions: doodad.PUBLIC(doodad.READ_ONLY(null)),
 					options:  doodad.PUBLIC(doodad.READ_ONLY(null)),
-
-					getGlobalHandlerStates: doodad.PUBLIC(doodad.MUST_OVERRIDE()),  // function getGlobalHandlerStates(handlerType)
-					applyGlobalHandlerState: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function applyGlobalHandlerState(/*optional*/handlerType, /*optional*/newState)
-					prepareHandlersOptions: doodad.PUBLIC(doodad.MUST_OVERRIDE()),  // function prepareHandlersOptions(handlersOptions, /*optional*/parentOptions)
 				})));
 				
 				httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
@@ -1700,7 +1789,7 @@ module.exports = {
 					$TYPE_NAME: 'Handler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('HandlerMixIn')), true) */,
 
-					$prepare: doodad.PUBLIC(function $prepare(options, /*optional*/parentOptions) {
+					$prepare: doodad.PUBLIC(function $prepare(options, parent) {
 						options = types.nullObject(options);
 
 						let val;
@@ -1751,6 +1840,8 @@ module.exports = {
 						options.caseSensitive = val;
 
 
+						const parentOptions = parent.options;
+
 						options.depth = (types.isNothing(options.depth) ? (types.isNothing(parentOptions.depth) ? 0 : parentOptions.depth) : options.depth);
 						options.extensions = (options.extensions || parentOptions.extensions) && types.unique(options.extensions, parentOptions.extensions);
 						options.verbs = (options.verbs || parentOptions.verbs) && types.unique(options.verbs, parentOptions.verbs);
@@ -1770,6 +1861,7 @@ module.exports = {
 				
 				
 				httpMixIns.REGISTER(doodad.MIX_IN(httpMixIns.Handler.$extend(
+									httpMixIns.GlobalHandlerStates,
 				{
 					$TYPE_NAME: 'Routes',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RoutesMixIn')), true) */,
@@ -1834,10 +1926,10 @@ module.exports = {
 					$TYPE_NAME: 'StatusPage',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('StatusPage')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
+					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
 						types.getDefault(options, 'depth', 0);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 						
 						let val;
 						
@@ -1901,10 +1993,10 @@ module.exports = {
 					$TYPE_NAME: 'RedirectHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RedirectHandler')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
+					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
 						types.getDefault(options, 'depth', 0);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 						
 						let val;
 						
@@ -1939,10 +2031,10 @@ module.exports = {
 					$TYPE_NAME: 'CrossOriginHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CrossOriginHandler')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function(options, /*optional*/parentOptions) {
+					$prepare: doodad.OVERRIDE(function(options, parent) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 						
 						let val;
 						
@@ -2136,10 +2228,10 @@ module.exports = {
 						return value.slice(2);
 					})),
 
-					$prepare: doodad.OVERRIDE(function(options, /*optional*/parentOptions) {
+					$prepare: doodad.OVERRIDE(function(options, parent) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 						
 						let val;
 
@@ -2189,10 +2281,10 @@ module.exports = {
 					$TYPE_NAME: 'ContentSecurityPolicyReportHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ContentSecurityPolicyReportHandler')), true) * /,
 					
-					$prepare: doodad.OVERRIDE(function(options, /*optional* /parentOptions) {
+					$prepare: doodad.OVERRIDE(function(options, parent) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 						
 						let val;
 						
@@ -2217,10 +2309,10 @@ module.exports = {
 					$TYPE_NAME: 'UpgradeInsecureRequestsHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('UpgradeInsecureRequestsHandler')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function(options, /*optional*/parentOptions) {
+					$prepare: doodad.OVERRIDE(function(options, parent) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 
 						var val;
 						
@@ -2283,10 +2375,10 @@ module.exports = {
 					$TYPE_NAME: 'ClientCrashHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ClientCrashHandler')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function(options, /*optional*/parentOptions) {
+					$prepare: doodad.OVERRIDE(function(options, parent) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 
 						var val;
 						
@@ -2315,8 +2407,6 @@ module.exports = {
 					$TYPE_NAME: 'Server',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ServerBase')), true) */,
 
-					__globalHandlersStates: doodad.PROTECTED(null),
-
 					create: doodad.OVERRIDE(function create(handlersOptions, /*optional*/serverOptions) {
 						this._super();
 
@@ -2330,84 +2420,8 @@ module.exports = {
 						};
 						serverOptions.validHosts = val;
 
-						this.__globalHandlersStates = new types.WeakMap();
-
-						_shared.setAttributes(this, {
-							handlersOptions: this.prepareHandlersOptions(handlersOptions),
-							options: serverOptions,
-						});
-					}),
-
-					getGlobalHandlerStates: doodad.REPLACE(function getGlobalHandlerStates(handlerType) {
-						if (types.isString(handlerType)) {
-							handlerType = namespaces.get(handlerType);
-						};
-						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(handlerType) || types._implements(handlerType, httpMixIns.Handler), "Invalid handler.");
-						return this.__globalHandlersStates.get(handlerType);
-					}),
-
-					applyGlobalHandlerState: doodad.REPLACE(function applyGlobalHandlerState(handlerType, /*optional*/newState) {
-						if (types.isString(handlerType)) {
-							handlerType = namespaces.get(handlerType);
-						};
-						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(handlerType) || types._implements(handlerType, httpMixIns.Handler), "Invalid handler.");
-						handlerType = types.getType(handlerType) || handlerType;
-						if (newState) {
-							let globalStates = this.__globalHandlersStates.get(handlerType);
-							if (!globalStates) {
-								globalStates = [];
-								this.__globalHandlersStates.set(handlerType, globalStates);
-							};
-							globalStates.push(newState)
-						};
-					}),
-
-					prepareHandlersOptions: doodad.REPLACE(function prepareHandlersOptions(handlersOptions, /*optional*/parentOptions) {
-						if (!types.isArray(handlersOptions)) {
-							handlersOptions = [handlersOptions];
-						};
-					
-						parentOptions = types.nullObject(parentOptions);
-
-						return tools.map(handlersOptions, function(handlerOptions) {
-							let handler;
-							if (types.isJsObject(handlerOptions)) {
-								handlerOptions = types.nullObject(handlerOptions);
-								handler = handlerOptions.handler;
-							} else if (types.isJsFunction(handlerOptions)) {
-								handler = handlerOptions;
-								handlerOptions = types.nullObject(types.get(handler, 'options'), {handler: handler});
-							} else {
-								throw new types.TypeError("Invalid options.");
-							};
-						
-							if (types.isString(handler)) {
-								handlerOptions.handler = handler = namespaces.get(handler);
-							};
-						
-							if (types.isJsFunction(handler)) {
-								handlerOptions = httpMixIns.Handler.$prepare(handlerOptions, parentOptions);
-								if (handler.$prepare) {
-									handlerOptions = handler.$prepare(handlerOptions, parentOptions);
-								};
-								handler.options = handlerOptions;
-							} else if (types._implements(handler, httpMixIns.Handler)) {
-								handlerOptions = types.getType(handler).$prepare(handlerOptions, parentOptions);
-								if (!types.isType(handler)) {
-									types.extend(handler.options, handlerOptions);
-								};
-							} else {
-								throw new types.TypeError("Invalid handler type '~0~'.", [types.getTypeName(handler)]);
-							};
-						
-							this.applyGlobalHandlerState(handler, handlerOptions.state);
-
-							tools.forEach(handlerOptions.states, function(newState, handler) {
-								this.applyGlobalHandlerState(handler, newState);
-							}, this);
-
-							return handlerOptions;
-						}, this);
+						_shared.setAttribute(this, 'options', serverOptions);
+						_shared.setAttribute(this, 'handlersOptions', this.prepareHandlersOptions(handlersOptions));
 					}),
 				})));
 
@@ -2622,10 +2636,10 @@ module.exports = {
 
 					routes: doodad.PUBLIC(doodad.READ_ONLY(null)),
 
-					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
+					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 
 						return options;
 					}),
@@ -2671,7 +2685,7 @@ module.exports = {
 							const routeId = route.id;
 
 							if (!route.prepared) {
-								route.handlers = request.server.prepareHandlersOptions(route.handlers, this.options);
+								route.handlers = this.prepareHandlersOptions(route.handlers);
 								route.prepared = true;
 							};
 
@@ -2694,7 +2708,6 @@ module.exports = {
 
 								if ((matcherResult.weight > 0) || matcherResult.full) {
 //matcherResult && matcherResult.urlRemaining && console.log(matcherResult.urlRemaining.toString());
-									options.parent = this;
 									options.routeId = routeId;
 									options.routeIndex = i;
 									options.matcherResult = matcherResult;
@@ -2750,10 +2763,10 @@ module.exports = {
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JsonBodyHandler')), true) */,
 					
 					/*
-					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional* /parentOptions) {
+					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 
 						return options;
 					}),
@@ -2798,10 +2811,10 @@ module.exports = {
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('XmlBodyHandler')), true) * /,
 					
 					/ *
-					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional* /parentOptions) {
+					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 
 						return options;
 					}),
@@ -2839,10 +2852,10 @@ module.exports = {
 					$TYPE_NAME: 'UrlBodyHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('UrlBodyHandler')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
+					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 
 						let val;
 
@@ -2898,10 +2911,10 @@ module.exports = {
 					$TYPE_NAME: 'Base64BodyHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('Base64BodyHandler')), true) */,
 					
-					//$prepare: doodad.OVERRIDE(function $prepare(options, /*optional* /parentOptions) {
+					//$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
 					//	types.getDefault(options, 'depth', Infinity);
 					//
-					//	options = this._super(options, parentOptions);
+					//	options = this._super(options, parent);
 					//
 					//	let val;
 					//
@@ -2937,10 +2950,10 @@ module.exports = {
 					$TYPE_NAME: 'TextBodyHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('TextBodyHandler')), true) */,
 					
-					//$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
+					//$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
 					//	types.getDefault(options, 'depth', Infinity);
 					//
-					//	options = this._super(options, parentOptions);
+					//	options = this._super(options, parent);
 					//
 					//	let val;
 					//
@@ -2984,10 +2997,10 @@ module.exports = {
 					$TYPE_NAME: 'FormMultipartBodyHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('FormMultipartBodyHandler')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options, /*optional*/parentOptions) {
+					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parentOptions);
+						options = this._super(options, parent);
 					
 						//let val;
 					
