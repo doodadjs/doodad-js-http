@@ -759,7 +759,7 @@ module.exports = {
 				http.REGISTER(doodad.BASE(doodad.Object.$extend(
 									httpMixIns.Headers,
 									//mixIns.Events,
-		//									serverMixIns.Response,
+//									serverMixIns.Response,
 				{
 					$TYPE_NAME: 'Response',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ResponseBase')), true) */,
@@ -1755,12 +1755,12 @@ module.exports = {
 								throw new types.TypeError("Invalid handler type '~0~'.", [types.getTypeName(handler)]);
 							};
 
+							this.applyGlobalHandlerState(handler, handlerOptions.state);
+
 							const currentStates = this.options.parent && this.options.parent.getGlobalHandlerStates(handler);
 							tools.forEach(currentStates, function(newState) {
 								this.applyGlobalHandlerState(handler, newState);
 							}, this);
-
-							this.applyGlobalHandlerState(handler, handlerOptions.state);
 
 							tools.forEach(handlerOptions.states, function(newState, handler) {
 								this.applyGlobalHandlerState(handler, newState);
