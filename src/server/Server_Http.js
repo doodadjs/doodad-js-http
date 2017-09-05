@@ -1279,7 +1279,7 @@ module.exports = {
 								this.__handlersStates.set(hndlr, state);
 
 								let container = hndlr;
-								while (!types._implements(container, httpMixIns.HandlersContainer)) {
+								while (container && !types._implements(container, httpMixIns.HandlersContainer)) {
 									 container = container.options.parent;
 								};
 
