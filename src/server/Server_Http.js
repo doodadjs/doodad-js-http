@@ -1278,18 +1278,14 @@ module.exports = {
 								state = new http.HandlerState();
 								this.__handlersStates.set(hndlr, state);
 
-								let globalHandler = hndlr;
-								while (!types._implements(globalHandler, httpMixIns.GlobalHandlerStates)) {
-									 globalHandler = globalHandler.options.parent;
+								let container = hndlr;
+								while (!types._implements(container, httpMixIns.HandlersContainer)) {
+									 container = container.options.parent;
 								};
 
-								let globalType = handlerType;
-								while (types._implements(globalType, httpMixIns.Handler)) {
-									const globalStates = globalHandler.getGlobalHandlerStates(globalType);
-									if (globalStates) {
-										types.prepend(protos, globalStates);
-									};
-									globalType = types.getBase(globalType);
+								if (container) {
+									const globalStates = container.getGlobalHandlerStates(handlerType);
+									types.append(protos, globalStates);
 								};
 							};
 							if (newState) {
@@ -1683,8 +1679,8 @@ module.exports = {
 				
 				httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
 				{
-					$TYPE_NAME: 'GlobalHandlerStates',
-					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('GlobalHandlerStatesMixIn')), true) */,
+					$TYPE_NAME: 'HandlersContainer',
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('HandlersContainerMixIn')), true) */,
 
 					__globalHandlersStates: doodad.PROTECTED(null),
 
@@ -1694,7 +1690,18 @@ module.exports = {
 						};
 						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(handlerType) || types._implements(handlerType, httpMixIns.Handler), "Invalid handler.");
 						const statesMap = this.__globalHandlersStates;
-						return statesMap && statesMap.get(handlerType);
+						const states = [];
+						if (statesMap) {
+							let currentType = handlerType;
+							do {
+								const currentStates = statesMap.get(currentType);
+								if (currentStates) {
+									types.prepend(states, currentStates);
+								};
+								currentType = types.getBase(currentType);
+							} while (types._implements(currentType, httpMixIns.Handler));
+						};
+						return states;
 					}),
 
 					applyGlobalHandlerState: doodad.PROTECTED(function applyGlobalHandlerState(handlerType, /*optional*/newState) {
@@ -1772,7 +1779,7 @@ module.exports = {
 				})));
 
 				httpMixIns.REGISTER(doodad.MIX_IN(serverMixIns.Server.$extend(
-									httpMixIns.GlobalHandlerStates,
+									httpMixIns.HandlersContainer,
 				{
 					$TYPE_NAME: 'Server',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ServerMixIn')), true) */,
@@ -1861,7 +1868,7 @@ module.exports = {
 				
 				
 				httpMixIns.REGISTER(doodad.MIX_IN(httpMixIns.Handler.$extend(
-									httpMixIns.GlobalHandlerStates,
+									httpMixIns.HandlersContainer,
 				{
 					$TYPE_NAME: 'Routes',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RoutesMixIn')), true) */,
