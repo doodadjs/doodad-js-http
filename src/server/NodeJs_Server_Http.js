@@ -559,10 +559,13 @@ module.exports = {
 									throw new types.HttpError(types.HttpStatus.NotFound);
 								};
 
-								if (!this.contentType) {
-									const contentTypes = mime.getTypes(path.file) || ['application/octet-stream'];
-									this.setContentType(contentTypes);
+								const contentTypes = this.request.getAcceptables(mime.getTypes(path.file) || ['application/octet-stream']);
+
+								if (!contentTypes.length) {
+									throw new types.HttpError(types.HttpStatus.UnsupportedMediaType);
 								};
+
+								this.setContentType(contentTypes[0]);
 								
 								this.addHeaders({
 									'Last-Modified': http.toRFC1123Date(stats.mtime), // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
@@ -577,10 +580,13 @@ module.exports = {
 									return this.getStream();
 								};
 							}, null, this)
-							.then(function (outputStream) {
+							.then(function(outputStream) {
 								if (outputStream) {
-									const iwritable = outputStream.getInterface(nodejsIOInterfaces.IWritable);
 									const inputStream = nodeFs.createReadStream(path.toApiString());
+									this.request.onSanitize.attachOnce(null, function() {
+										types.DESTROY(inputStream);
+									});
+									const iwritable = outputStream.getInterface(nodejsIOInterfaces.IWritable);
 									inputStream.pipe(iwritable);
 									return outputStream.onEOF.promise();
 								};
