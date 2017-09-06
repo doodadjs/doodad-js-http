@@ -35,5 +35,10 @@
     "CacheHandler": "8a3a9a96-19fc-4e26-92a3-fc0a338ae034",
     "CompressionBodyHandler": "7a219472-385b-4f50-b72f-21c492c7d704",
     "CompressionHandler": "1d93dfda-746f-4fec-95d5-a16099f9563d",
-    "CachedObject": "434166e8-8295-46ed-b210-ab8edad73553"
+    "CachedObject": "434166e8-8295-46ed-b210-ab8edad73553",
+    "ClusterDataServiceMaster": "50068e7b-0bf6-4066-8b88-97d9c409b7e3",
+    "ClusterDataServiceWorker": "c564802a-698b-4c47-b41d-54de558f5790",
+    "DataHandler": "9b460c37-e76b-4d4e-863f-5331f121f0fb",
+    "ClusterDataHandler": "480e613d-f0f3-4fcb-b191-62927b7fb08f",
+    "HandlersContainerMixIn": "00543e32-cdb3-44da-8e06-efe5af4db7b9"
 }
