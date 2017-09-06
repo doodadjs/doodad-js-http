@@ -62,7 +62,7 @@ module.exports = {
 				};
 
 
-				types.complete(_shared.Natives, {
+				tools.complete(_shared.Natives, {
 					windowRegExp: global.RegExp,
 				});
 				
@@ -216,7 +216,7 @@ module.exports = {
 				};
 				
 				http.ADD('parseAcceptHeader', function parseAcceptHeader(value) {
-					const result = types.nullObject(),
+					const result = tools.nullObject(),
 						pos = [],
 						delimiters = [];
 					let	i = 0,
@@ -228,7 +228,7 @@ module.exports = {
 						
 					newMedia: while (i < value.length) {
 						qvalue = 1.0;
-						acceptExts = types.nullObject();
+						acceptExts = tools.nullObject();
 						
 						pos[0] = i; // by ref
 						delimiters[0] = ";,"; // by ref
@@ -287,7 +287,7 @@ module.exports = {
 						const type = token[0] || '*',
 							subtype = (token.length > 1) && token[1] || '*';
 
-						result[media] = types.freezeObject(types.nullObject({
+						result[media] = types.freezeObject(tools.nullObject({
 							name: media,
 							type: type,
 							subtype: subtype,
@@ -312,7 +312,7 @@ module.exports = {
 						return [];
 					};
 
-					const result = types.nullObject(),
+					const result = tools.nullObject(),
 						pos = [],
 						delimiters = [];
 					let	i = 0,
@@ -324,7 +324,7 @@ module.exports = {
 						
 					newEncoding: while (i < value.length) {
 						qvalue = 1.0;
-						acceptExts = types.nullObject();
+						acceptExts = tools.nullObject();
 							
 						pos[0] = i; // by ref
 						delimiters[0] = ";,"; // by ref
@@ -382,7 +382,7 @@ module.exports = {
 
 						// NOTE: 'identity' means 'no encoding'
 						if ((qvalue > 0.0) || (encoding === 'identity')) { // NOTE: 'identity' with 'weight' at 0.0 forces an encoding
-							result[encoding] = types.freezeObject(types.nullObject({
+							result[encoding] = types.freezeObject(tools.nullObject({
 								name: encoding,
 								weight: qvalue,
 								exts: types.freezeObject(acceptExts),
@@ -398,10 +398,10 @@ module.exports = {
 						};
 					} else {
 						// Client DID NOT reject 'identity'
-						result.identity = types.freezeObject(types.nullObject({
+						result.identity = types.freezeObject(tools.nullObject({
 							name: 'identity',
 							weight: -1.0, // exceptional weight to make it very low priority
-							exts: types.freezeObject(types.nullObject()),
+							exts: types.freezeObject(tools.nullObject()),
 						}));
 					};
 					
@@ -442,7 +442,7 @@ module.exports = {
 						return null;
 					};						
 					
-					const params = types.nullObject();
+					const params = tools.nullObject();
 					if (delimiters[0] === ';') {
 						while (pos[0] < contentType.length) {
 							delimiters = ['=']; // byref
@@ -462,13 +462,13 @@ module.exports = {
 					
 					const weight = types.toFloat(types.get(params, 'q', 1.0));
 
-					return types.freezeObject(types.nullObject({
+					return types.freezeObject(tools.nullObject({
 						name: media,
 						type: type,
 						subtype: subtype,
 						params: types.freezeObject(params),
 						weight: weight,
-						customData: types.nullObject(), // Allows to store custom fields even if object is frozen.
+						customData: tools.nullObject(), // Allows to store custom fields even if object is frozen.
 						toString: function toString() {
 							return this.name + tools.reduce(this.params, function(result, value, key) {
 								if (!types.isNothing(value)) {
@@ -478,15 +478,15 @@ module.exports = {
 							}, "");
 						},
 						clone: function clone() {
-							const params = types.nullObject(this.params);
-							const newType = types.nullObject(this);
+							const params = tools.nullObject(this.params);
+							const newType = tools.nullObject(this);
 							newType.params = types.freezeObject(params);
 							return types.freezeObject(newType);
 						},
 						set: function set(attrs) {
-							const params = types.nullObject(this.params, types.get(attrs, 'params'));
-							const customData = types.nullObject(this.customData, types.get(attrs, 'customData'));
-							const newType = types.nullObject(this, attrs);
+							const params = tools.nullObject(this.params, types.get(attrs, 'params'));
+							const customData = tools.nullObject(this.customData, types.get(attrs, 'customData'));
+							const newType = tools.nullObject(this, attrs);
 							newType.params = types.freezeObject(params);
 							newType.customData = customData;
 							return types.freezeObject(newType);
@@ -509,7 +509,7 @@ module.exports = {
 						return null;
 					};
 					
-					const params = types.nullObject();
+					const params = tools.nullObject();
 
 					if (delimiters[0] === ';') {
 						media = media.toLowerCase();  // content-dispositions are case-insensitive
@@ -536,7 +536,7 @@ module.exports = {
 						params[name] = value || '';
 					};
 					
-					return types.freezeObject(types.nullObject({
+					return types.freezeObject(tools.nullObject({
 						name: media,
 						params: types.freezeObject(params),
 						toString: function toString() {
@@ -588,7 +588,7 @@ module.exports = {
 					onHeadersChanged: doodad.EVENT(false),
 
 					create: doodad.OVERRIDE(function create(/*paramarray*/) {
-						this.headers = types.nullObject();
+						this.headers = tools.nullObject();
 
 						this._super.apply(this, arguments);
 					}),
@@ -613,7 +613,7 @@ module.exports = {
 							});
 							return headers;
 						} else {
-							return types.extend({}, this.headers);
+							return tools.extend({}, this.headers);
 						};
 					}),
 					
@@ -639,7 +639,7 @@ module.exports = {
 					
 					addHeaders: doodad.PUBLIC(function addHeaders(headers) {
 						const responseHeaders = this.headers;
-						const changed = types.nullObject();
+						const changed = tools.nullObject();
 						tools.forEach(headers, function(value, name) {
 							const fixed = tools.title(tools.trim(name), '-');
 							value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
@@ -688,7 +688,7 @@ module.exports = {
 						} else {
 							changedHeaders = types.keys(this.headers);
 							_shared.setAttributes(this, {
-								headers: types.nullObject(),
+								headers: tools.nullObject(),
 								contentType: null,
 							});
 						};
@@ -698,7 +698,7 @@ module.exports = {
 					}),
 
 					setContentType: doodad.PUBLIC(function setContentType(contentType, /*optional*/options) {
-						options = types.nullObject(options);
+						options = tools.nullObject(options);
 
 						if (types.isString(contentType)) {
 							contentType = http.parseContentTypeHeader(contentType);
@@ -732,7 +732,7 @@ module.exports = {
 
 					setVary: doodad.PUBLIC(function setVary(names) {
 						if (!this.__varyingHeaders) {
-							this.__varyingHeaders = types.nullObject();
+							this.__varyingHeaders = tools.nullObject();
 						};
 
 						tools.forEach(names.split(','), function(name) {
@@ -796,8 +796,8 @@ module.exports = {
 						this.clearEvents(handlers);
 						if (!this.ended) {
 							_shared.setAttributes(this, {
-								headers: types.nullObject(),
-								trailers: types.nullObject(),
+								headers: tools.nullObject(),
+								trailers: tools.nullObject(),
 								__pipes: [],
 								stream: null,
 							});
@@ -886,7 +886,7 @@ module.exports = {
 							throw new types.NotAvailable("Can't add new trailers because trailers have been sent and the request has ended.");
 						};
 						const responseTrailers = this.trailers;
-						const changed = types.nullObject();
+						const changed = tools.nullObject();
 						tools.forEach(trailers, function(value, name) {
 							const fixed = tools.title(tools.trim(name), '-');
 							value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
@@ -925,7 +925,7 @@ module.exports = {
 						} else {
 							changedTrailers = types.keys(this.tailers);
 							_shared.setAttributes(this, {
-								trailers: types.nullObject(),
+								trailers: tools.nullObject(),
 							});
 						};
 						if (changedTrailers.length) {
@@ -961,7 +961,7 @@ module.exports = {
 							throw new types.NotAvailable("'addPipe' is not available because pipes have already been proceed.");
 						};
 
-						options = types.nullObject(options);
+						options = tools.nullObject(options);
 
 						const headers = options.headers;
 						if (headers) {
@@ -1068,7 +1068,7 @@ module.exports = {
 					$__aborted: doodad.PROTECTED(doodad.TYPE(0)),
 
 					$getStats: doodad.PUBLIC(doodad.TYPE(function $getStats() {
-						return types.nullObject({
+						return tools.nullObject({
 							actives: this.$__actives,
 							total: this.$__total,
 							successful: this.$__successful,
@@ -1090,7 +1090,7 @@ module.exports = {
 						this.$__total = 0;
 						this.$__successful = 0;
 						this.$__redirected = 0;
-						this.$__failed = types.nullObject();
+						this.$__failed = tools.nullObject();
 						this.$__aborted = 0;
 					})),
 					
@@ -1109,7 +1109,7 @@ module.exports = {
 						if (!this.ended) {
 							_shared.setAttributes(this, {
 								__pipes: [],
-								__streamOptions: types.nullObject(),
+								__streamOptions: tools.nullObject(),
 								__waitQueue: [],
 								__handlersStates: new types.Map(),
 								stream: null,
@@ -1152,7 +1152,7 @@ module.exports = {
 							_shared.setAttributes(this, {
 								server: server,
 								verb: verb.toUpperCase(),
-								data: types.nullObject(),
+								data: tools.nullObject(),
 								id: tools.generateUUID(),
 							});
 
@@ -1285,7 +1285,7 @@ module.exports = {
 
 								if (container) {
 									const globalStates = container.getGlobalHandlerStates(handlerType);
-									types.append(protos, globalStates);
+									tools.append(protos, globalStates);
 								};
 							};
 							if (newState) {
@@ -1298,7 +1298,7 @@ module.exports = {
 					}),
 
 					getAcceptables: doodad.PUBLIC(function getAcceptables(/*optional*/contentTypes, /*optional*/options) {
-						options = types.nullObject(options);
+						options = tools.nullObject(options);
 
 						// Get negociated mime types between the handler and the client. Defaults to the "Accept" header.
 						const handlerState = options.handler && this.getHandlerState(options.handler);
@@ -1333,7 +1333,7 @@ module.exports = {
 									}, {mimeType: null, score: 0, index: -1});
 									let newContentType;
 									if (result.mimeType) {
-										const newParams = types.complete({}, result.mimeType.params, contentType.params);
+										const newParams = tools.complete({}, result.mimeType.params, contentType.params);
 										newContentType = contentType.set({weight: result.mimeType.weight, params: newParams});
 										newContentType.customData.index = result.index; // for "sort"
 										acceptedTypes.push(newContentType);
@@ -1389,7 +1389,7 @@ module.exports = {
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
-						options = types.nullObject(options);
+						options = tools.nullObject(options);
 						const maxRedirects = this.server.options.maxRedirects || 5;
 						if (this.response.headersSent) {
 							throw new types.NotAvailable("Unable to redirect because HTTP headers are already sent.");
@@ -1406,7 +1406,7 @@ module.exports = {
 							};
 							const data = options.data;
 							if (data) {
-								types.extend(this.data, data);
+								tools.extend(this.data, data);
 							};
 							this.reset();
 							this.response.reset();
@@ -1426,7 +1426,7 @@ module.exports = {
 
 						// TODO: Assert on "stream"
 						// NOTE: Don't immediatly do pipes to not start the transfer. Pipes and transfer are made at "getStream".
-						options = types.nullObject(options);
+						options = tools.nullObject(options);
 						const pipe = {stream: stream, options: options};
 						if (options.unshift) {
 							this.__pipes.unshift(pipe);
@@ -1454,14 +1454,14 @@ module.exports = {
 
 						const accept = types.get(this.__streamOptions, 'accept') || [];
 
-						types.extend(this.__streamOptions, options);
+						tools.extend(this.__streamOptions, options);
 
 						if (types.get(options, 'accept')) {
 							let newAccept = options.accept;
 							if (!types.isArray(newAccept)) {
 								newAccept = [newAccept];
 							};
-							this.__streamOptions.accept = types.append(accept, newAccept.map(value => types.isString(value) ? http.parseAcceptHeader(value)[0] : value));
+							this.__streamOptions.accept = tools.append(accept, newAccept.map(value => types.isString(value) ? http.parseAcceptHeader(value)[0] : value));
 						};
 					}),
 
@@ -1525,7 +1525,7 @@ module.exports = {
 
 
 						const runHandler = function runHandler(handlerOptions, resolved) {
-							handlerOptions = types.nullObject(handlerOptions);
+							handlerOptions = tools.nullObject(handlerOptions);
 
 							let handler = handlerOptions.handler;
 
@@ -1591,7 +1591,7 @@ module.exports = {
 												return this.proceed(newHandlersOptions, {resolveUrl: resolveUrl})
 													.then(function(result) {
 														if (resolveUrl) {
-															types.append(resolved, result);
+															tools.append(resolved, result);
 														};
 													});
 											};
@@ -1673,7 +1673,7 @@ module.exports = {
 						};
 
 						// To validate later on getStream
-						types.append(this.__contentEncodings, encodings.map(encoding => encoding.toLowerCase())); // case-insensitive
+						tools.append(this.__contentEncodings, encodings.map(encoding => encoding.toLowerCase())); // case-insensitive
 					}),
 				})));
 				
@@ -1696,7 +1696,7 @@ module.exports = {
 							do {
 								const currentStates = statesMap.get(currentType);
 								if (currentStates) {
-									types.prepend(states, currentStates);
+									tools.prepend(states, currentStates);
 								};
 								currentType = types.getBase(currentType);
 							} while (types._implements(currentType, httpMixIns.Handler));
@@ -1732,11 +1732,11 @@ module.exports = {
 						return tools.map(handlersOptions, function(handlerOptions) {
 							let handler;
 							if (types.isJsObject(handlerOptions)) {
-								handlerOptions = types.nullObject(handlerOptions);
+								handlerOptions = tools.nullObject(handlerOptions);
 								handler = handlerOptions.handler;
 							} else if (types.isJsFunction(handlerOptions)) {
 								handler = handlerOptions;
-								handlerOptions = types.nullObject(types.get(handler, 'options'), {handler: handler});
+								handlerOptions = tools.nullObject(types.get(handler, 'options'), {handler: handler});
 							} else {
 								throw new types.TypeError("Invalid options.");
 							};
@@ -1756,7 +1756,7 @@ module.exports = {
 							} else if (types._implements(handler, httpMixIns.Handler)) {
 								handlerOptions = types.getType(handler).$prepare(handlerOptions, this);
 								if (!types.isType(handler)) {
-									types.extend(handler.options, handlerOptions);
+									tools.extend(handler.options, handlerOptions);
 								};
 							} else {
 								throw new types.TypeError("Invalid handler type '~0~'.", [types.getTypeName(handler)]);
@@ -1797,7 +1797,7 @@ module.exports = {
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('HandlerMixIn')), true) */,
 
 					$prepare: doodad.PUBLIC(function $prepare(options, parent) {
-						options = types.nullObject(options);
+						options = tools.nullObject(options);
 
 						let val;
 						
@@ -1850,8 +1850,8 @@ module.exports = {
 						const parentOptions = parent.options;
 
 						options.depth = (types.isNothing(options.depth) ? (types.isNothing(parentOptions.depth) ? 0 : parentOptions.depth) : options.depth);
-						options.extensions = (options.extensions || parentOptions.extensions) && types.unique(options.extensions, parentOptions.extensions);
-						options.verbs = (options.verbs || parentOptions.verbs) && types.unique(options.verbs, parentOptions.verbs);
+						options.extensions = (options.extensions || parentOptions.extensions) && tools.unique(options.extensions, parentOptions.extensions);
+						options.verbs = (options.verbs || parentOptions.verbs) && tools.unique(options.verbs, parentOptions.verbs);
 						options.caseSensitive = (types.isNothing(options.caseSensitive) ? !!parentOptions.caseSensitive : options.caseSensitive);
 
 						return options;
@@ -1860,7 +1860,7 @@ module.exports = {
 					create: doodad.OVERRIDE(function create(options) {
 						this._super();
 
-						_shared.setAttribute(this, 'options', options || types.nullObject());
+						_shared.setAttribute(this, 'options', options || tools.nullObject());
 					}),
 
 					resolve: doodad.PUBLIC(doodad.NOT_IMPLEMENTED()),  // function(request, url)
@@ -2178,7 +2178,7 @@ module.exports = {
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ContentSecurityPolicyHandler')), true) */,
 
 					$createPolicy: doodad.PUBLIC(doodad.TYPE(function $createPolicy() {
-						return types.nullObject({
+						return tools.nullObject({
 							'base-uri': null,
 							'child-src': null,
 							'connect-src': null,
@@ -2211,7 +2211,7 @@ module.exports = {
 								throw new types.Error("Invalid or unknown policy name : '~0~'.", [name]);
 							};
 							if (replace || !policy[name]) {
-								policy[name] = types.nullObject();
+								policy[name] = tools.nullObject();
 							};
 							const obj = policy[name];
 							if (args.length > 1) {
@@ -2417,7 +2417,7 @@ module.exports = {
 					create: doodad.OVERRIDE(function create(handlersOptions, /*optional*/serverOptions) {
 						this._super();
 
-						serverOptions = types.nullObject(serverOptions);
+						serverOptions = tools.nullObject(serverOptions);
 
 						var val;
 						
@@ -2471,8 +2471,8 @@ module.exports = {
 							url = null,    // matching URL
 							urlRemaining = null; // what remains from request's url
 
-						const urlArgs = types.nullObject(),
-							queryArgs = types.nullObject();
+						const urlArgs = tools.nullObject(),
+							queryArgs = tools.nullObject();
 
 						if (basePathLen <= urlPathLen) {
 							let urlLevel = 0,     // path level (used later to remove the beginning of the path)
@@ -2615,7 +2615,7 @@ module.exports = {
 							};
 						};
 
-						return types.nullObject({
+						return tools.nullObject({
 							weight: weight,
 							full: full,
 							url: url,
@@ -2670,7 +2670,7 @@ module.exports = {
 							if (!types.isNothing(route)) {
 								root.DD_ASSERT && root.DD_ASSERT(types.isJsObject(route), "Invalid route.");
 							
-								route = types.nullObject(route);
+								route = tools.nullObject(route);
 
 								if (route.handlers && route.handlers.length) {
 									if (types.isString(matcher)) {
@@ -2699,7 +2699,7 @@ module.exports = {
 							const handlersOptions = route.handlers;
 
 							for (let i = 0; i < handlersOptions.length; i++) {
-								const options = types.nullObject(handlersOptions[i]);
+								const options = tools.nullObject(handlersOptions[i]);
 
 								if (options.verbs && (tools.indexOf(options.verbs, request.verb) === -1)) {
 									continue;

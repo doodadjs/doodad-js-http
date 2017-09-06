@@ -79,7 +79,7 @@ module.exports = {
 				const __Internal__ = {
 				};
 				
-				types.complete(_shared.Natives, {
+				tools.complete(_shared.Natives, {
 					windowJSON: global.JSON,
 					
 					globalBuffer: global.Buffer,
@@ -285,7 +285,7 @@ module.exports = {
 
 						const Promise = types.getPromise();
 
-						options = types.nullObject(options);
+						options = tools.nullObject(options);
 
 						const status = options.status,
 							message = options.message,
@@ -348,13 +348,13 @@ module.exports = {
 									const pipeHeaders = pipe.options.headers;
 									if (pipeHeaders) {
 										if (headers) {
-											types.extend(headers, pipeHeaders);
+											tools.extend(headers, pipeHeaders);
 										} else {
-											headers = types.nullObject(pipeHeaders);
+											headers = tools.nullObject(pipeHeaders);
 										};
 									};
 
-									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
+									pipe.options.pipeOptions = tools.nullObject(pipe.options.pipeOptions);
 
 									// <PRB> No longer works since Node 8.2.1 : Sometimes it generates incomplete files.
 										//if (!types._implements(pipe.stream, io.Stream) && types._implements(responseStream, io.Stream)) {
@@ -629,7 +629,7 @@ module.exports = {
 
 					$getStats: doodad.OVERRIDE(function $getStats() {
 						const stats = this._super();
-						return types.extend(stats, {
+						return tools.extend(stats, {
 							perSecond: this.$__perSecond,
 							perMinute: this.$__perMinute,
 							perHour: this.$__perHour,
@@ -897,7 +897,7 @@ module.exports = {
 							throw new server.EndOfRequest();
 						};							
 
-						options = types.nullObject(this.__streamOptions, options);
+						options = tools.nullObject(this.__streamOptions, options);
 
 						const currentStream = this.stream;
 						if (currentStream) {
@@ -966,7 +966,7 @@ module.exports = {
 								requestStream.onError.attachOnce(this, this.__streamOnError, 10);
 
 								tools.forEach(this.__pipes, function forEachPipe(pipe) {
-									pipe.options.pipeOptions = types.nullObject(pipe.options.pipeOptions);
+									pipe.options.pipeOptions = tools.nullObject(pipe.options.pipeOptions);
 
 										//if (!types._implements(requestStream, io.Stream) && types._implements(pipe.stream, io.Stream)) {
 										//	const iwritable = pipe.stream.getInterface(nodejsIOInterfaces.IWritable);
@@ -1043,7 +1043,7 @@ module.exports = {
 						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};							
-						return types.nullObject({
+						return tools.nullObject({
 							address: this.nodeJsStream.socket.remoteAddress,
 						});
 					}),
@@ -1158,7 +1158,7 @@ module.exports = {
 						if (!this.__listening) {
 							this.__listening = true;
 
-							options = types.nullObject(options);
+							options = tools.nullObject(options);
 							
 							const protocol = options.protocol || 'http';
 							let factory;
@@ -1172,7 +1172,7 @@ module.exports = {
 							if (protocol === 'https') {
 								// TODO: Implement other available options
 								// TODO: Ask for private key's passphrase from the terminal if encrypted and decrypt the key.
-								const opts = types.nullObject();
+								const opts = tools.nullObject();
 								if (options.pfxFile) {
 									opts.pfx = nodeFs.readFileSync(types.toString(options.pfxFile));
 								} else if (options.rawPfx) {
@@ -1367,7 +1367,7 @@ module.exports = {
 
 						const resType = this.DD_FULL_NAME;
 
-						options.states = types.extend({}, options.states, {
+						options.states = tools.extend({}, options.states, {
 							'Doodad.NodeJs.Server.Http.CacheHandler': {
 								generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
 									this._super(request, handler, keyObj);
@@ -1566,7 +1566,7 @@ module.exports = {
 
 								request.response.setContentType(contentType, {handler: handler});
 
-								return types.nullObject({
+								return tools.nullObject({
 									contentType: contentType,
 									stats: stats,
 									url: url,
@@ -1676,7 +1676,7 @@ module.exports = {
 							return nodejsHttp.FolderPageTemplate.$readDir(this, data.path)
 								.then(function stringifyDir(filesList) {
 									filesList = tools.map(filesList, function(file) {
-										return types.nullObject({
+										return tools.nullObject({
 											isFolder: file.isFolder,
 											name: file.name,
 											size: file.size,
@@ -1811,7 +1811,7 @@ module.exports = {
 
 						let storage = exchanged.get(handlerType);
 						if (!storage) {
-							storage = types.nullObject();
+							storage = tools.nullObject();
 							exchanged.set(handlerType, storage);
 						};
 
@@ -1926,7 +1926,7 @@ module.exports = {
 					})),
 
 					setData: doodad.PUBLIC(doodad.ASYNC(function setData(request, handler, data, /*optional*/options) {
-						return types.getType(this).$set(request, handler, data, types.nullObject({
+						return types.getType(this).$set(request, handler, data, tools.nullObject({
 								ttl: this.options.defaultTTL,
 							}, options));
 					})),
@@ -1978,7 +1978,7 @@ module.exports = {
 					}),
 
 					setData: doodad.OVERRIDE(function setData(request, handler, data, /*optional*/options) {
-						return this._super(request, handler, data, types.nullObject(options, {
+						return this._super(request, handler, data, tools.nullObject(options, {
 								messenger: this.options.messenger,
 							}));
 					}),
@@ -2124,7 +2124,7 @@ module.exports = {
 
 						this.__remaining = null;
 						this.__headersCompiled = false;
-						this.__headers = types.nullObject();
+						this.__headers = tools.nullObject();
 						this.__verb = null;
 						this.__file = null;
 						this.__status = null;
@@ -2444,7 +2444,7 @@ module.exports = {
 					}),
 
 					createKey: doodad.PUBLIC(function createKey(/*optional*/data) {
-						const key = types.nullObject(data);
+						const key = tools.nullObject(data);
 
 						key.toString = __Internal__.keyObjToString;
 						key.toHash = __Internal__.keyObjToHash;
@@ -2516,7 +2516,7 @@ module.exports = {
 						cached.parent = parent; // Cached object
 						cached.disabled = !!types.get(options, 'defaultDisabled', state.defaultDisabled); // Boolean
 						cached.duration = state.defaultDuration; // Moment Duration
-						cached.children = types.nullObject(); // objectof(Cached objects)
+						cached.children = tools.nullObject(); // objectof(Cached objects)
 
 						cached.addEventListener('destroy', function() {
 							cacheMap.delete(key);
@@ -2710,7 +2710,7 @@ module.exports = {
 							throw new types.NotAvailable("Cache is writing.");
 						};
 
-						options = types.nullObject(options);
+						options = tools.nullObject(options);
 
 						const encoding = options.encoding;
 
@@ -2895,13 +2895,13 @@ module.exports = {
 							});
 						};
 						if (tools.indexOf(val, 'identity') < 0) {
-							val = types.append([], val, ['identity']);
+							val = tools.append([], val, ['identity']);
 						};
 						options.encodings = val;
 						
 						// TODO: Options per mime types per encoding
 						// TODO: Default options
-						options.optionsPerEncoding = types.nullObject(options.optionsPerEncoding);
+						options.optionsPerEncoding = tools.nullObject(options.optionsPerEncoding);
 
 						return options;
 					}),
@@ -2976,20 +2976,20 @@ module.exports = {
 						};
 						if (tools.indexOf(val, 'identity') < 0) {
 							// Server MUST accept 'identity' unless explicitly not acceptable by the client (weight at 0.0)
-							val = types.append([], val, ['identity']);
+							val = tools.append([], val, ['identity']);
 						};
 						options.encodings = val;
 						
 
 						// TODO: Options per mime types per encoding
 						// TODO: Default options
-						options.optionsPerEncoding = types.nullObject(options.optionsPerEncoding);
+						options.optionsPerEncoding = tools.nullObject(options.optionsPerEncoding);
 
 						options.state = {
 							contentEncoding: doodad.PUBLIC(null),
 						};
 
-						options.states = types.extend({}, options.states, {
+						options.states = tools.extend({}, options.states, {
 							'Doodad.NodeJs.Server.Http.CacheHandler': {
 								generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
 									this._super(request, handler, keyObj);
