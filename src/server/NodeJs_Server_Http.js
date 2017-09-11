@@ -1335,10 +1335,10 @@ module.exports = {
 					$TYPE_NAME: 'StaticPage',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('StaticPage')), true) */,
 
-					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parent);
+						options = this._super(options);
 						
 						let val;
 						
@@ -1896,8 +1896,8 @@ module.exports = {
 						return null;
 					}))),
 
-					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
-						options = this._super(options, parent);
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						options = this._super(options);
 						
 						//let val;
 
@@ -1963,8 +1963,8 @@ module.exports = {
 							});
 					}),
 
-					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
-						options = this._super(options, parent);
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						options = this._super(options);
 						
 						//let val;
 
@@ -1989,8 +1989,8 @@ module.exports = {
 					$TYPE_NAME: 'JavascriptPage',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JavascriptPage')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
-						options = this._super(options, parent);
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						options = this._super(options);
 						
 						//let val;
 						
@@ -2402,10 +2402,10 @@ module.exports = {
 					
 					$__cache: doodad.PROTECTED(doodad.TYPE(  new types.Map()  )), // <FUTURE> Global to threads (shared)
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parent);
+						options = this._super(options);
 						
 						let val;
 						
@@ -2876,10 +2876,10 @@ module.exports = {
 					$TYPE_NAME: 'CompressionBodyHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CompressionBodyHandler')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parent);
+						options = this._super(options);
 
 						let val;
 						
@@ -2956,10 +2956,10 @@ module.exports = {
 					$TYPE_NAME: 'CompressionHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CompressionHandler')), true) */,
 					
-					$prepare: doodad.OVERRIDE(function $prepare(options, parent) {
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						types.getDefault(options, 'depth', Infinity);
 
-						options = this._super(options, parent);
+						options = this._super(options);
 
 						let val;
 						
