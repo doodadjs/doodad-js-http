@@ -24,12 +24,20 @@
 //	limitations under the License.
 //! END_REPLACE()
 
-// TODO: Convert the following to MJS
-const nodeFs = require('fs'),
-	nodeZlib = require('zlib'),
-	nodeHttp = require('http'),
-	nodeCrypto = require('crypto'),
-	nodeCluster = require('cluster');
+
+//! IF_SET("mjs")
+	//! INJECT("import {default as nodeFs} from 'fs';")
+	//! INJECT("import {default as nodeZlib} from 'zlib';")
+	//! INJECT("import {default as nodeHttp} from 'http';")
+	//! INJECT("import {default as nodeCrypto} from 'crypto';")
+	//! INJECT("import {default as nodeCluster} from 'cluster';")
+//! ELSE()
+	const nodeFs = require('fs'),
+		nodeZlib = require('zlib'),
+		nodeHttp = require('http'),
+		nodeCrypto = require('crypto'),
+		nodeCluster = require('cluster');
+//! END_IF()
 
 
 exports.add = function add(DD_MODULES) {
