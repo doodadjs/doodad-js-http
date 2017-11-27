@@ -1327,7 +1327,7 @@ exports.add = function add(DD_MODULES) {
 					if (cacheHandler) {
 						const state = request.getHandlerState(cacheHandler);
 
-						state.onCreateCurrent.attachOnce(this, function(handler, cached) {
+						state.onNewCached.attachOnce(this, function(handler, cached) {
 							files.watch(this.path.toApiString(), function() {
 								cached.invalidate();
 							});
@@ -1382,7 +1382,7 @@ exports.add = function add(DD_MODULES) {
 							generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
 								this._super(request, handler, keyObj);
 
-								const res = !request.url.file && request.url.args.get('res');
+								const res = !request.url.file && request.url.getArg('res', true);
 								if (res) {
 									keyObj.url.path = null;
 									keyObj.url.file = null;
@@ -1601,7 +1601,7 @@ exports.add = function add(DD_MODULES) {
 							.then(function renderTemplate(templType) {
 								const cacheHandlers = request.getHandlers(nodejsHttp.CacheHandler);
 								const cacheHandler = (cacheHandlers.length > 0 ? cacheHandlers[cacheHandlers.length - 1] : null);
-								const templ = new templType(request, cacheHandler);
+								const templ = new templType(request, cacheHandler, {variables: this.options.variables});
 								return request.response.getStream({encoding: templType.$options.encoding})
 									.then(function(stream) {
 										templ.pipe(stream);
@@ -1912,7 +1912,22 @@ exports.add = function add(DD_MODULES) {
 					//let val;
 
 					options.defaultTTL = types.toInteger(options.defaultTTL) || 5 * 60; // seconds
-						
+					
+					options.states = tools.extend({}, options.states, {
+						'Doodad.NodeJs.Server.Http.CacheHandler': {
+							generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
+								this._super(request, handler, keyObj);
+
+								if (!keyObj.section) {
+									const varsId = request.url.getArg('vars', true);
+									if (!types.isNothing(varsId)) {
+										keyObj.varsId = varsId;
+									};
+								};
+							}),
+						},
+					});
+
 					return options;
 				}),
 
@@ -2008,7 +2023,7 @@ exports.add = function add(DD_MODULES) {
 					options.keepComments = types.toBoolean(options.keepComments);
 					options.keepSpaces = types.toBoolean(options.keepSpaces);
 
-					options.variables = options.variables || {};
+					options.variables = tools.nullObject(options.variables);
 
 					return options;
 				}),
@@ -2075,7 +2090,7 @@ exports.add = function add(DD_MODULES) {
 
 							let promise = Promise.resolve();
 
-							const varsId = url.getArg('vars');
+							const varsId = url.getArg('vars', true);
 							if (varsId) {
 								promise = promise
 									.then(function(dummy) {
@@ -2336,13 +2351,10 @@ exports.add = function add(DD_MODULES) {
 					onvalidate: null,
 					oninvalidate: null,
 
-					created: true, // Boolean
-					mainFile: false, // Boolean
 					key: null, // Key Object
 					hashedKey: null, // String
 					section: null, // Key Object
 					parent: null, // Cached object
-					disabled: null, // Boolean
 					duration: null, // Moment Duration
 
 					path: null, // Path
@@ -2357,25 +2369,23 @@ exports.add = function add(DD_MODULES) {
 						this._super();
 					}),
 
-					isInvalid: function() {
-						return !this.disabled && !this.ready && !this.writing;
+					isInvalid: function isInvalid() {
+						return !this.ready && !this.writing;
 					},
-					isPending: function() {
-						return !this.disabled && !this.ready && this.writing;
+					isPending: function isPending() {
+						return !this.ready && this.writing;
 					},
-					isValid: function() {
-						return !this.disabled && this.ready && !this.writing;
+					isValid: function isValid() {
+						return this.ready && !this.writing;
 					},
-					validate: function() {
-						this.created = false;
+					validate: function validate() {
 						if (!this.ready && this.writing) {
 							this.writing = false;
 							this.ready = true;
 							this.dispatchEvent(new types.CustomEvent('validate'));
 						};
 					},
-					abort: function() {
-						this.created = false;
+					abort: function abort() {
 						if (!this.ready && this.writing) {
 							this.writing = false;
 							if (this.path) {
@@ -2385,8 +2395,7 @@ exports.add = function add(DD_MODULES) {
 							this.dispatchEvent(new types.CustomEvent('invalidate'));
 						};
 					},
-					invalidate: function() {
-						this.created = false;
+					invalidate: function invalidate() {
 						const ok = this.ready && !this.writing;
 						if (ok) {
 							this.ready = false;
@@ -2442,10 +2451,10 @@ exports.add = function add(DD_MODULES) {
 					options.duration = val;
 
 					options.state = {
-						defaultDisabled: doodad.PUBLIC(false),
+						disabled: doodad.PUBLIC(false), // Boolean
+						noMainFile: doodad.PUBLIC(false), // Boolean
 						defaultDuration: doodad.PUBLIC(null), // Moment Duration
-						cached: doodad.PUBLIC(null),
-						onCreateCurrent: doodad.PUBLIC(doodad.RAW_EVENT()),
+						cached: doodad.PUBLIC(null), // CachedObject instance
 						onNewCached: doodad.PUBLIC(doodad.RAW_EVENT()),
 						generateKey: doodad.PUBLIC(doodad.METHOD(options.keyGenerator)),
 					};
@@ -2463,16 +2472,22 @@ exports.add = function add(DD_MODULES) {
 				}),
 
 				__createCached: doodad.PROTECTED(function __createCached(request, /*optional*/key, /*optional*/section, /*optional*/options) {
-					const type = types.getType(this);
-
 					const state = request.getHandlerState(this);
+
+					if (state.disabled) {
+						return null;
+					};
+
+					const type = types.getType(this);
 
 					let parent = null;
 
 					if (section) {
-						parent = this.getCached(request, {key: key});
+						if (!state.noMainFile) {
+							parent = this.getCached(request, {key: key});
 
-						root.DD_ASSERT && root.DD_ASSERT(!types.isNothing(parent), "Section '~0~' has no parent.", [section]);
+							root.DD_ASSERT && root.DD_ASSERT(!types.isNothing(parent), "Section '~0~' has no parent.", [section]);
+						};
 
 						key = null;
 					};
@@ -2500,14 +2515,12 @@ exports.add = function add(DD_MODULES) {
 
 					if (cacheMap.has(key)) {
 						const cached = cacheMap.get(key);
-						cached.created = false;
 						return cached;
 					} else {
 						keyHash = key.toHash();
 
 						if (cacheMap.has(keyHash)) {
 							const cached = cacheMap.get(keyHash);
-							cached.created = false;
 							return cached;
 						};
 					};
@@ -2517,14 +2530,11 @@ exports.add = function add(DD_MODULES) {
 					};
 
 					const cached = new nodejsHttp.CachedObject();
-					cached.created = true;  // Boolean
-					cached.mainFile = !!types.get(options, 'mainFile', false);
 					cached.key = key; // Key Object
 					cached.hashedKey = keyHash; // String
 					cached.section = section; // Key Object
 					cached.hashedSection = section && section.toHash();  // String
 					cached.parent = parent; // Cached object
-					cached.disabled = !!types.get(options, 'defaultDisabled', state.defaultDisabled); // Boolean
 					cached.duration = state.defaultDuration; // Moment Duration
 					cached.children = tools.nullObject(); // objectof(Cached objects)
 
@@ -2540,7 +2550,7 @@ exports.add = function add(DD_MODULES) {
 					cacheMap.set(key, cached);
 					cacheMap.set(keyHash, cached);
 
-					if (section) {
+					if (section && parent) {
 						cached.parent.children[section] = cached;
 					};
 
@@ -2550,24 +2560,22 @@ exports.add = function add(DD_MODULES) {
 				}),
 
 				getCached: doodad.PUBLIC(function getCached(request, /*optional*/options) {
-					const type = types.getType(this),
-						state = request.getHandlerState(this),
-						section = types.get(options, 'section'), // string
-						create = types.get(options, 'create', false); // boolean
+					const state = request.getHandlerState(this);
 
-					let fromCurrent = false;
+					if (state.disabled) {
+						return null;
+					};
+
+					const type = types.getType(this),
+						section = types.get(options, 'section'), // string
+						create = types.get(options, 'create', false), // boolean
+						onNew = types.get(options, 'onNew', null); // function
 
 					let key = types.get(options, 'key', null), // object
 						cached = null;
 
 					if (types.isNothing(key)) {
-						// Get from current request/response.
-						fromCurrent = !section;
-
-						if (state.cached) {
-							cached = state.cached;
-							//key = cached.key;
-						};
+						//key = ...
 
 					} else if (types.isJsObject(key)) {
 						// Get from object key
@@ -2601,13 +2609,11 @@ exports.add = function add(DD_MODULES) {
 
 						return cached;
 
-					} else if (create) {
+					} else if (create && (section || !state.noMainFile)) {
 						cached = this.__createCached(request, key, section, options);
 
-						if (fromCurrent) {
-							state.cached = cached;
-
-							state.onCreateCurrent(this, cached);
+						if (onNew) {
+							onNew(cached);
 						};
 
 						return cached;
@@ -2621,7 +2627,9 @@ exports.add = function add(DD_MODULES) {
 				openFile: doodad.PUBLIC(doodad.ASYNC(function openFile(request, cached) {
 					const Promise = types.getPromise();
 
-					if (cached.disabled) {
+					const state = request.getHandlerState(this);
+
+					if (state.disabled) {
 						return null;
 					};
 
@@ -2704,12 +2712,8 @@ exports.add = function add(DD_MODULES) {
 						
 					const state = request.getHandlerState(this);
 
-					if (cached.disabled) {
+					if (state.disabled) {
 						return null;
-					};
-
-					if (cached.disabled) {
-						throw new types.NotAvailable("Cache is disabled.");
 					};
 
 					if (cached.ready) {
@@ -2793,7 +2797,7 @@ exports.add = function add(DD_MODULES) {
 								if (encoding) {
 									headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
 								};
-								if (cached.mainFile) {
+								if (!cached.section) {
 									// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
 									if (!request.response.headersSent) {
 										request.response.sendHeaders();
@@ -2824,9 +2828,9 @@ exports.add = function add(DD_MODULES) {
 
 					if (!types.HttpStatus.isError(request.response.status) && !types.HttpStatus.isRedirect(request.response.status)) {
 						const start = function _start(output) {
-							const cached = this.getCached(request, {create: true, mainFile: true});
+							const cached = this.getCached(request, {create: true});
 
-							if (cached.isValid()) {
+							if (cached && cached.isValid()) {
 								return this.openFile(request, cached)
 									.then(function sendCache(cacheStream) {
 										if (cacheStream) {
@@ -2842,7 +2846,7 @@ exports.add = function add(DD_MODULES) {
 											return start.call(this, output);
 										};
 									}, null, this);
-							} else if (cached.isInvalid() && (request.verb !== 'HEAD')) {
+							} else if (cached && cached.isInvalid() && (request.verb !== 'HEAD')) {
 								return this.createFile(request, cached)
 									.then(function(cacheStream) {
 										if (cacheStream) {
@@ -2874,6 +2878,12 @@ exports.add = function add(DD_MODULES) {
 				}),
 
 				execute: doodad.OVERRIDE(function execute(request) {
+					const state = request.getHandlerState(this);
+
+					if (state.disabled) {
+						return;
+					};
+
 					request.response.onGetStream.attachOnce(this, this.__onGetStream, 100, [request]);
 				}),
 			}));
