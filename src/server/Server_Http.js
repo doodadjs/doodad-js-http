@@ -1142,7 +1142,7 @@ exports.add = function add(DD_MODULES) {
 						if (root.DD_ASSERT) {
 							root.DD_ASSERT && root.DD_ASSERT(types._implements(server, httpMixIns.Server), "Invalid server.");
 							root.DD_ASSERT(types.isString(verb), "Invalid verb.");
-							root.DD_ASSERT((url instanceof files.Url), "Invalid URL.");
+							root.DD_ASSERT(types._instanceof(url, files.Url), "Invalid URL.");
 							root.DD_ASSERT(types.isObject(headers), "Invalid headers.");
 						};
 
@@ -1471,16 +1471,17 @@ exports.add = function add(DD_MODULES) {
 					if (this.ended) {
 						throw new server.EndOfRequest();
 					};
-						
-					const base = httpMixIns.Handler;
+					
 					if (types.isString(type)) {
 						const tmp = namespaces.get(type);
-						if (!types._implements(tmp, base)) {
-							throw new types.TypeError("Invalid handler type : '~0~'.", [type]);
+						if (!tmp) {
+							throw new types.TypeError("Unknown type : '~0~'.", [type]);
 						};
 						type = tmp;
-					} else if (!types._implements(type, base)) {
-						throw new types.TypeError("Invalid handler type : '~0~'.", [type.DD_FULL_NAME || '<unknown>']);
+					};
+
+					if (!types._implements(type, httpMixIns.Handler)) {
+						throw new types.TypeError("Invalid handler : '~0~'.", [type.DD_FULL_NAME || '<unknown>']);
 					};
 
 					return this.proceed(this.server.handlersOptions, {resolveUrl: url})
@@ -1512,7 +1513,6 @@ exports.add = function add(DD_MODULES) {
 
 					const resolveUrl = files.parseUrl(types.get(options, 'resolveUrl', null));
 					//const prevHandler = resolveUrl && this.currentHandler;
-
 
 					const runHandler = function runHandler(handlerOptions, resolved) {
 						handlerOptions = tools.nullObject(handlerOptions);
@@ -1710,10 +1710,10 @@ exports.add = function add(DD_MODULES) {
 							throw new types.TypeError("Invalid handler type '~0~'.", [types.getTypeName(handler)]);
 						};
 
-						server.applyGlobalHandlerState(handler, handlerOptions.state);
+						server.applyGlobalHandlerState(handler, handlerOptions.state, true);
 
-						tools.forEach(handlerOptions.states, function(newState, handler) {
-							server.applyGlobalHandlerState(handler, newState);
+						tools.forEach(handlerOptions.states, function(newState, newHandler) {
+							server.applyGlobalHandlerState(newHandler, newState, false);
 						});
 
 						return handlerOptions;
@@ -1816,6 +1816,7 @@ exports.add = function add(DD_MODULES) {
 				$TYPE_NAME: 'Routes',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RoutesMixIn')), true) */,
 					
+				addRoutes: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(newRoutes)
 				createHandlers: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, targetUrl)
 
 				resolve: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),  // function(request, url)
@@ -2396,13 +2397,13 @@ exports.add = function add(DD_MODULES) {
 					return states;
 				}),
 
-				applyGlobalHandlerState: doodad.PUBLIC(function applyGlobalHandlerState(handlerType, /*optional*/newState) {
-					if (types.isString(handlerType)) {
-						handlerType = namespaces.get(handlerType);
-					};
-					root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(handlerType) || types._implements(handlerType, httpMixIns.Handler), "Invalid handler.");
-					handlerType = types.getType(handlerType) || handlerType;
+				applyGlobalHandlerState: doodad.PUBLIC(function applyGlobalHandlerState(handlerType, newState, prepend) {
 					if (newState) {
+						if (types.isString(handlerType)) {
+							handlerType = namespaces.get(handlerType);
+						};
+						root.DD_ASSERT && root.DD_ASSERT(types.isJsFunction(handlerType) || types._implements(handlerType, httpMixIns.Handler), "Invalid handler.");
+						handlerType = types.getType(handlerType) || handlerType;
 						let statesMap = this.__globalHandlersStates;
 						if (!statesMap) {
 							this.__globalHandlersStates = statesMap = new types.WeakMap();
@@ -2412,7 +2413,11 @@ exports.add = function add(DD_MODULES) {
 							globalStates = [];
 							statesMap.set(handlerType, globalStates);
 						};
-						globalStates.push(newState)
+						if (prepend) {
+							globalStates.unshift(newState)
+						} else {
+							globalStates.push(newState)
+						};
 					};
 				}),
 			})));
@@ -2423,7 +2428,7 @@ exports.add = function add(DD_MODULES) {
 				$TYPE_NAME: 'RequestMatcher',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RequestMatcherBase')), true) */,
 					
-				match: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, url, handlerOptions)
+				match: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, url, options)
 			})));
 				
 				
@@ -2444,12 +2449,19 @@ exports.add = function add(DD_MODULES) {
 					this.baseUrl = baseUrl;
 				}),
 					
-				match: doodad.OVERRIDE(function match(request, requestUrl, handlerOptions) {
+				match: doodad.OVERRIDE(function match(request, requestUrl, options) {
 					const urlPath = requestUrl.toArray({pathOnly: true, trim: true});
 					const urlPathLen = urlPath.length;
 
+					const maxDepth = types.get(options, 'depth', 0);
+					const caseSensitive = types.get(options, 'caseSensitive', false);
+
+
 					const basePath = this.baseUrl.toArray({pathOnly: true, trim: true});
 					const basePathLen = basePath.length;
+
+					const allowArgs = this.allowArguments;
+
 
 					let weight = 0,    // weight
 						full = false,  // full match
@@ -2465,62 +2477,58 @@ exports.add = function add(DD_MODULES) {
 							starStarWeight = 0,
 							i = 0;
 							
-						const maxDepth = handlerOptions.depth,
-							allowArgs = this.allowArguments;
-						
 						while (urlLevel < urlPathLen) {
 							let name1 = (i < basePathLen ? basePath[i] : null),
 								name2 = urlPath[urlLevel],
 								name1Lc,
 								name2Lc;
-							if (handlerOptions.caseSensitive) {
+							if (caseSensitive) {
 								name1Lc = name1;
 								name2Lc = name2;
 							} else {
 								name1Lc = name1 && name1.toLowerCase();
 								name2Lc = name2 && name2.toLowerCase();
 							};
-							if (name1 === '**') {
+							if (starStar) {
+								if (name1Lc === name2Lc) {
+									i++;
+									starStar = false;
+									weight += starStarWeight + 1;
+								} else {
+									starStarWeight++;
+								};
+								urlLevel++;
+							} else if (name1 === '**') {
 								starStar = true;
 								starStarWeight = 0;
 								i++;
 							} else {
-								if (starStar) {
-									if (name1Lc === name2Lc) {
-										i++;
-										starStar = false;
-										weight += starStarWeight + 1;
-									} else {
-										starStarWeight++;
-									};
-								} else {
-									const pos = (name1 && allowArgs ? name1.indexOf(':') : -1);
-									if (pos >= 0) {
-										// Url arguments matching and extraction : ex. "/invoice/id:/edit" will match "/invoice/194/edit"
-										let val = name1.slice(pos + 1).trim();
-										if ((val[0] === '(') && (val.slice(-1) === ')')) {
-											// RegExp matching
-											val = new _shared.Natives.windowRegExp('^' + val + '$', handlerOptions.caseSensitive ? '' : 'i');
-											val = val.exec(name2Lc);
-											if (!val) {
-												break;
-											};
-											if (val.length > 2) {
-												val = val.slice(2);
-											} else {
-												val = val[1];
-											};
-										} else {
-											val = name2;
+								const pos = (name1 && allowArgs ? name1.indexOf(':') : -1);
+								if (pos >= 0) {
+									// Url arguments matching and extraction : ex. "/invoice/id:/edit" will match "/invoice/194/edit"
+									let val = name1.slice(pos + 1).trim();
+									if ((val[0] === '(') && (val.slice(-1) === ')')) {
+										// RegExp matching
+										val = new _shared.Natives.windowRegExp('^' + val + '$', caseSensitive ? '' : 'i');
+										val = val.exec(name2Lc);
+										if (!val) {
+											break;
 										};
-										name1 = name1.slice(0, pos).trim();
-										urlArgs[name1] = val;
-									} else if ((name1 !== '*') && (name1Lc !== name2Lc)) {
-										break;
+										if (val.length > 2) {
+											val = val.slice(2);
+										} else {
+											val = val[1];
+										};
+									} else {
+										val = name2;
 									};
-									i++;
-									weight++;
+									name1 = name1.slice(0, pos).trim();
+									urlArgs[name1] = val;
+								} else if ((name1 !== '*') && (name1Lc !== name2Lc)) {
+									break;
 								};
+								weight++;
+								i++;
 								urlLevel++;
 							};
 						};
@@ -2559,12 +2567,12 @@ exports.add = function add(DD_MODULES) {
 											let remainingVal = (urlRemaining.args.get(name, true) || '');
 											if (val === null) {
 												val = remainingVal;
-												if (!handlerOptions.caseSensitive) {
+												if (!caseSensitive) {
 													val = val.toLowerCase();
 												};
 											} else if ((val[0] === '(') && (val.slice(-1) === ')')) {
 												// RegExp matching
-												val = new _shared.Natives.windowRegExp('^' + val + '$', handlerOptions.caseSensitive ? '' : 'i');
+												val = new _shared.Natives.windowRegExp('^' + val + '$', caseSensitive ? '' : 'i');
 												val = val.exec(remainingVal);
 												if (!val) {
 													weight = 0;
@@ -2577,7 +2585,7 @@ exports.add = function add(DD_MODULES) {
 													val = val[1];
 												};
 											} else {
-												if (!handlerOptions.caseSensitive) {
+												if (!caseSensitive) {
 													val = val.toLowerCase();
 													remainingVal = remainingVal.toLowerCase();
 												};
@@ -2640,12 +2648,12 @@ exports.add = function add(DD_MODULES) {
 					this._super(options);
 
 					_shared.setAttribute(this, 'routes', new types.Map());
-						
+
 					this.addRoutes(routes);
 				}),
 					
-				addRoutes: doodad.PUBLIC(function addRoutes(newRoutes) {
-					root.DD_ASSERT && root.DD_ASSERT((newRoutes instanceof types.Map) || types.isObject(newRoutes), "Invalid routes.");
+				addRoutes: doodad.OVERRIDE(function addRoutes(newRoutes) {
+					root.DD_ASSERT && root.DD_ASSERT(types._instanceof(newRoutes, types.Map) || types.isObject(newRoutes), "Invalid routes.");
 
 					const routes = this.routes;
 
@@ -2659,22 +2667,24 @@ exports.add = function add(DD_MODULES) {
 								if (types.isString(matcher)) {
 									matcher = new http.UrlMatcher(matcher);
 								};
-								root.DD_ASSERT && root.DD_ASSERT((matcher instanceof http.RequestMatcher), "Invalid request matcher.");
+								root.DD_ASSERT && root.DD_ASSERT(types._instanceof(matcher, http.RequestMatcher), "Invalid request matcher.");
 							
-								route.id = types.getSymbol();
+								if (!types.get(route, 'id', null)) {
+									route.id = types.getSymbol();
+								};
+
+								route.matcher = matcher;
 
 								route.prepared = false;
 
-								routes.set(matcher, route);
+								routes.set(route.id, route);
 							};
 						};
 					}, this);
 				}),
 					
 				createHandlers: doodad.OVERRIDE(function createHandlers(request, targetUrl) {
-					let handlers = tools.reduce(this.routes, function(handlers, route, matcher) {
-						const routeId = route.id;
-
+					let handlers = tools.reduce(this.routes, function(handlers, route, routeId) {
 						if (!route.prepared) {
 							route.handlers = this.prepareHandlersOptions(request.server, route.handlers);
 							route.prepared = true;
@@ -2683,26 +2693,26 @@ exports.add = function add(DD_MODULES) {
 						const handlersOptions = route.handlers;
 
 						for (let i = 0; i < handlersOptions.length; i++) {
-							const options = tools.nullObject(handlersOptions[i]);
+							const handlerOptions = tools.nullObject(handlersOptions[i]);
 
-							if (options.verbs && (tools.indexOf(options.verbs, request.verb) === -1)) {
+							if (handlerOptions.verbs && (tools.indexOf(handlerOptions.verbs, request.verb) === -1)) {
 								continue;
 							};
 								
-							if (options.extensions && targetUrl.file) {
-								if (tools.indexOf(options.extensions, targetUrl.extension) === -1) {
+							if (handlerOptions.extensions && targetUrl.file) {
+								if (tools.indexOf(handlerOptions.extensions, targetUrl.extension) === -1) {
 									continue;
 								};
 							};
 
-							const matcherResult = matcher.match(request, targetUrl, options);
+							const matcherResult = route.matcher.match(request, targetUrl, handlerOptions);
 
 							if ((matcherResult.weight > 0) || matcherResult.full) {
 //matcherResult && matcherResult.urlRemaining && console.log(matcherResult.urlRemaining.toString());
-								options.routeId = routeId;
-								options.handlerIndex = i;
-								options.matcherResult = matcherResult;
-								handlers.push(options);
+								handlerOptions.routeId = routeId;
+								handlerOptions.handlerIndex = i;
+								handlerOptions.matcherResult = matcherResult;
+								handlers.push(handlerOptions);
 							};
 						};
 							
