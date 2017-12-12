@@ -2447,7 +2447,9 @@ exports.add = function add(DD_MODULES) {
 						if (!globalState) {
 							statesMap.set(currentType, http.HandlerState);
 
-							currentType.$applyGlobalHandlerStates(this);
+							if (types.isFunction(currentType.$applyGlobalHandlerStates)) {
+								currentType.$applyGlobalHandlerStates(this);
+							};
 
 							if (stateProto) {
 								globalState = statesMap.get(currentType) || http.HandlerState;
