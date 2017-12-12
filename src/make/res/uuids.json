@@ -40,5 +40,7 @@
     "ClusterDataServiceWorker": "c564802a-698b-4c47-b41d-54de558f5790",
     "DataHandler": "9b460c37-e76b-4d4e-863f-5331f121f0fb",
     "ClusterDataHandler": "480e613d-f0f3-4fcb-b191-62927b7fb08f",
-    "HandlersContainerMixIn": "00543e32-cdb3-44da-8e06-efe5af4db7b9"
+    "HandlersContainerMixIn": "00543e32-cdb3-44da-8e06-efe5af4db7b9",
+    "ProceedNewHandlers": "b275d7e1-d79d-4997-89ab-666ab1f52d24",
+    "StreamAborted": "29d34772-c471-4945-8440-2a3050c401e0"
 }
