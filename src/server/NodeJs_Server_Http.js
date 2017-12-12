@@ -164,8 +164,9 @@ exports.add = function add(DD_MODULES) {
 					this.nodeJsStreamOnClose.clear();
 					this.nodeJsStreamOnFinish.clear();
 
-						
-					if (!this.__endRacer.isSolved()) {
+					const racer = this.__endRacer;
+
+					if (racer && !racer.isSolved()) {
 						this.__endRacer.reject(new types.ScriptInterruptedError("Response object is about to be destroyed."));
 					};
 
@@ -797,7 +798,9 @@ exports.add = function add(DD_MODULES) {
 
 					types.DESTROY(this.stream);
 
-					if (this.__endRacer && !this.__endRacer.isSolved()) {
+					const racer = this.__endRacer;
+
+					if (racer && !racer.isSolved()) {
 						this.__endRacer.reject(new types.ScriptInterruptedError("Request object is about to be destroyed."));
 					};
 
