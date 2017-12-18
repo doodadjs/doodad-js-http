@@ -764,7 +764,7 @@ exports.add = function add(DD_MODULES) {
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ResponseBase')), true) */,
 					
 				onGetStream: doodad.EVENT(false),
-				onError: doodad.EVENT(false),
+				onError: doodad.ERROR_EVENT(),
 				onStatus: doodad.EVENT(false),
 				onSendHeaders: doodad.EVENT(false),
 
@@ -792,8 +792,11 @@ exports.add = function add(DD_MODULES) {
 				// TODO: Validate
 				reset: doodad.PUBLIC(function reset() {
 					const allHandlers = this.request.getHandlers();
+
 					const objectHandlers = allHandlers.filter(function(handler) {return !types.isFunction(handler)});
+
 					this.clearEvents(objectHandlers);
+
 					if (!this.ended) {
 						_shared.setAttributes(this, {
 							headers: tools.nullObject(),
@@ -815,11 +818,14 @@ exports.add = function add(DD_MODULES) {
 				setContentType: doodad.OVERRIDE(function setContentType(contentType, /*optional*/options) {
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
-					};							
+					};
+
 					if (this.headersSent) {
 						throw new types.NotAvailable("Can't add new headers because headers have been sent to the client.");
 					};
+
 					contentType = this.request.getAcceptables(contentType, options)[0];
+
 					if (!contentType) {
 						throw new types.HttpError(types.HttpStatus.NotAcceptable);
 					};
@@ -831,62 +837,79 @@ exports.add = function add(DD_MODULES) {
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
 					};							
+
 					if (this.headersSent) {
 						throw new types.NotAvailable("Can't add new headers because headers have been sent to the client.");
 					};
+
 					this._super(name, value);
+
 					this.request.setFullfilled(true);
 				}),
 					
 				addHeaders: doodad.OVERRIDE(function addHeaders(headers) {
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
-					};							
+					};
+
 					if (this.headersSent) {
 						throw new types.NotAvailable("Can't add new headers because headers have been sent to the client.");
 					};
+
 					this._super(headers);
+
 					this.request.setFullfilled(true);
 				}),
 
 				clearHeaders: doodad.OVERRIDE(function clearHeaders(/*optional*/names) {
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
-					};							
+					};
+
 					if (this.headersSent) {
 						throw new types.NotAvailable("Can't clear headers because they have been sent to the client.");
 					};
+
 					this._super(names);
 				}),
 
 				addTrailer: doodad.PUBLIC(function addTrailer(name, value) {
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
-					};							
+					};
+
 					if (this.trailersSent) {
 						throw new types.NotAvailable("Can't add new trailers because trailers have been sent and the request has ended.");
 					};
+
 					const responseTrailers = this.trailers;
 					const fixed = tools.title(tools.trim(name), '-');
+
 					value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
+
 					if (value) {
 						responseTrailers[fixed] = value;
 					} else {
 						delete responseTrailers[fixed];
 					};
+
 					this.onHeadersChanged(new doodad.Event({headers: [fixed], areTrailers: true}));
+
 					this.request.setFullfilled(true);
 				}),
 
 				addTrailers: doodad.PUBLIC(function addTrailers(trailers) {
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
-					};							
+					};
+
 					if (this.trailersSent) {
 						throw new types.NotAvailable("Can't add new trailers because trailers have been sent and the request has ended.");
 					};
+
 					const responseTrailers = this.trailers;
 					const changed = tools.nullObject();
+
 					tools.forEach(trailers, function(value, name) {
 						const fixed = tools.title(tools.trim(name), '-');
 						value = (types.isNothing(value) ? '' : tools.trim(types.toString(value)));
@@ -897,10 +920,12 @@ exports.add = function add(DD_MODULES) {
 						};
 						changed[fixed] = null;
 					});
+
 					const changedKeys = types.keys(changed);
 					if (changedKeys.length) {
 						this.onHeadersChanged(new doodad.Event({headers: changedKeys, areTrailers: true}));
 					};
+
 					this.request.setFullfilled(true);
 				}),
 
@@ -914,7 +939,9 @@ exports.add = function add(DD_MODULES) {
 						if (!types.isArray(names)) {
 							names = [names];
 						};
+
 						changedTrailers = [];
+
 						for (let i = 0; i < names.length; i++) {
 							let fixed = tools.title(tools.trim(names[i]), '-');
 							if (fixed in this.trailers) {
@@ -924,10 +951,12 @@ exports.add = function add(DD_MODULES) {
 						};
 					} else {
 						changedTrailers = types.keys(this.tailers);
+
 						_shared.setAttributes(this, {
 							trailers: tools.nullObject(),
 						});
 					};
+
 					if (changedTrailers.length) {
 						this.onHeadersChanged(new doodad.Event({headers: changedTrailers, areTrailers: true}));
 					};
@@ -1301,14 +1330,21 @@ exports.add = function add(DD_MODULES) {
 				}),
 
 				getAcceptables: doodad.PUBLIC(function getAcceptables(/*optional*/contentTypes, /*optional*/options) {
+					// Get negociated mime types between the handler and the client. Defaults to the "Accept" header.
+
 					options = tools.nullObject(options);
 
-					// Get negociated mime types between the handler and the client. Defaults to the "Accept" header.
 					const handlerState = options.handler && this.getHandlerState(options.handler);
-					let handlerTypes = handlerState && handlerState.mimeTypes || this.__parsedAccept;
+
+					const handlerTypes = handlerState && handlerState.mimeTypes;
+					const acceptableTypes = this.__parsedAccept;
+					const allowedTypes = handlerTypes || acceptableTypes;
+					const hasHandlerTypes = !!handlerTypes;
+					const hasAcceptableTypes = !!acceptableTypes;
+					const discardWilcards = hasHandlerTypes && hasAcceptableTypes && !tools.some(acceptableTypes, function(mimeType) {return (mimeType.type === '*') && (mimeType.subtype === '*')});
 
 					if (!contentTypes) {
-						return handlerTypes;
+						return allowedTypes;
 					};
 
 					if (!types.isArray(contentTypes)) {
@@ -1317,28 +1353,32 @@ exports.add = function add(DD_MODULES) {
 
 					const acceptedTypes = [];
 						
-					if (handlerTypes) {
+					if (allowedTypes) {
 						for (let i = 0; i < contentTypes.length; i++) {
 							let contentType = contentTypes[i];
 							if (types.isString(contentType)) {
 								contentType = http.parseContentTypeHeader(contentType);
 							};
 							if (contentType.weight > 0.0) {
-								// Get mime type parameters from the handler options (typicaly 'charset')
-								const result = tools.reduce(handlerTypes, function(result, handlerType, index) {
-									const score = http.compareMimeTypes(handlerType, contentType);
-									if (score > result.score) {
-										result.score = score;
-										result.mimeType = handlerType;
-										result.index = index;
+								const result = tools.reduce(allowedTypes, function(result, handlerType, index) {
+									if (!discardWilcards || !((handlerType.type === '*') && (handlerType.subtype === '*'))) {
+										const score = http.compareMimeTypes(handlerType, contentType);
+										if (score > result.score) {
+											result.score = score;
+											result.mimeType = handlerType;
+											result.index = index;
+										};
 									};
 									return result;
 								}, {mimeType: null, score: 0, index: -1});
 								let newContentType;
 								if (result.mimeType) {
+									// Get parameters from the allowed mime types (typicaly 'charset')
 									const newParams = tools.complete({}, result.mimeType.params, contentType.params);
 									newContentType = contentType.set({weight: result.mimeType.weight, params: newParams});
+
 									newContentType.customData.index = result.index; // for "sort"
+
 									acceptedTypes.push(newContentType);
 								};
 							};
@@ -1532,9 +1572,9 @@ exports.add = function add(DD_MODULES) {
 
 						let handler = handlerOptions.handler;
 
-						const acceptedMimeTypes = this.getAcceptables(handlerOptions.mimeTypes);
+						const acceptedMimeTypes = this.getAcceptables(handlerOptions.mimeTypes || ['*/*']);
 
-						if (!handlerOptions.mimeTypes || (acceptedMimeTypes && acceptedMimeTypes.length)) {
+						if (acceptedMimeTypes && acceptedMimeTypes.length) {
 							const parentState = handlerOptions.parent && this.getHandlerState(handlerOptions.parent);
 							const stateUrl = handlerOptions.matcherResult && (parentState && parentState.url ? parentState.url.combine(handlerOptions.matcherResult.url, {isRelative: true}) : handlerOptions.matcherResult.url);
 
