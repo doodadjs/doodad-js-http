@@ -2495,7 +2495,7 @@ exports.add = function add(DD_MODULES) {
 					if (types.isNothing(key)) {
 						key = this.createKey();
 							
-						key.url = request.url.toDataObject({domain: null, args: null});
+						key.url = request.url.toDataObject({domain: null, args: null, functions: true});
 						key.headers = new nodejsHttp.CacheHeaders();
 						key.section = section;
 					};
