@@ -1528,13 +1528,13 @@ exports.add = function add(DD_MODULES) {
 					if (types.isString(type)) {
 						const tmp = namespaces.get(type);
 						if (!tmp) {
-							throw new types.TypeError("Unknown type : '~0~'.", [type]);
+							throw new types.ValueError("Unknown type : '~0~'.", [type]);
 						};
 						type = tmp;
 					};
 
 					if (!types._implements(type, httpMixIns.Handler)) {
-						throw new types.TypeError("Invalid handler : '~0~'.", [type.DD_FULL_NAME || '<unknown>']);
+						throw new types.ValueError("Invalid handler : '~0~'.", [type.DD_FULL_NAME || '<unknown>']);
 					};
 
 					return this.proceed(this.server.handlersOptions, {resolveUrl: url})
@@ -1617,7 +1617,7 @@ exports.add = function add(DD_MODULES) {
 									return handler(this); // "handler" is "function(request) {...}"
 								};
 							} else {
-								throw new types.TypeError("Invalid handler.");
+								throw new types.ValueError("Invalid handler.");
 							};
 						};
 
@@ -1740,7 +1740,7 @@ exports.add = function add(DD_MODULES) {
 							handler = handlerOptions;
 							handlerOptions = tools.nullObject(types.get(handler, 'options'), {handler: handler});
 						} else {
-							throw new types.TypeError("Invalid options.");
+							throw new types.ValueError("Invalid handler options.");
 						};
 
 						if (types.isString(handler)) {
@@ -1752,7 +1752,7 @@ exports.add = function add(DD_MODULES) {
 						const handlerType = (isJsFunction ? handler : types.getType(handler));
 
 						if (!isJsFunction && !types._implements(handlerType, httpMixIns.Handler)) {
-							throw new types.TypeError("Invalid handler type '~0~'.", [types.getTypeName(handler)]);
+							throw new types.ValueError("Invalid handler type '~0~'.", [types.getTypeName(handler)]);
 						};
 
 						handlerOptions.parent = this;

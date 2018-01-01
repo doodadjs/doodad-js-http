@@ -2000,7 +2000,7 @@ exports.add = function add(DD_MODULES) {
 
 					if (nodeCluster.isWorker) {
 						if (!types._instanceof(options.messenger, cluster.ClusterMessenger)) {
-							throw new types.TypeError("Invalid or missing 'messenger' option.");
+							throw new types.ValueError("Invalid or missing 'messenger' option.");
 						};
 					};
 						
@@ -2589,7 +2589,7 @@ exports.add = function add(DD_MODULES) {
 						//};
 
 					} else {
-						throw new types.TypeError("Invalid cached object key '~0~'.", [key]);
+						throw new types.ValueError("Invalid cached object key '~0~'.", [key]);
 
 					};
 						
