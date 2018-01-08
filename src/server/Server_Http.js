@@ -3160,17 +3160,27 @@ exports.add = function add(DD_MODULES) {
 			}));
 
 
-			http.REGISTER(types.createErrorType("ProceedNewHandlers", types.ScriptInterruptedError, function _super(handlersOptions, /*optional*/message, /*optional*/params) {
-				this.handlersOptions = handlersOptions;
-				return [message || "Will proceed with a new Handler object.", params];
-			}, null, null, null, /*! REPLACE_BY(TO_SOURCE(UUID('ProceedNewHandlers')), true) */ null /*! END_REPLACE() */));
-				
-				
-			http.REGISTER(types.createErrorType("StreamAborted", types.ScriptInterruptedError, function _super(/*optional*/message, /*optional*/params) {
-				return [message || "'getStream' has been aborted.", params];
-			}, null, null, null, /*! REPLACE_BY(TO_SOURCE(UUID('StreamAborted')), true) */ null /*! END_REPLACE() */));
-				
-				
+			http.REGISTER(types.ScriptInterruptedError.$inherit({
+				$TYPE_NAME: 'ProceedNewHandlers',
+				$TYPE_UUID: /*! REPLACE_BY(TO_SOURCE(UUID('ProceedNewHandlers')), true) */ null /*! END_REPLACE() */,
+
+				[types.ConstructorSymbol](handlersOptions, /*optional*/message, /*optional*/params) {
+					this.handlersOptions = handlersOptions;
+					return [message || "Will proceed with a new Handler object.", params];
+				},
+			}));
+
+
+			http.REGISTER(types.ScriptInterruptedError.$inherit({
+				$TYPE_NAME: 'StreamAborted',
+				$TYPE_UUID: /*! REPLACE_BY(TO_SOURCE(UUID('StreamAborted')), true) */ null /*! END_REPLACE() */,
+
+				[types.ConstructorSymbol](/*optional*/message, /*optional*/params) {
+					return [message || "'getStream' has been aborted.", params];
+				},
+			}));
+
+
 			return function init(/*optional*/options) {
 				return locale.load('en_US').then(function loadLocaleCallback(locale) {
 					__Internal__.enUSLocale = locale;
