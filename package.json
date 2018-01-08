@@ -1,5 +1,5 @@
 {
-  "name": "doodad-js-http",
+  "name": "@doodad-js/http",
   "description": "HTTP server (alpha)",
   "version": "0.0.0",
   "files": [

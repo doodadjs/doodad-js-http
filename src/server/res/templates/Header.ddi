@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE ddi SYSTEM "../../../../../doodad-js-templates/src/common/res/schemas/ddt/html5_ddt.dtd">
+<!DOCTYPE ddi SYSTEM "../../../../../../@doodad-js/templates/src/common/res/schemas/ddt/html5_ddt.dtd">
 <i:ddi 
 	xmlns="http://www.doodad-js.local/schemas/html5" 
 	xmlns:t="http://www.doodad-js.local/schemas/ddt" 
 	xmlns:i="http://www.doodad-js.local/schemas/ddi" 
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation=
-		"http://www.doodad-js.local/schemas/ddi ../../../../../doodad-js-templates/src/common/res/schemas/ddt/ddi.xsd"
+		"http://www.doodad-js.local/schemas/ddi ../../../../../../@doodad-js/templates/src/common/res/schemas/ddt/ddi.xsd"
 >
 <!--
 	 doodad-js  -  Object-oriented programming framework

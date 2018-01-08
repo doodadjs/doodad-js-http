@@ -27,85 +27,85 @@
 	"stage": "a",
   "dependencies": [
     {
-      "name": "doodad-js",
+      "name": "@doodad-js/core",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-io",
+      "name": "@doodad-js/io",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-mime",
+      "name": "@doodad-js/mime",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-locale",
+      "name": "@doodad-js/locale",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-dates",
+      "name": "@doodad-js/dates",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-server",
+      "name": "@doodad-js/server",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-minifiers",
+      "name": "@doodad-js/minifiers",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-templates",
+      "name": "@doodad-js/templates",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-widgets",
+      "name": "@doodad-js/widgets",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-json",
+      "name": "@doodad-js/json",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-xml",
+      "name": "@doodad-js/xml",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-unicode",
+      "name": "@doodad-js/unicode",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-cluster",
+      "name": "@doodad-js/cluster",
       "client": false,
       "server": true,
       "browserify": false
     },
     {
-      "name": "doodad-js-ipc",
+      "name": "@doodad-js/ipc",
       "client": false,
       "server": true,
       "browserify": false
@@ -141,7 +141,7 @@
 					"class": "Make.Modules.Load",
 					"files": [
 						{
-							"module": "doodad-js-templates",
+							"module": "@doodad-js/templates",
 							"path": "src/make/Templates_Html_Make.js"
 						}
 					]
