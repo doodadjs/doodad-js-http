@@ -40,21 +40,24 @@ exports.add = function add(DD_MODULES) {
 				files = tools.Files,
 				dates = tools.Dates,
 				namespaces = doodad.Namespaces,	
-				mime = tools.Mime,
-				interfaces = doodad.Interfaces,
+				//mime = tools.Mime,
+				//interfaces = doodad.Interfaces,
 				mixIns = doodad.MixIns,
 				extenders = doodad.Extenders,
-				widgets = doodad.Widgets,
+				//widgets = doodad.Widgets,
 				io = doodad.IO,
 				server = doodad.Server,
 				serverMixIns = server.MixIns,
 				http = server.Http,
-				httpInterfaces = http.Interfaces,
+				//httpInterfaces = http.Interfaces,
 				httpMixIns = http.MixIns,
 				ioJson = io.Json,
-				ioXml = io.Xml,
+				//ioXml = io.Xml,
 				moment = dates.Moment, // optional
 				unicode = tools.Unicode;
+
+
+			/* eslint camelcase: "off" */
 					
 					
 			const __Internal__ = {
@@ -64,7 +67,6 @@ exports.add = function add(DD_MODULES) {
 			tools.complete(_shared.Natives, {
 				windowRegExp: global.RegExp,
 			});
-				
 				
 				
 	/* RFC 7230
@@ -225,7 +227,7 @@ exports.add = function add(DD_MODULES) {
 					qvalue,
 					acceptExts;
 						
-				newMedia: while (i < value.length) {
+				while (i < value.length) {
 					qvalue = 1.0;
 					acceptExts = tools.nullObject();
 						
@@ -321,7 +323,7 @@ exports.add = function add(DD_MODULES) {
 					qvalue,
 					acceptExts;
 						
-				newEncoding: while (i < value.length) {
+				while (i < value.length) {
 					qvalue = 1.0;
 					acceptExts = tools.nullObject();
 							
@@ -433,7 +435,7 @@ exports.add = function add(DD_MODULES) {
 				};
 					
 				media = media.toLowerCase();  // content-types are case-insensitive
-				let tmp = tools.split(media, '/', 2);
+				const tmp = tools.split(media, '/', 2);
 				const type = tmp[0],
 					subtype = tmp[1];
 				if (!type || !subtype) {
@@ -453,7 +455,7 @@ exports.add = function add(DD_MODULES) {
 						name = name.toLowerCase();   // param names are case-insensitive
 							
 						delimiters = [';']; // byref
-						let value = __Internal__.getNextTokenOrString(contentType, pos, false, delimiters);
+						const value = __Internal__.getNextTokenOrString(contentType, pos, false, delimiters);
 							
 						params[name] = value || '';
 					};
@@ -514,7 +516,7 @@ exports.add = function add(DD_MODULES) {
 					media = media.toLowerCase();  // content-dispositions are case-insensitive
 				} else {
 					delimiters = [';']; // byref
-					let value = __Internal__.getNextTokenOrString(contentDisposition, pos, false, delimiters);
+					const value = __Internal__.getNextTokenOrString(contentDisposition, pos, false, delimiters);
 							
 					params[media] = value || '';
 					media = '';
@@ -530,7 +532,7 @@ exports.add = function add(DD_MODULES) {
 					name = name.toLowerCase();   // param names are case-insensitive
 							
 					delimiters = [';']; // byref
-					let value = __Internal__.getNextTokenOrString(contentDisposition, pos, false, delimiters);
+					const value = __Internal__.getNextTokenOrString(contentDisposition, pos, false, delimiters);
 							
 					params[name] = value || '';
 				};
@@ -586,14 +588,14 @@ exports.add = function add(DD_MODULES) {
 
 				onHeadersChanged: doodad.EVENT(false),
 
-				create: doodad.OVERRIDE(function create(/*paramarray*/) {
+				create: doodad.OVERRIDE(function create(/*paramarray*/...args) {
 					this.headers = tools.nullObject();
 
-					this._super.apply(this, arguments);
+					this._super(...args);
 				}),
 
 				getHeader: doodad.PUBLIC(function getHeader(name) {
-					var fixed = tools.title(name, '-');
+					const fixed = tools.title(name, '-');
 					return this.headers[fixed];
 				}),
 					
@@ -671,7 +673,7 @@ exports.add = function add(DD_MODULES) {
 						};
 						changedHeaders = [];
 						for (let i = 0; i < names.length; i++) {
-							let fixed = tools.title(tools.trim(names[i]), '-');
+							const fixed = tools.title(tools.trim(names[i]), '-');
 							if (fixed in this.headers) {
 								changedHeaders.push(fixed);
 								if (fixed === 'Content-Type') {
@@ -793,7 +795,9 @@ exports.add = function add(DD_MODULES) {
 				reset: doodad.PUBLIC(function reset() {
 					const allHandlers = this.request.getHandlers();
 
-					const objectHandlers = allHandlers.filter(function(handler) {return !types.isFunction(handler)});
+					const objectHandlers = allHandlers.filter(function(handler) {
+						return !types.isFunction(handler);
+					});
 
 					this.clearEvents(objectHandlers);
 
@@ -943,7 +947,7 @@ exports.add = function add(DD_MODULES) {
 						changedTrailers = [];
 
 						for (let i = 0; i < names.length; i++) {
-							let fixed = tools.title(tools.trim(names[i]), '-');
+							const fixed = tools.title(tools.trim(names[i]), '-');
 							if (fixed in this.trailers) {
 								changedTrailers.push(fixed);
 								delete this.trailers[fixed];
@@ -1132,7 +1136,9 @@ exports.add = function add(DD_MODULES) {
 				// TODO: Validate
 				reset: doodad.PUBLIC(function reset() {
 					if (this.__handlersStates) {
-						const handlers = this.getHandlers().filter(function(handler) {return !types.isFunction(handler)});
+						const handlers = this.getHandlers().filter(function(handler) {
+							return !types.isFunction(handler);
+						});
 						this.clearEvents(handlers);
 					};
 					if (!this.ended) {
@@ -1205,7 +1211,7 @@ exports.add = function add(DD_MODULES) {
 						const clientCrashed = types.toBoolean(url.args.get('crashReport', false));
 						const clientCrashRecovery = types.toBoolean(url.args.get('crashRecovery', false));
 //throw new types.Error("allo"); // To simulate an error on 'create'
-						url = url.removeArgs(['redirects', 'crashReport', 'crashRecovery'])
+						url = url.removeArgs(['redirects', 'crashReport', 'crashRecovery']);
 
 						this.reset();
 
@@ -1218,8 +1224,8 @@ exports.add = function add(DD_MODULES) {
 						});
 					} catch(ex) {
 						type.$__actives--;
-						var failed = type.$__failed;
-						var status = types.HttpStatus.InternalError;
+						const failed = type.$__failed;
+						const status = types.HttpStatus.InternalError;
 						if (types.has(failed, status)) {
 							failed[status]++;
 						} else {
@@ -1341,7 +1347,9 @@ exports.add = function add(DD_MODULES) {
 					const allowedTypes = handlerTypes || acceptableTypes;
 					const hasHandlerTypes = !!handlerTypes;
 					const hasAcceptableTypes = !!acceptableTypes;
-					const discardWilcards = hasHandlerTypes && hasAcceptableTypes && !tools.some(acceptableTypes, function(mimeType) {return (mimeType.type === '*') && (mimeType.subtype === '*')});
+					const discardWilcards = hasHandlerTypes && hasAcceptableTypes && !tools.some(acceptableTypes, function(mimeType) {
+						return (mimeType.type === '*') && (mimeType.subtype === '*');
+					});
 
 					if (!contentTypes) {
 						return allowedTypes;
@@ -1504,7 +1512,9 @@ exports.add = function add(DD_MODULES) {
 						if (!types.isArray(newAccept)) {
 							newAccept = [newAccept];
 						};
-						this.__streamOptions.accept = tools.append(accept, newAccept.map(value => types.isString(value) ? http.parseAcceptHeader(value)[0] : value));
+						this.__streamOptions.accept = tools.append(accept, newAccept.map(function(value) {
+							return (types.isString(value) ? http.parseAcceptHeader(value)[0] : value);
+						}));
 					};
 				}),
 
@@ -1638,6 +1648,7 @@ exports.add = function add(DD_MODULES) {
 													};
 												});
 										};
+										return undefined;
 									}, null, this)
 									.catch(this.catchError, this)
 									.then(function proceedNext(dummy) {
@@ -1646,6 +1657,7 @@ exports.add = function add(DD_MODULES) {
 							};
 							return resolveUrl && resolved;
 						};
+						return undefined;
 					};
 						
 					return Promise.resolve(loopProceedHandler.call(this, 0, []));
@@ -1661,6 +1673,7 @@ exports.add = function add(DD_MODULES) {
 							try {
 								doodad.trapException(ex);
 							} catch(o) {
+								// Do nothing
 							};
 							throw ex;
 						} else if (_shared.DESTROYED(this)) {
@@ -1690,6 +1703,8 @@ exports.add = function add(DD_MODULES) {
 									.catch(_catchError, this);
 							};
 						};
+
+						return undefined;
 					};
 
 					return _catchError.call(this, ex);
@@ -1784,7 +1799,7 @@ exports.add = function add(DD_MODULES) {
 
 				protocol: doodad.PUBLIC(doodad.READ_ONLY(null)),
 				handlersOptions: doodad.PUBLIC(doodad.READ_ONLY(null)),
-				options:  doodad.PUBLIC(doodad.READ_ONLY(null)),
+				options: doodad.PUBLIC(doodad.READ_ONLY(null)),
 			})));
 				
 			httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
@@ -1939,7 +1954,7 @@ exports.add = function add(DD_MODULES) {
 
 					options = this._super(options);
 						
-					let val;
+					//let val;
 						
 					options.status = types.toInteger(options.status);
 
@@ -2087,8 +2102,7 @@ exports.add = function add(DD_MODULES) {
 						// Preflight CORS
 							
 						const allowedOrigins = this.options.allowedOrigins;
-						if (allowedOrigins.length && (tools.indexOf(allowedOrigins, cors) < 0))
-							{ // Case sensitive
+						if (allowedOrigins.length && (tools.indexOf(allowedOrigins, cors) < 0)) { // Case sensitive
 							// Invalid origin
 							return request.end();
 						};
@@ -2117,7 +2131,7 @@ exports.add = function add(DD_MODULES) {
 									return val.toLowerCase();
 								});
 							if (!tools.every(wantedHeaders, function(val) {
-										return (tools.indexOf(allowedHeadersLC, val) >= 0)  // Case insensitive
+										return (tools.indexOf(allowedHeadersLC, val) >= 0);  // Case insensitive
 									})) {
 								// Invalid header
 								return request.end();
@@ -2134,10 +2148,12 @@ exports.add = function add(DD_MODULES) {
 
 						request.setFullfilled(false);
 					};
+					return undefined;
 				})),
 					
 				execute: doodad.OVERRIDE(function execute(request) {
 					const method = 'execute_' + request.verb;
+
 					if (types.isImplemented(this, method)) {
 						return this[method](request);
 							
@@ -2169,6 +2185,8 @@ exports.add = function add(DD_MODULES) {
 							request.setFullfilled(false);
 						};
 					};
+
+					return undefined;
 				}),
 			}));
 
@@ -2327,7 +2345,7 @@ exports.add = function add(DD_MODULES) {
 
 					options = this._super(options);
 
-					var val;
+					let val;
 						
 					options.sslPort = (types.toInteger(options.sslPort) || 443);
 
@@ -2344,7 +2362,7 @@ exports.add = function add(DD_MODULES) {
 				execute: doodad.OVERRIDE(function execute(request) {
 					const cspState = request.getHandlerState(http.ContentSecurityPolicyHandler);
 					if (!cspState) {
-						return;
+						return undefined;
 					};
 
 					const uirs = request.getHeader('Upgrade-Insecure-Requests');
@@ -2378,6 +2396,8 @@ exports.add = function add(DD_MODULES) {
 							return request.redirectClient(url);
 						};
 					};
+
+					return undefined;
 				}),
 			}));
 
@@ -2393,7 +2413,7 @@ exports.add = function add(DD_MODULES) {
 
 					options = this._super(options);
 
-					var val;
+					let val;
 						
 					val = options.reportUrl;
 					options.reportUrl = (val ? files.Url.parse(val) : null);
@@ -2410,6 +2430,7 @@ exports.add = function add(DD_MODULES) {
 							return request.redirectClient(request.url.setArgs({crashRecovery: true})); // NOTE: "?crashReport=true" is removed by the "Request" object
 						};
 					};
+					return undefined;
 				}),
 			}));
 
@@ -2427,7 +2448,7 @@ exports.add = function add(DD_MODULES) {
 
 					serverOptions = tools.nullObject(serverOptions);
 
-					var val;
+					let val;
 						
 					val = serverOptions.validHosts;
 					if (!types.isNothing(val) && !types.isArray(val)) {
@@ -3102,8 +3123,8 @@ exports.add = function add(DD_MODULES) {
 				//}),
 				
 				__onBOF: doodad.PROTECTED(function __onBOF(ev) {
-					const request = ev.handlerData[0],
-						mpStream = ev.handlerData[1];
+					const request = ev.handlerData[0];
+						//mpStream = ev.handlerData[1];
 
 					request.clearHeaders();
 
@@ -3135,7 +3156,7 @@ exports.add = function add(DD_MODULES) {
 
 						request.addPipe(mpStream);
 
-						mpStream.onBOF.attach(this, this.__onBOF, 10, [request, mpStream])
+						mpStream.onBOF.attach(this, this.__onBOF, 10, [request, mpStream]);
 					} else {
 						ev.data.stream = mpStream;
 						mpStream.unpipe();

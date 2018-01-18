@@ -57,19 +57,19 @@ exports.add = function add(DD_MODULES) {
 				files = tools.Files,
 				namespaces = doodad.Namespaces,
 				mime = tools.Mime,
-				locale = tools.Locale,
+				//locale = tools.Locale,
 				mixIns = doodad.MixIns,
-				interfaces = doodad.Interfaces,
-				extenders = doodad.Extenders,
+				//interfaces = doodad.Interfaces,
+				//extenders = doodad.Extenders,
 				io = doodad.IO,
-				ioInterfaces = io.Interfaces,
+				//ioInterfaces = io.Interfaces,
 				ioMixIns = io.MixIns,
 				nodejs = doodad.NodeJs,
 				cluster = nodejs.Cluster,
 				nodejsIO = nodejs.IO,
 				nodejsIOInterfaces = nodejsIO.Interfaces,
 				server = doodad.Server,
-				serverInterfaces = server.Interfaces,
+				//serverInterfaces = server.Interfaces,
 				ipc = server.Ipc,
 				http = server.Http,
 				//httpInterfaces = http.Interfaces,
@@ -82,6 +82,8 @@ exports.add = function add(DD_MODULES) {
 				dates = tools.Dates,
 				moment = dates.Moment; // Optional
 			
+
+			/* eslint camelcase: "off" */   // That's HTTP, "execute_" + verb
 
 			const modulePath = files.parsePath(module.filename).set({file: null});
 
@@ -196,6 +198,7 @@ exports.add = function add(DD_MODULES) {
 									};
 								};
 							};
+							return undefined;
 						}, this)
 						.finally(function() {
 							let promise = null;
@@ -222,6 +225,7 @@ exports.add = function add(DD_MODULES) {
 													} else {
 														this.nodeJsStream.end();
 													};
+													return undefined;
 												}, null, this)
 												.catch(reject);
 										} else if (stream && stream.canWrite()) {
@@ -238,6 +242,7 @@ exports.add = function add(DD_MODULES) {
 							if (!this.request.ended) {
 								return this.request.end(forceDisconnect);
 							};
+							return undefined;
 						}, null, this)
 						.then(function(dummy) {
 							throw new server.EndOfRequest();
@@ -522,6 +527,7 @@ exports.add = function add(DD_MODULES) {
 
 					if (ex.critical) {
 						throw ex;
+
 					} else {
 						ex.trapped = true;
 
@@ -541,6 +547,8 @@ exports.add = function add(DD_MODULES) {
 							};
 						};
 					};
+
+					return undefined;
 				}),
 
 				sendFile: doodad.PUBLIC(doodad.ASYNC(function sendFile(path) {
@@ -561,7 +569,7 @@ exports.add = function add(DD_MODULES) {
 								} else {
 									resolve(stats);
 								};
-							}))
+							}));
 						}, this)
 						.then(function parseStats(stats) {
 							if (!stats.isFile()) {
@@ -582,12 +590,14 @@ exports.add = function add(DD_MODULES) {
 							});
 
 							if (!this.getHeader('Content-Disposition')) {
-								this.addHeader('Content-Disposition', 'attachment; filename="' + path.file.replace(/\"/g, '\\"') + '"');
+								this.addHeader('Content-Disposition', 'attachment; filename="' + path.file.replace(/"/g, '\\"') + '"');
 							};
 
-							if (request.verb !== 'HEAD') {
+							if (this.request.verb !== 'HEAD') {
 								return this.getStream();
 							};
+
+							return undefined;
 						}, null, this)
 						.then(function(outputStream) {
 							if (outputStream) {
@@ -599,6 +609,7 @@ exports.add = function add(DD_MODULES) {
 								inputStream.pipe(iwritable);
 								return outputStream.onEOF.promise();
 							};
+							return undefined;
 						}, null, this)
 						.catch(function cacthError(err) {
 							if (err.code === 'ENOENT') {
@@ -833,6 +844,7 @@ exports.add = function add(DD_MODULES) {
 									.then(wait, null, this);
 							};
 						};
+						return undefined;
 					};
 
 					return Promise.try(function tryEndRequest() {
@@ -843,6 +855,8 @@ exports.add = function add(DD_MODULES) {
 							return this.response.end(forceDisconnect)
 								.catch(server.EndOfRequest, function () { });
 						};
+
+						return undefined;
 					}, this)
 						.then(function(dummy) {
 							this.__ending = false; // now blocks any operation
@@ -859,6 +873,8 @@ exports.add = function add(DD_MODULES) {
 									return stream.flushAsync({purge: true});
 								};
 							};
+							
+							return undefined;
 						}, null, this)
 						.then(wait, null, this)
 						.catch(this.catchError, this)
@@ -1071,7 +1087,7 @@ exports.add = function add(DD_MODULES) {
 				__listening: doodad.PROTECTED(false),
 					
 				onNodeRequest: doodad.NODE_EVENT('request', function onNodeRequest(context, nodeRequest, nodeResponse) {
-					const Promise = types.getPromise();
+					//const Promise = types.getPromise();
 					if (this.__listening) {
 						if (this.options.validHosts) {
 							const host = nodeRequest.headers['host'];
@@ -1111,6 +1127,7 @@ exports.add = function add(DD_MODULES) {
 												return request.response.respondWithStatus(types.HttpStatus.NotFound);
 											};
 										};
+										return undefined;
 									})
 									.catch(request.catchError)
 									.nodeify(function requestCleanup(err, result) {
@@ -1174,6 +1191,7 @@ exports.add = function add(DD_MODULES) {
 						const protocol = options.protocol || 'http';
 						let factory;
 						if ((protocol === 'http') || (protocol === 'https')) {
+							/* eslint global-require: "off", import/no-dynamic-require: "off" */
 							factory = require(protocol);
 						} else {
 							throw new doodad.Error("Invalid protocol : '~0~'.", [protocol]);
@@ -1564,7 +1582,7 @@ exports.add = function add(DD_MODULES) {
 								
 							if (stats.isFile()) {
 								request.response.addHeaders({
-									'Content-Disposition': 'filename="' + path.file.replace(/\"/g, '\\"') + '"',
+									'Content-Disposition': 'filename="' + path.file.replace(/"/g, '\\"') + '"',
 								});
 							} else {
 								const state = request.getHandlerState(this);
@@ -1623,10 +1641,11 @@ exports.add = function add(DD_MODULES) {
 								return request.end();
 							});
 					};
+					return undefined;
 				})),
 
 				sendFile: doodad.PROTECTED(doodad.ASYNC(function sendFile(request, data) {
-					const Promise = types.getPromise();
+					//const Promise = types.getPromise();
 
 					if (data.path) {
 						request.data.isFolder = false;
@@ -1650,10 +1669,11 @@ exports.add = function add(DD_MODULES) {
 									return request.end();
 								});
 					};
+					return undefined;
 				})),
 					
 				sendFolder: doodad.PROTECTED(doodad.ASYNC(function sendFolder(request, data) {
-					const Promise = types.getPromise();
+					//const Promise = types.getPromise();
 					request.data.isFolder = true;
 					if (request.url.file) {
 						return request.redirectClient(request.url.pushFile());
@@ -1750,6 +1770,7 @@ exports.add = function add(DD_MODULES) {
 							} else {
 								request.setFullfilled(false);
 							};
+							return undefined;
 						}, this);
 				}),
 					
@@ -1771,8 +1792,10 @@ exports.add = function add(DD_MODULES) {
 							if (worker.id !== request.msg.worker.id) {
 								return request.server.callService(nodejsHttp.ClusterDataServiceWorker.DD_FULL_NAME, 'setData', [id, handlerName, token], {worker: worker /*ttl: ..., ...*/});
 							};
+							return undefined;
 						});
 					};
+					return undefined;
 				}),
 			}));
 
@@ -1789,6 +1812,7 @@ exports.add = function add(DD_MODULES) {
 							return nodejsHttp.ClusterDataHandler.$set(request, handler, token.data, {id: id, ttl: token.ttl});
 						};
 					};
+					return undefined;
 				}),
 			}));
 
@@ -2172,7 +2196,7 @@ exports.add = function add(DD_MODULES) {
 						const eof = (data.raw === io.EOF);
 						let buf = data.valueOf();
 
-						let remaining = this.__remaining;
+						const remaining = this.__remaining;
 						this.__remaining = null;
 						if (remaining) {
 							if (buf) {
@@ -2192,6 +2216,7 @@ exports.add = function add(DD_MODULES) {
 						} else {
 							let index,
 								lastIndex = 0;
+							/* eslint no-cond-assign: "off" */
 							while ((index = buf.indexOf(0x0A, lastIndex)) >= 0) { // "\n"
 								if (index === lastIndex) {
 									this.__headersCompiled = true;
@@ -2210,7 +2235,7 @@ exports.add = function add(DD_MODULES) {
 									this.__file = val[1] || '';
 								} else if (name === 'X-Cache-Status') {
 									const val = tools.split(value, ' ', 2);
-									this.__status = parseInt(val[0]) || 200;
+									this.__status = parseInt(val[0], 10) || 200;
 									this.__message = val[1] || '';
 								} else if (name === 'X-Cache-Section') {
 									//this.__section = value;
@@ -2346,7 +2371,7 @@ exports.add = function add(DD_MODULES) {
 				/*typeProto*/
 				{
 					$TYPE_NAME: 'CachedObject',
-					$TYPE_UUID:  '' /*! INJECT('+' + TO_SOURCE(UUID('CachedObject')), true) */,
+					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CachedObject')), true) */,
 				},
 				/*instanceProto*/
 				{
@@ -2816,6 +2841,8 @@ exports.add = function add(DD_MODULES) {
 
 								return stream;
 							};
+
+							return undefined;
 						}, null, this)
 						.catch(function(err) {
 							cached.abort();
@@ -3061,9 +3088,12 @@ exports.add = function add(DD_MODULES) {
 
 						// NOTE: Server MUST NOT include 'identity' in the 'Content-Encoding' header
 
-						request.response.addPipe(stream, {unshift: true, headers: {
-							'Content-Encoding': encoding,
-						}});
+						request.response.addPipe(stream, {
+							unshift: true,
+							headers: {
+								'Content-Encoding': encoding,
+							},
+						});
 
 						request.response.onSendHeaders.attachOnce(this, function(ev) {
 							request.response.clearHeaders('Content-Length');
@@ -3109,6 +3139,8 @@ exports.add = function add(DD_MODULES) {
 							request.response.onGetStream.attachOnce(this, this.__onGetStream, null, [request]);
 						};
 					};
+
+					return undefined;
 				}),
 			}));
 			
