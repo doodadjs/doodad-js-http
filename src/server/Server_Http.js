@@ -57,9 +57,6 @@ exports.add = function add(DD_MODULES) {
 				unicode = tools.Unicode;
 
 
-			/* eslint camelcase: "off" */
-					
-					
 			const __Internal__ = {
 			};
 

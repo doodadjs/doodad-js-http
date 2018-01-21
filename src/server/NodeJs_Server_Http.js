@@ -83,8 +83,6 @@ exports.add = function add(DD_MODULES) {
 				moment = dates.Moment; // Optional
 			
 
-			/* eslint camelcase: "off" */   // That's HTTP, "execute_" + verb
-
 			const modulePath = files.parsePath(module.filename).set({file: null});
 
 
