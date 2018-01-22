@@ -32,6 +32,8 @@
 	//! INJECT("import {default as nodeCrypto} from 'crypto';")
 	//! INJECT("import {default as nodeCluster} from 'cluster';")
 //! ELSE()
+	"use strict";
+
 	const nodeFs = require('fs'),
 		nodeZlib = require('zlib'),
 		nodeHttp = require('http'),
@@ -49,8 +51,6 @@ exports.add = function add(DD_MODULES) {
 		],
 
 		create: function create(root, /*optional*/_options, _shared) {
-			"use strict";
-
 			const doodad = root.Doodad,
 				types = doodad.Types,
 				tools = doodad.Tools,
