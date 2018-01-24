@@ -2272,9 +2272,7 @@ exports.add = function add(DD_MODULES) {
 
 					options = this._super(options);
 						
-					let val;
-
-					val = options.policy;
+					const val = options.policy;
 					const policy = this.$createPolicy();
 					if (val) {
 						this.$updatePolicy(policy, val);
@@ -2345,11 +2343,9 @@ exports.add = function add(DD_MODULES) {
 
 					options = this._super(options);
 
-					let val;
-						
 					options.sslPort = (types.toInteger(options.sslPort) || 443);
 
-					val = options.sslDomain;
+					const val = options.sslDomain;
 					options.sslDomain = (types.isNothing(val) ? null : types.toString(val));
 
 					options.hstsSafe = types.toBoolean(options.hstsSafe);
@@ -2413,9 +2409,7 @@ exports.add = function add(DD_MODULES) {
 
 					options = this._super(options);
 
-					let val;
-						
-					val = options.reportUrl;
+					const val = options.reportUrl;
 					options.reportUrl = (val ? files.Url.parse(val) : null);
 
 					return options;
@@ -2585,9 +2579,9 @@ exports.add = function add(DD_MODULES) {
 							
 						while (urlLevel < urlPathLen) {
 							let name1 = (i < basePathLen ? basePath[i] : null),
-								name2 = urlPath[urlLevel],
 								name1Lc,
 								name2Lc;
+							const name2 = urlPath[urlLevel];
 							if (caseSensitive) {
 								name1Lc = name1;
 								name2Lc = name2;

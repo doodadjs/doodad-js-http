@@ -2593,9 +2593,10 @@ exports.add = function add(DD_MODULES) {
 						section = types.get(options, 'section'), // string
 						create = types.get(options, 'create', false), // boolean
 						onNew = types.get(options, 'onNew', null); // function
-
-					let key = types.get(options, 'key', null), // object
-						cached = null;
+					
+					const key = types.get(options, 'key', null); // object
+					
+					let cached = null;
 
 					if (types.isNothing(key)) {
 						//key = ...
