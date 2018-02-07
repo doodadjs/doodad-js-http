@@ -793,15 +793,14 @@ exports.add = function add(DD_MODULES) {
 					
 				// TODO: Validate
 				reset: doodad.PUBLIC(function reset() {
-					const allHandlers = this.request.getHandlers();
-
-					const objectHandlers = allHandlers.filter(function(handler) {
-						return !types.isFunction(handler);
-					});
-
-					this.clearEvents(objectHandlers);
-
 					if (!this.ended) {
+						if (this.__handlersStates) {
+							const handlers = this.request.getHandlers().filter(function(handler) {
+								return !types.isFunction(handler);
+							});
+							this.clearEvents(handlers);
+						};
+
 						_shared.setAttributes(this, {
 							headers: tools.nullObject(),
 							trailers: tools.nullObject(),
@@ -1132,16 +1131,25 @@ exports.add = function add(DD_MODULES) {
 
 					this.$clearStats();
 				}),
-					
+
 				// TODO: Validate
 				reset: doodad.PUBLIC(function reset() {
-					if (this.__handlersStates) {
-						const handlers = this.getHandlers().filter(function(handler) {
-							return !types.isFunction(handler);
-						});
-						this.clearEvents(handlers);
-					};
 					if (!this.ended) {
+						if (this.__handlersStates) {
+							const handlers = this.getHandlers().filter(function(handler) {
+								return !types.isFunction(handler);
+							});
+							this.response.clearEvents(handlers);
+							this.clearEvents(handlers);
+
+							tools.forEach(this.__handlersStates, function(state, handler) {
+								if (state.mustDestroy) {
+									types.DESTROY(handler);
+									types.DESTROY(state);
+								};
+							});
+						};
+
 						_shared.setAttributes(this, {
 							__pipes: [],
 							__streamOptions: tools.nullObject(),
@@ -1449,7 +1457,7 @@ exports.add = function add(DD_MODULES) {
 					} else {
 						this.response.clear();
 						this.__redirectsCount++;
-						url = this.url.set({file: null}).combine(url);
+						url = this.url.set({ file: null }).combine(url); //.setArgs({redirects: this.__redirectsCount});
 						_shared.setAttribute(this, 'url', url);
 						const verb = options.verb;
 						if (verb) {
@@ -2009,36 +2017,37 @@ exports.add = function add(DD_MODULES) {
 				load: doodad.PROTECTED(doodad.MUST_OVERRIDE()), // function(request)
 			})));
 			*/
-				
+
 			http.REGISTER(doodad.Object.$extend(
 								httpMixIns.Handler,
 			{
 				$TYPE_NAME: 'RedirectHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RedirectHandler')), true) */,
-					
+
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
-					types.getDefault(options, 'depth', 0);
+					let targetUrl = options.targetUrl;
+					if (types.isString(targetUrl)) {
+						targetUrl = files.Url.parse(targetUrl);
+					};
+
+					const depth = (targetUrl.isRelative ? 0 : Infinity);
+
+					types.getDefault(options, 'depth', depth);
 
 					options = this._super(options);
 						
-					let val;
-						
-					val = options.targetUrl;
-					if (types.isString(val)) {
-						val = files.Url.parse(val);
-					};
-					options.targetUrl = val;
-						
+					options.targetUrl = targetUrl;
 					options.internal = types.toBoolean(options.internal);
-						
 					options.permanent = types.toBoolean(options.permanent);
 
 					return options;
 				}),
-					
+
 				execute: doodad.OVERRIDE(function execute(request) {
 					const handlerState = request.getHandlerState(this);
-					const url = handlerState.url.combine(this.options.targetUrl).set({isRelative: false});
+					const remaining = (handlerState.matcherResult ? handlerState.matcherResult.urlRemaining : null);
+					const baseUrl = handlerState.url.combine(this.options.targetUrl).set({isRelative: false});
+					const url = (remaining ? baseUrl.combine(remaining) : baseUrl);
 					if (this.options.internal) {
 						return request.redirectServer(url);
 					} else {
@@ -2046,7 +2055,6 @@ exports.add = function add(DD_MODULES) {
 					};
 				}),
 			}));
-
 
 			http.REGISTER(doodad.Object.$extend(
 								httpMixIns.Handler,
@@ -2550,7 +2558,7 @@ exports.add = function add(DD_MODULES) {
 				}),
 					
 				match: doodad.OVERRIDE(function match(request, requestUrl, options) {
-					const urlPath = requestUrl.toArray({pathOnly: true, trim: true});
+					const urlPath = requestUrl.toArray({pathOnly: true, trim: false});
 					const urlPathLen = urlPath.length;
 
 					const maxDepth = types.get(options, 'depth', 0);
@@ -2571,17 +2579,28 @@ exports.add = function add(DD_MODULES) {
 					const urlArgs = tools.nullObject(),
 						queryArgs = tools.nullObject();
 
-					if (basePathLen <= urlPathLen) {
+					let urlFirstPos = 0,
+						urlLastPos = urlPathLen;
+					while ((urlFirstPos < urlPathLen) && !urlPath[urlFirstPos]) {
+						urlFirstPos++;
+					};
+					while ((urlLastPos > 0) && !urlPath[urlLastPos - 1]) {
+						urlLastPos--;
+					};
+					const urlLength = urlLastPos - urlFirstPos;
+
+					if (basePathLen <= urlLength) {
 						let urlLevel = 0,     // path level (used later to remove the beginning of the path)
+							urlPos = urlFirstPos + urlLevel,
 							starStar = false,
 							starStarWeight = 0,
 							i = 0;
-							
-						while (urlLevel < urlPathLen) {
+
+						while (urlPos < urlLastPos) {
 							let name1 = (i < basePathLen ? basePath[i] : null),
 								name1Lc,
 								name2Lc;
-							const name2 = urlPath[urlLevel];
+							const name2 = urlPath[urlPos];
 							if (caseSensitive) {
 								name1Lc = name1;
 								name2Lc = name2;
@@ -2598,6 +2617,7 @@ exports.add = function add(DD_MODULES) {
 									starStarWeight++;
 								};
 								urlLevel++;
+								urlPos++;
 							} else if (name1 === '**') {
 								starStar = true;
 								starStarWeight = 0;
@@ -2630,18 +2650,19 @@ exports.add = function add(DD_MODULES) {
 								weight++;
 								i++;
 								urlLevel++;
+								urlPos++;
 							};
 						};
 							
-						if ((i >= basePathLen) && (urlPathLen - urlLevel <= maxDepth)) {
-							full = (urlPathLen >= weight);
+						if ((i >= basePathLen) && (urlLastPos - urlLevel <= maxDepth)) {
+							full = (urlLastPos >= weight);
 						} else {
 							weight = 0;
 						};
 							
-						url = files.Url.parse(urlPath.slice(0, urlLevel));
+						url = files.Url.parse(urlPath.slice(urlFirstPos, urlPos));
 							
-						const ar = urlPath.slice(urlLevel);
+						const ar = urlPath.slice(urlPos);
 						let file = null;
 						if (requestUrl.file) {
 							file = ar.pop();
