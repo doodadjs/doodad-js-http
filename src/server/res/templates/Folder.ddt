@@ -55,7 +55,7 @@
 
           <h3 class="current">
             <span>
-              Content of <a href="./">
+              Content of <a t:href="url">
                 <t:eval>url</t:eval>
               </a>
             </span>
