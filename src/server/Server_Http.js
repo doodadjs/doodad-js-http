@@ -1988,7 +1988,6 @@ exports.add = function add(DD_MODULES) {
 
 				execute_HEAD: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
 				execute_GET: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),
-
 			})));
 
 			/* TODO: Terminate and Test
@@ -2584,7 +2583,7 @@ exports.add = function add(DD_MODULES) {
 					while ((urlFirstPos < urlPathLen) && !urlPath[urlFirstPos]) {
 						urlFirstPos++;
 					};
-					while ((urlLastPos > 0) && !urlPath[urlLastPos - 1]) {
+					while ((urlLastPos > urlFirstPos) && !urlPath[urlLastPos - 1]) {
 						urlLastPos--;
 					};
 					const urlLength = urlLastPos - urlFirstPos;
