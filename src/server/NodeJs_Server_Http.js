@@ -1359,8 +1359,8 @@ exports.add = function add(DD_MODULES) {
 				
 			nodejsHttp.REGISTER(http.StaticPage.$extend(
 			{
-				$TYPE_NAME: 'StaticPage',
-				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('StaticPage')), true) */,
+				$TYPE_NAME: 'FileSystemPage',
+				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('FileSystemPage')), true) */,
 
 				$applyGlobalHandlerStates: doodad.OVERRIDE(function $applyGlobalHandlerStates(server) {
 					this._super(server);
@@ -2036,10 +2036,12 @@ exports.add = function add(DD_MODULES) {
 				}),
 			}));
 
-			nodejsHttp.REGISTER(nodejsHttp.StaticPage.$extend(
+
+			// TODO: Implement transforms to "Page" instead of making a new handler.
+			nodejsHttp.REGISTER(nodejsHttp.FileSystemPage.$extend(
 			{
-				$TYPE_NAME: 'JavascriptPage',
-				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JavascriptPage')), true) */,
+				$TYPE_NAME: 'JavascriptFileSystemPage',
+				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JavascriptFileSystemPage')), true) */,
 					
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					options = this._super(options);
@@ -2878,7 +2880,7 @@ exports.add = function add(DD_MODULES) {
 										if (cacheStream) {
 											request.waitFor(cacheStream.onEOF.promise(function onEOF() {
 													cached.validate();
-													// TODO: Refactor "watch" without using "options". See StaticPage.sendFile
+													// TODO: Refactor "watch" without using "options". See FileSystemPage.sendFile
 													if (ev.data.options.watch) {
 														files.watch(ev.data.options.watch, function() {
 															cached.invalidate();
