@@ -31,16 +31,17 @@
     "NodeJsRequest": "fd128c87-0bd8-4ef8-a5c8-61560bede8f8",
     "NodeJsServer": "41fed400-b070-40c3-9e90-800e2511f562",
     "FolderPageTemplate": "36c6d23e-b8bd-4afa-ab36-88f871294ae3",
-    "StaticPage": "3ebfe170-1d89-4935-9c68-6b9ceecbca50",
     "ClusterDataServiceMaster": "fd42e7f9-ec8c-4232-b7fd-b474786f5e9b",
     "ClusterDataServiceWorker": "97da531d-ae1d-4e0a-9972-4bbd65669223",
     "DataHandler": "cbb40562-5609-4e63-a0a2-5da857c17b50",
     "ClusterDataHandler": "62e78465-f495-4db7-a3a4-af5f887de733",
-    "JavascriptPage": "ed46f468-9958-410e-b36d-22040c5ca9a8",
     "CacheStream": "0a99959c-0d42-4e0e-b677-6082b73dae4b",
     "CacheHeaders": "f06db64d-2532-4b00-aa27-26715e46d298",
     "CachedObject": "f34968c5-1ce5-4545-b1b8-653effc590a6",
     "CacheHandler": "5bd9e523-4263-43c2-90da-d8e595b5a47f",
     "CompressionBodyHandler": "332b6723-674c-405e-80f4-f8803f340b76",
-    "CompressionHandler": "6afa41e0-677d-45b1-b7de-01095029e2cb"
+    "CompressionHandler": "6afa41e0-677d-45b1-b7de-01095029e2cb",
+    "FileSystemPageBase": "2555114e-25c8-4799-85b0-f955472154f6",
+    "FileSystemPage": "53789fb7-083e-4134-9f48-e7e0dd856a52",
+    "JavascriptFileSystemPage": "d9fcff70-1fa8-4def-926e-ae43dff65537"
 }
