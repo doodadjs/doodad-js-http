@@ -1357,7 +1357,7 @@ exports.add = function add(DD_MODULES) {
 				})),
 			})));
 				
-			nodejsHttp.REGISTER(http.StaticPage.$extend(
+			nodejsHttp.REGISTER(http.FileSystemPage.$extend(
 			{
 				$TYPE_NAME: 'FileSystemPage',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('FileSystemPage')), true) */,
