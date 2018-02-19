@@ -141,7 +141,7 @@ exports.add = function add(DD_MODULES) {
 				}),
 					
 				create: doodad.OVERRIDE(function create(request, nodeJsStream) {
-					_shared.setAttribute(this, 'message', nodeHttp.STATUS_CODES[this.status]);
+					types.setAttribute(this, 'message', nodeHttp.STATUS_CODES[this.status]);
 
 					this._super(request);
 
@@ -185,7 +185,7 @@ exports.add = function add(DD_MODULES) {
 					const Promise = types.getPromise();
 
 					return Promise.try(function tryEnd() {
-							_shared.setAttribute(this, 'ended', true); // blocks additional operations...
+							types.setAttribute(this, 'ended', true); // blocks additional operations...
 							this.__ending = true; // ...but some operations are still allowed
 							if (!forceDisconnect) {
 								if (this.status !== types.HttpStatus.OK) {
@@ -283,7 +283,7 @@ exports.add = function add(DD_MODULES) {
 						};
 					});
 						
-					_shared.setAttribute(this, 'headersSent', true);
+					types.setAttribute(this, 'headersSent', true);
 				}),
 					
 				__streamOnWrite: doodad.PROTECTED(function __streamOnWrite(ev) {
@@ -472,7 +472,7 @@ exports.add = function add(DD_MODULES) {
 						this.nodeJsStream.addTrailers(trailers);
 					};
 
-					_shared.setAttribute(this, 'trailersSent', true);
+					types.setAttribute(this, 'trailersSent', true);
 				}),
 					
 				clear: doodad.OVERRIDE(function clear() {
@@ -506,7 +506,7 @@ exports.add = function add(DD_MODULES) {
 						
 					this.addHeaders(headers);
 
-					_shared.setAttributes(this, {
+					types.setAttributes(this, {
 						status: status,
 						message: message || nodeHttp.STATUS_CODES[status],
 						statusData: data,
@@ -846,7 +846,7 @@ exports.add = function add(DD_MODULES) {
 					};
 
 					return Promise.try(function tryEndRequest() {
-						_shared.setAttribute(this, 'ended', true); // blocks additional operations...
+						types.setAttribute(this, 'ended', true); // blocks additional operations...
 						this.__ending = true; // ...but some operations are still allowed
 
 						if (!this.response.ended) {
@@ -1154,7 +1154,7 @@ exports.add = function add(DD_MODULES) {
 				//}),
 
 				onNodeListening: doodad.NODE_EVENT('listening', function onNodeListening(context) {
-					_shared.setAttribute(this, '__address', this.__nodeServer.address());
+					types.setAttribute(this, '__address', this.__nodeServer.address());
 					tools.log(tools.LogLevels.Info, "HTTP server listening on port '~port~', address '~address~'.", this.__address);
 					tools.log(tools.LogLevels.Warning, "IMPORTANT: It is an experimental and not finished software. Don't use it on production, or do it at your own risks. Please report bugs and suggestions to 'doodadjs [at] gmail <dot> com'.");
 				}),
@@ -1173,7 +1173,7 @@ exports.add = function add(DD_MODULES) {
 						
 					tools.log(tools.LogLevels.Info, "Listening socket closed (address '~address~', port '~port~').", this.__address);
 
-					_shared.setAttribute(this, '__nodeServer', null);
+					types.setAttribute(this, '__nodeServer', null);
 				}),
 					
 				isListening: doodad.OVERRIDE(function isListening() {
@@ -1249,7 +1249,7 @@ exports.add = function add(DD_MODULES) {
 						//server.on('upgrade');
 						//server.on('clientError');
 							
-						_shared.setAttribute(this, '__nodeServer', server);
+						types.setAttribute(this, '__nodeServer', server);
 							
 						const target = options.target || '127.0.0.1';
 						const type = options.type || 'tcp'; // 'tcp', 'unix', 'handle'
@@ -1272,7 +1272,7 @@ exports.add = function add(DD_MODULES) {
 							throw new doodad.Error("Invalid target type option : '~0~'.", [type]);
 						};
 							
-						_shared.setAttribute(this, 'protocol', protocol);
+						types.setAttribute(this, 'protocol', protocol);
 							
 						this.onListen(new doodad.Event());
 					};
@@ -1282,7 +1282,7 @@ exports.add = function add(DD_MODULES) {
 						this.__listening = false;
 						this.onStopListening(new doodad.Event());
 						this.__nodeServer.close();
-						_shared.setAttributes(this, {
+						types.setAttributes(this, {
 							__nodeServer: null,
 							__address: null,
 						});
@@ -1585,7 +1585,7 @@ exports.add = function add(DD_MODULES) {
 							} else {
 								const state = request.getHandlerState(this);
 								if (state.matcherResult) {
-									_shared.setAttribute(state.matcherResult, 'url', state.matcherResult.url.pushFile());
+									types.setAttribute(state.matcherResult, 'url', state.matcherResult.url.pushFile());
 								};
 								request.response.setVary('Accept');
 							};

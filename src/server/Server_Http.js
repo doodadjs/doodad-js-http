@@ -679,9 +679,9 @@ exports.add = function add(DD_MODULES) {
 							if (fixed in this.headers) {
 								changedHeaders.push(fixed);
 								if (fixed === 'Content-Type') {
-									_shared.setAttribute(this, 'contentType', null);
+									types.setAttribute(this, 'contentType', null);
 								} else if (fixed === 'Content-Disposition') {
-									_shared.setAttribute(this, 'contentDisposition', null);
+									types.setAttribute(this, 'contentDisposition', null);
 								} else if (fixed === 'Vary') {
 									this.__varyingHeaders = null;
 								};
@@ -690,7 +690,7 @@ exports.add = function add(DD_MODULES) {
 						};
 					} else {
 						changedHeaders = types.keys(this.headers);
-						_shared.setAttributes(this, {
+						types.setAttributes(this, {
 							headers: tools.nullObject(),
 							contentType: null,
 						});
@@ -712,7 +712,7 @@ exports.add = function add(DD_MODULES) {
 						contentType = contentType.set({params: {charset: encoding}});
 					};
 
-					_shared.setAttribute(this, 'contentType', contentType);
+					types.setAttribute(this, 'contentType', contentType);
 
 					this.headers['Content-Type'] = contentType.toString();
 					this.onHeadersChanged(new doodad.Event({headers: ['Content-Type']}));
@@ -725,7 +725,7 @@ exports.add = function add(DD_MODULES) {
 						contentDisposition = http.parseContentDispositionHeader(contentDisposition);
 					};
 
-					_shared.setAttribute(this, 'contentDisposition', contentDisposition);
+					types.setAttribute(this, 'contentDisposition', contentDisposition);
 
 					this.headers['Content-Disposition'] = (contentDisposition && contentDisposition.toString() || "");
 					this.onHeadersChanged(new doodad.Event({headers: ['Content-Disposition']}));
@@ -803,7 +803,7 @@ exports.add = function add(DD_MODULES) {
 							this.clearEvents(handlers);
 						};
 
-						_shared.setAttributes(this, {
+						types.setAttributes(this, {
 							headers: tools.nullObject(),
 							trailers: tools.nullObject(),
 							__pipes: [],
@@ -815,7 +815,7 @@ exports.add = function add(DD_MODULES) {
 				create: doodad.OVERRIDE(function create(request) {
 					this._super();
 
-					_shared.setAttribute(this, 'request', request);
+					types.setAttribute(this, 'request', request);
 						
 					this.reset();
 				}),
@@ -957,7 +957,7 @@ exports.add = function add(DD_MODULES) {
 					} else {
 						changedTrailers = types.keys(this.tailers);
 
-						_shared.setAttributes(this, {
+						types.setAttributes(this, {
 							trailers: tools.nullObject(),
 						});
 					};
@@ -976,7 +976,7 @@ exports.add = function add(DD_MODULES) {
 						throw new types.NotAvailable("Can't respond with a new status because the headers have already been sent to the client.");
 					};
 
-					_shared.setAttributes(this, {
+					types.setAttributes(this, {
 						status: status || types.HttpStatus.OK,
 						message: message || null,
 					});
@@ -1152,7 +1152,7 @@ exports.add = function add(DD_MODULES) {
 							});
 						};
 
-						_shared.setAttributes(this, {
+						types.setAttributes(this, {
 							__pipes: [],
 							__streamOptions: tools.nullObject(),
 							__waitQueue: [],
@@ -1194,7 +1194,7 @@ exports.add = function add(DD_MODULES) {
 
 						this._super();
 						
-						_shared.setAttributes(this, {
+						types.setAttributes(this, {
 							server: server,
 							verb: verb.toUpperCase(),
 							data: tools.nullObject(),
@@ -1225,7 +1225,7 @@ exports.add = function add(DD_MODULES) {
 
 						this.reset();
 
-						_shared.setAttributes(this, {
+						types.setAttributes(this, {
 							url: url,
 							clientCrashed: clientCrashed,
 							clientCrashRecovery: (clientCrashRecovery && !clientCrashed),
@@ -1458,10 +1458,10 @@ exports.add = function add(DD_MODULES) {
 						this.response.clear();
 						this.__redirectsCount++;
 						url = this.url.set({ file: null }).combine(url); //.setArgs({redirects: this.__redirectsCount});
-						_shared.setAttribute(this, 'url', url);
+						types.setAttribute(this, 'url', url);
 						const verb = options.verb;
 						if (verb) {
-							_shared.setAttribute(this, 'verb', verb);
+							types.setAttribute(this, 'verb', verb);
 						};
 						const data = options.data;
 						if (data) {
@@ -1556,11 +1556,11 @@ exports.add = function add(DD_MODULES) {
 					};
 
 					const oldUrl = this.url;
-					_shared.setAttribute(this, 'url', url);
+					types.setAttribute(this, 'url', url);
 
 					return this.proceed(this.server.handlersOptions, {resolve: true, handlerType: type})
 						.nodeify(function(err, result) {
-							_shared.setAttribute(this, 'url', oldUrl);
+							types.setAttribute(this, 'url', oldUrl);
 							if (err) {
 								throw err;
 							};
@@ -1607,12 +1607,12 @@ exports.add = function add(DD_MODULES) {
 										});
 								};
 							} else {
-								_shared.setAttribute(this, 'currentHandler', handler);
+								types.setAttribute(this, 'currentHandler', handler);
 								return handler.execute(this);
 							};
 						} else if (types.isJsFunction(handler)) {
 							if (!resolve) {
-								_shared.setAttribute(this, 'currentHandler', handler);
+								types.setAttribute(this, 'currentHandler', handler);
 								return handler(this); // "handler" is "function(request) {...}"
 							};
 						} else {
@@ -1650,16 +1650,16 @@ exports.add = function add(DD_MODULES) {
 								url: stateUrl || null,
 								mustDestroy: mustDestroy,
 							};
-							_shared.setAttributes(handlerState, stateValues);
+							types.setAttributes(handlerState, stateValues);
 
 							const remaining = (matcherResult ? matcherResult.urlRemaining : null);
 							const full = matcherResult && matcherResult.full;
 
-							//_shared.setAttribute(this, 'url', remaining || files.parseUrl('/'));
+							//types.setAttribute(this, 'url', remaining || files.parseUrl('/'));
 
 							return runHandler.call(this, handler, resolve, full, remaining, stateUrl, resolved, handlerType);
 								//.nodeify(function(err, result) {
-								//	_shared.setAttribute(this, 'url', requestedUrl);
+								//	types.setAttribute(this, 'url', requestedUrl);
 								//	if (err) {
 								//		throw err;
 								//	};
@@ -1902,7 +1902,7 @@ exports.add = function add(DD_MODULES) {
 				create: doodad.OVERRIDE(function create(options) {
 					this._super();
 
-					_shared.setAttribute(this, 'options', options || tools.nullObject());
+					types.setAttribute(this, 'options', options || tools.nullObject());
 				}),
 
 				resolve: doodad.PUBLIC(doodad.ASYNC(doodad.NOT_IMPLEMENTED())),  // function(request, type)
@@ -1943,7 +1943,7 @@ exports.add = function add(DD_MODULES) {
 					let allowed = this.__allowedVerbs;
 					if (!allowed) {
 						allowed = tools.filter(this.__knownVerbs, this.isAllowed, this);
-						_shared.setAttribute(this, '__allowedVerbs', allowed);
+						types.setAttribute(this, '__allowedVerbs', allowed);
 					};
 					request.response.addHeaders({Allow: allowed.join(',')});
 				})),
@@ -2491,8 +2491,8 @@ exports.add = function add(DD_MODULES) {
 					};
 					serverOptions.validHosts = val;
 
-					_shared.setAttribute(this, 'options', serverOptions);
-					_shared.setAttribute(this, 'handlersOptions', this.prepareHandlersOptions(this, handlersOptions));
+					types.setAttribute(this, 'options', serverOptions);
+					types.setAttribute(this, 'handlersOptions', this.prepareHandlersOptions(this, handlersOptions));
 				}),
 
 				getGlobalHandlerState: doodad.PUBLIC(function getGlobalHandlerState(handler) {
@@ -2798,7 +2798,7 @@ exports.add = function add(DD_MODULES) {
 				create: doodad.OVERRIDE(function create(routes, /*optional*/options) {
 					this._super(options);
 
-					_shared.setAttribute(this, 'routes', new types.Map());
+					types.setAttribute(this, 'routes', new types.Map());
 
 					this.addRoutes(routes);
 				}),
