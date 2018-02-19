@@ -1618,6 +1618,7 @@ exports.add = function add(DD_MODULES) {
 						} else {
 							throw new types.ValueError("Invalid handler.");
 						};
+						return null;
 					};
 
 					const prepareToRunHandler = function _prepareToRunHandler(handlerOptions, resolved) {
