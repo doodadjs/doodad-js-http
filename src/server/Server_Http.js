@@ -1593,35 +1593,7 @@ exports.add = function add(DD_MODULES) {
 					const resolve = types.get(options, 'resolve', false);
 					const handlerType = types.get(options, 'handlerType', null);
 
-					const runHandler = function _runHandler(handler, resolve, full, remaining, stateUrl, resolved, handlerType) {
-						if (types._implements(handler, httpMixIns.Handler)) {
-							if (resolve) {
-								if (full) {
-									const resolvedUrl = (remaining ? stateUrl.combine(remaining) : stateUrl);
-									resolved.push({handler, url: resolvedUrl});
-								};
-								if (types.isImplemented(handler, 'resolve')) {
-									return handler.resolve(this, handlerType)
-										.then(function(result) {
-											tools.append(resolved, result);
-										});
-								};
-							} else {
-								types.setAttribute(this, 'currentHandler', handler);
-								return handler.execute(this);
-							};
-						} else if (types.isJsFunction(handler)) {
-							if (!resolve) {
-								types.setAttribute(this, 'currentHandler', handler);
-								return handler(this); // "handler" is "function(request) {...}"
-							};
-						} else {
-							throw new types.ValueError("Invalid handler.");
-						};
-						return null;
-					};
-
-					const prepareToRunHandler = function _prepareToRunHandler(handlerOptions, resolved) {
+					const runHandler = function _runHandler(handlerOptions, resolved) {
 						handlerOptions = tools.nullObject(handlerOptions);
 
 						let handler = handlerOptions.handler;
@@ -1651,21 +1623,35 @@ exports.add = function add(DD_MODULES) {
 								url: stateUrl || null,
 								mustDestroy: mustDestroy,
 							};
-							types.setAttributes(handlerState, stateValues);
+							types.setAttributes(handlerState, stateValues, null, _shared.SECRET);
 
 							const remaining = (matcherResult ? matcherResult.urlRemaining : null);
 							const full = matcherResult && matcherResult.full;
 
-							//types.setAttribute(this, 'url', remaining || files.parseUrl('/'));
-
-							return runHandler.call(this, handler, resolve, full, remaining, stateUrl, resolved, handlerType);
-								//.nodeify(function(err, result) {
-								//	types.setAttribute(this, 'url', requestedUrl);
-								//	if (err) {
-								//		throw err;
-								//	};
-								//	return result;
-								//}, this);
+							if (types._implements(handler, httpMixIns.Handler)) {
+								if (resolve) {
+									if (full) {
+										const resolvedUrl = (remaining ? stateUrl.combine(remaining) : stateUrl);
+										resolved.push({handler, url: resolvedUrl});
+									};
+									if (types.isImplemented(handler, 'resolve')) {
+										return handler.resolve(this, handlerType)
+											.then(function(result) {
+												tools.append(resolved, result);
+											});
+									};
+								} else {
+									types.setAttribute(this, 'currentHandler', handler);
+									return handler.execute(this);
+								};
+							} else if (types.isJsFunction(handler)) {
+								if (!resolve) {
+									types.setAttribute(this, 'currentHandler', handler);
+									return handler(this); // "handler" is "function(request) {...}"
+								};
+							} else {
+								throw new types.ValueError("Invalid handler.");
+							};
 						};
 
 						return null;
@@ -1675,7 +1661,7 @@ exports.add = function add(DD_MODULES) {
 						if (!this.ended) {
 							if (index < handlersOptions.length) {
 								const handlerOptions = handlersOptions[index];
-								return Promise.resolve(prepareToRunHandler.call(this, handlerOptions, resolved))
+								return Promise.resolve(runHandler.call(this, handlerOptions, resolved))
 									.catch(this.catchError, this)
 									.then(function proceedNext(dummy) {
 										return loopProceedHandler.call(this, handlersOptions, index + 1, resolved);
