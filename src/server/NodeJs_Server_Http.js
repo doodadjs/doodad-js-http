@@ -1425,7 +1425,7 @@ exports.add = function add(DD_MODULES) {
 								path = this.options.path.combine(targetUrl.set({domain: null}));
 							} else {
 								const handlerState = request.getHandlerState(this);
-								const handlerUrl = request.url.set({url: handlerState.url.pushFile()});
+								const handlerUrl = handlerState.url.pushFile();
 								const relativeUrl = targetUrl.relative(handlerUrl);
 								path = this.options.path.combine(relativeUrl);
 							};

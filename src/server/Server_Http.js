@@ -1555,17 +1555,7 @@ exports.add = function add(DD_MODULES) {
 						throw new types.ValueError("Invalid handler : '~0~'.", [types.getTypeName(type) || '<unknown>']);
 					};
 
-					const oldUrl = this.url;
-					types.setAttribute(this, 'url', url);
-
-					return this.proceed(this.server.handlersOptions, {resolve: true, handlerType: type})
-						.nodeify(function(err, result) {
-							types.setAttribute(this, 'url', oldUrl);
-							if (err) {
-								throw err;
-							};
-							return result;
-						}, this)
+					return this.proceed(this.server.handlersOptions, {resolve: url, handlerType: type})
 						.then(function(resolved) {
 							if (resolved && type) {
 								resolved = resolved.filter(obj => types.isLike(obj.handler, type));
@@ -1590,7 +1580,7 @@ exports.add = function add(DD_MODULES) {
 
 					const requestedUrl = this.url;
 
-					const resolve = types.get(options, 'resolve', false);
+					const urlToResolve = types.get(options, 'resolve', null);
 					const handlerType = types.get(options, 'handlerType', null);
 
 					const runHandler = function _runHandler(handlerOptions, resolved) {
@@ -1625,11 +1615,11 @@ exports.add = function add(DD_MODULES) {
 							};
 							types.setAttributes(handlerState, stateValues, null, _shared.SECRET);
 
-							const remaining = (matcherResult ? matcherResult.urlRemaining : null);
-							const full = matcherResult && matcherResult.full;
+							const remaining = matcherResult && matcherResult.urlRemaining;
+							const full = (matcherResult ? matcherResult.full : false);
 
 							if (types._implements(handler, httpMixIns.Handler)) {
-								if (resolve) {
+								if (urlToResolve) {
 									if (full) {
 										const resolvedUrl = (remaining ? stateUrl.combine(remaining) : stateUrl);
 										resolved.push({handler, url: resolvedUrl});
@@ -1645,7 +1635,7 @@ exports.add = function add(DD_MODULES) {
 									return handler.execute(this);
 								};
 							} else if (types.isJsFunction(handler)) {
-								if (!resolve) {
+								if (!urlToResolve) {
 									types.setAttribute(this, 'currentHandler', handler);
 									return handler(this); // "handler" is "function(request) {...}"
 								};
@@ -1667,14 +1657,31 @@ exports.add = function add(DD_MODULES) {
 										return loopProceedHandler.call(this, handlersOptions, index + 1, resolved);
 									}, null, this);
 							};
-							if (resolve) {
+							if (urlToResolve) {
 								return resolved;
 							};
 						};
 						return undefined;
 					};
-						
-					return Promise.resolve(loopProceedHandler.call(this, handlersOptions, 0, (resolve ? [] : null)));
+					
+					if (urlToResolve) {
+						types.setAttribute(this, 'url', urlToResolve);
+
+						return Promise.resolve(loopProceedHandler.call(this, handlersOptions, 0, []))
+							.nodeify(function(err, result) {
+								types.setAttribute(this, 'url', requestedUrl);
+
+								if (err) {
+									throw err;
+								};
+								
+								return result;
+							}, this);
+
+					} else {
+						return Promise.resolve(loopProceedHandler.call(this, handlersOptions, 0, null));
+
+					};
 				})),
 					
 				catchError: doodad.OVERRIDE(function catchError(ex) {
@@ -2057,7 +2064,7 @@ exports.add = function add(DD_MODULES) {
 
 				execute: doodad.OVERRIDE(function execute(request) {
 					const handlerState = request.getHandlerState(this);
-					const remaining = (handlerState.matcherResult ? handlerState.matcherResult.urlRemaining : null);
+					const remaining = handlerState.matcherResult && handlerState.matcherResult.urlRemaining;
 					const baseUrl = handlerState.url.combine(this.options.targetUrl).set({isRelative: false});
 					const url = (remaining ? baseUrl.combine(remaining) : baseUrl);
 					if (this.options.internal) {
@@ -2069,8 +2076,11 @@ exports.add = function add(DD_MODULES) {
 
 				resolve: doodad.OVERRIDE(function resolve(request, type) {
 					if (this.options.internal) {
-						const newUrl = this.options.targetUrl.combine(request.url);
-						return request.resolve(newUrl, type);
+						const handlerState = request.getHandlerState(this);
+						const remaining = handlerState.matcherResult && handlerState.matcherResult.urlRemaining;
+						const baseUrl = handlerState.url.combine(this.options.targetUrl).set({isRelative: false});
+						const url = (remaining ? baseUrl.combine(remaining) : baseUrl);
+						return request.resolve(url, type);
 					};
 					return undefined;
 				}),
@@ -2672,7 +2682,7 @@ exports.add = function add(DD_MODULES) {
 						};
 							
 						if ((i >= basePathLen) && (urlLastPos - urlLevel <= maxDepth)) {
-							full = (urlLastPos - urlFirstPos >= weight);
+							full = (urlLength >= weight);
 						} else {
 							weight = 0;
 						};
@@ -2848,7 +2858,6 @@ exports.add = function add(DD_MODULES) {
 							const matcherResult = route.matcher.match(request, targetUrl, handlerOptions);
 
 							if ((matcherResult.weight > 0) || matcherResult.full) {
-//matcherResult && matcherResult.urlRemaining && console.log(matcherResult.urlRemaining.toString());
 								handlerOptions.routeId = routeId;
 								handlerOptions.handlerIndex = i;
 								handlerOptions.matcherResult = matcherResult;
@@ -2882,13 +2891,19 @@ exports.add = function add(DD_MODULES) {
 				}),
 					
 				execute: doodad.OVERRIDE(function execute(request) {
-					const handlers = this.createHandlers(request, request.url);
+					const state = request.getHandlerState(this);
+					const remaining = state.matcherResult && state.matcherResult.urlRemaining;
+					const url = remaining || request.url;
+					const handlers = this.createHandlers(request, url);
 					return request.proceed(handlers);
 				}),
 
 				resolve: doodad.OVERRIDE(function resolve(request, type) {
-					const handlers = this.createHandlers(request, request.url, type);
-					return request.proceed(handlers, {resolve: true, handlerType: type});
+					const state = request.getHandlerState(this);
+					const remaining = state.matcherResult && state.matcherResult.urlRemaining;
+					const url = remaining || request.url;
+					const handlers = this.createHandlers(request, url, type);
+					return request.proceed(handlers, {resolve: url, handlerType: type});
 				}),
 
 			}));
