@@ -227,10 +227,11 @@ exports.add = function add(DD_MODULES) {
 												}, null, this)
 												.catch(reject);
 										} else if (stream && stream.canWrite()) {
-											stream.write(io.EOF);
+											return stream.writeAsync(io.EOF);
 										} else {
 											this.nodeJsStream.end();
 										};
+										return undefined;
 									}, this);
 							};
 							this.__ending = false; // now blocks any operation
