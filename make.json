@@ -127,8 +127,7 @@
 	],
 	"resources": [
 		{
-			"src": "server/res",
-			"namespace": "Doodad.NodeJs.Server.Http",
+			"source": "server/res",
 			"client": false,
 			"server": true,
 			"browserify": false
