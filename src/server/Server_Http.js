@@ -42,7 +42,7 @@ exports.add = function add(modules) {
 				locale = tools.Locale,
 				files = tools.Files,
 				dates = tools.Dates,
-				namespaces = doodad.Namespaces,	
+				namespaces = doodad.Namespaces,
 				//mime = tools.Mime,
 				//interfaces = doodad.Interfaces,
 				mixIns = doodad.MixIns,
@@ -67,8 +67,8 @@ exports.add = function add(modules) {
 			tools.complete(_shared.Natives, {
 				windowRegExp: global.RegExp,
 			});
-				
-				
+
+
 	/* RFC 7230
 		token          = 1*tchar
 
@@ -76,7 +76,7 @@ exports.add = function add(modules) {
 					/ "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
 					/ DIGIT / ALPHA
 					; any VCHAR, except delimiters
-						
+
 	A string of text is parsed as a single value if it is quoted using
 	double-quote marks.
 
@@ -91,7 +91,7 @@ exports.add = function add(modules) {
 	as if it were replaced by the octet following the backslash.
 
 		quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
-		 
+
 
 		OWS            = *( SP / HTAB )
 					; optional whitespace
@@ -99,7 +99,7 @@ exports.add = function add(modules) {
 					; required whitespace
 		BWS            = OWS
 					; "bad" whitespace
-		 
+
 	*/
 
 	/* RFC 7231
@@ -116,12 +116,12 @@ exports.add = function add(modules) {
 		qvalue = ( "0" [ "." 0*3DIGIT ] )
 			/ ( "1" [ "." 0*3("0") ] )
 	*/
-				
+
 			__Internal__.isObsText = function isObsText(chrAscii) {
 				//return ((chrAscii >= 0x80) && (chrAscii <= 0xFF));
 				return (chrAscii >= 0x80);
 			};
-				
+
 			__Internal__.getNextTokenOrString = function getNextTokenOrString(value, /*byref*/pos, /*optional*/token, /*optional byref*/delimiters) {
 				const delims = delimiters && delimiters[0];
 				let i = pos[0],
@@ -160,7 +160,7 @@ exports.add = function add(modules) {
 							(chrAscii === 0x09) || // '\t'
 							(chrAscii === 0x20) || // ' '
 							(chrAscii === 0x21) || // '!'
-							((chrAscii >= 0x23) && (chrAscii <= 0x5B)) || 
+							((chrAscii >= 0x23) && (chrAscii <= 0x5B)) ||
 							((chrAscii >= 0x5D) && (chrAscii <= 0x7E)) ||
 							__Internal__.isObsText(chrAscii)
 						) {
@@ -215,7 +215,7 @@ exports.add = function add(modules) {
 				pos[0] = i;
 				return str;
 			};
-				
+
 			http.ADD('parseAcceptHeader', function parseAcceptHeader(value) {
 				const result = tools.nullObject(),
 					pos = [],
@@ -226,11 +226,11 @@ exports.add = function add(modules) {
 					str,
 					qvalue,
 					acceptExts;
-						
+
 				while (i < value.length) {
 					qvalue = 1.0;
 					acceptExts = tools.nullObject();
-						
+
 					pos[0] = i; // by ref
 					delimiters[0] = ";,"; // by ref
 					media = __Internal__.getNextTokenOrString(value, pos, true, delimiters);
@@ -239,7 +239,7 @@ exports.add = function add(modules) {
 						// Invalid token
 						return null;
 					};
-						
+
 					if (delimiters[0] !== ',') {
 						newExt: while (i < value.length) {
 							pos[0] = i; // by ref
@@ -276,13 +276,13 @@ exports.add = function add(modules) {
 								};
 								acceptExts[token] = str;
 							};
-								
+
 							if (delimiters[0] === ',') {
 								break newExt;
 							};
 						};
 					};
-						
+
 					media = media.toLowerCase();  // medias are case-insensitive
 					token = tools.split(media, '/', 2);
 					const type = token[0] || '*',
@@ -296,7 +296,7 @@ exports.add = function add(modules) {
 						exts: types.freezeObject(acceptExts),
 					}));
 				};
-					
+
 				return types.values(result).sort(function(media1, media2) {
 					if (media1.weight > media2.weight) {
 						return -1;
@@ -307,7 +307,7 @@ exports.add = function add(modules) {
 					};
 				});
 			});
-				
+
 			http.ADD('parseAcceptEncodingHeader', function parseAcceptEncodingHeader(value) {
 				if (!value) {
 					return [];
@@ -322,11 +322,11 @@ exports.add = function add(modules) {
 					str,
 					qvalue,
 					acceptExts;
-						
+
 				while (i < value.length) {
 					qvalue = 1.0;
 					acceptExts = tools.nullObject();
-							
+
 					pos[0] = i; // by ref
 					delimiters[0] = ";,"; // by ref
 					encoding = __Internal__.getNextTokenOrString(value, pos, true, delimiters);
@@ -335,7 +335,7 @@ exports.add = function add(modules) {
 						// Invalid token
 						return null;
 					};
-						
+
 					if (delimiters[0] !== ',') {
 						newExt: while (i < value.length) {
 							pos[0] = i; // by ref
@@ -372,13 +372,13 @@ exports.add = function add(modules) {
 								};
 								acceptExts[token] = str;
 							};
-								
+
 							if (delimiters[0] === ',') {
 								break newExt;
 							};
 						};
 					};
-						
+
 					encoding = encoding.toLowerCase(); // codings are case-insensitive
 
 					// NOTE: 'identity' means 'no encoding'
@@ -405,7 +405,7 @@ exports.add = function add(modules) {
 						exts: types.freezeObject(tools.nullObject()),
 					}));
 				};
-					
+
 				return types.values(result)
 					.sort(function(encoding1, encoding2) {
 						if (encoding1.weight > encoding2.weight) {
@@ -417,15 +417,15 @@ exports.add = function add(modules) {
 						};
 					});
 			});
-				
+
 			http.ADD('parseContentTypeHeader', function parseContentTypeHeader(contentType) {
 				if (!contentType) {
 					return null;
 				};
-					
+
 				const pos = [];
 				let delimiters = [];
-					
+
 				pos[0] = 0; // byref
 				delimiters = [';']; // byref
 				let media = __Internal__.getNextTokenOrString(contentType, pos, true, delimiters);
@@ -433,7 +433,7 @@ exports.add = function add(modules) {
 					// Invalid token
 					return null;
 				};
-					
+
 				media = media.toLowerCase();  // content-types are case-insensitive
 				const tmp = tools.split(media, '/', 2);
 				const type = tmp[0],
@@ -441,8 +441,8 @@ exports.add = function add(modules) {
 				if (!type || !subtype) {
 					// Invalid media
 					return null;
-				};						
-					
+				};
+
 				const params = tools.nullObject();
 				if (delimiters[0] === ';') {
 					while (pos[0] < contentType.length) {
@@ -453,14 +453,14 @@ exports.add = function add(modules) {
 							return null;
 						};
 						name = name.toLowerCase();   // param names are case-insensitive
-							
+
 						delimiters = [';']; // byref
 						const value = __Internal__.getNextTokenOrString(contentType, pos, false, delimiters);
-							
+
 						params[name] = value || '';
 					};
 				};
-					
+
 				const weight = types.toFloat(types.get(params, 'q', 1.0));
 
 				return types.freezeObject(tools.nullObject({
@@ -501,17 +501,17 @@ exports.add = function add(modules) {
 				if (!contentDisposition) {
 					return null;
 				};
-					
+
 				const pos = [];
 				let delimiters = [];
-					
+
 				pos[0] = 0; // byref
 				delimiters = [';=']; // byref
 				let media = __Internal__.getNextTokenOrString(contentDisposition, pos, true, delimiters);
 				if (media === null) {
 					return null;
 				};
-					
+
 				const params = tools.nullObject();
 
 				if (delimiters[0] === ';') {
@@ -519,11 +519,11 @@ exports.add = function add(modules) {
 				} else {
 					delimiters = [';']; // byref
 					const value = __Internal__.getNextTokenOrString(contentDisposition, pos, false, delimiters);
-							
+
 					params[media] = value || '';
 					media = '';
 				};
-					
+
 				while (pos[0] < contentDisposition.length) {
 					delimiters = ['=']; // byref
 					let name = __Internal__.getNextTokenOrString(contentDisposition, pos, true, delimiters);
@@ -532,13 +532,13 @@ exports.add = function add(modules) {
 						return null;
 					};
 					name = name.toLowerCase();   // param names are case-insensitive
-							
+
 					delimiters = [';']; // byref
 					const value = __Internal__.getNextTokenOrString(contentDisposition, pos, false, delimiters);
-							
+
 					params[name] = value || '';
 				};
-					
+
 				return types.freezeObject(tools.nullObject({
 					name: media,
 					params: types.freezeObject(params),
@@ -566,7 +566,7 @@ exports.add = function add(modules) {
 					return 0;
 				};
 			});
-				
+
 			http.ADD('toRFC1123Date', function(date) {
 				// ex.:   Fri, 10 Jul 2015 03:16:55 GMT
 				if (moment && moment.isMoment(date)) {
@@ -575,7 +575,7 @@ exports.add = function add(modules) {
 				return dates.strftime('%a, %d %b %Y %H:%M:%S GMT', date, __Internal__.enUSLocale, true);
 			});
 
-				
+
 			httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
 								mixIns.Events,
 								mixIns.Creatable,
@@ -600,7 +600,7 @@ exports.add = function add(modules) {
 					const fixed = tools.title(name, '-');
 					return this.headers[fixed];
 				}),
-					
+
 				getHeaders: doodad.PUBLIC(function getHeaders(/*optional*/names) {
 					if (names) {
 						if (!types.isArray(names)) {
@@ -619,7 +619,7 @@ exports.add = function add(modules) {
 						return tools.extend({}, this.headers);
 					};
 				}),
-					
+
 				addHeader: doodad.PUBLIC(function addHeader(name, value) {
 					const responseHeaders = this.headers;
 					const fixed = tools.title(tools.trim(name), '-');
@@ -639,7 +639,7 @@ exports.add = function add(modules) {
 						this.onHeadersChanged(new doodad.Event({headers: [fixed]}));
 					};
 				}),
-					
+
 				addHeaders: doodad.PUBLIC(function addHeaders(headers) {
 					const responseHeaders = this.headers;
 					const changed = tools.nullObject();
@@ -766,7 +766,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'Response',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ResponseBase')), true) */,
-					
+
 				onGetStream: doodad.EVENT(false),
 				onError: doodad.ERROR_EVENT(),
 				onStatus: doodad.EVENT(false),
@@ -787,12 +787,12 @@ exports.add = function add(modules) {
 
 				stream: doodad.PROTECTED(null),
 				getStream: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function(/*optional*/options)
-					
+
 				clear: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function clear()
 
 				respondWithStatus: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function respondWithStatus(/*optional*/status, /*optional*/message, /*optional*/headers, /*optional*/data)
 				respondWithError: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function respondWithError(ex)
-					
+
 				// TODO: Validate
 				reset: doodad.PUBLIC(function reset() {
 					if (!this.ended) {
@@ -816,7 +816,7 @@ exports.add = function add(modules) {
 					this._super();
 
 					types.setAttribute(this, 'request', request);
-						
+
 					this.reset();
 				}),
 
@@ -841,7 +841,7 @@ exports.add = function add(modules) {
 				addHeader: doodad.OVERRIDE(function addHeader(name, value) {
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
-					};							
+					};
 
 					if (this.headersSent) {
 						throw new types.NotAvailable("Can't add new headers because headers have been sent to the client.");
@@ -851,7 +851,7 @@ exports.add = function add(modules) {
 
 					this.request.setFullfilled(true);
 				}),
-					
+
 				addHeaders: doodad.OVERRIDE(function addHeaders(headers) {
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
@@ -937,7 +937,7 @@ exports.add = function add(modules) {
 				clearTrailers: doodad.PUBLIC(function clearTrailers(/*optional*/names) {
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
-					};							
+					};
 
 					let changedTrailers;
 					if (names) {
@@ -970,7 +970,7 @@ exports.add = function add(modules) {
 				setStatus: doodad.PUBLIC(function setStatus(status, /*optional*/message) {
 					if (this.ended) {
 						throw new server.EndOfRequest();
-					};							
+					};
 
 					if (this.headersSent) {
 						throw new types.NotAvailable("Can't respond with a new status because the headers have already been sent to the client.");
@@ -989,7 +989,7 @@ exports.add = function add(modules) {
 				addPipe: doodad.PUBLIC(function addPipe(stream, /*optional*/options) {
 					if (this.ended) {
 						throw new server.EndOfRequest();
-					};							
+					};
 
 					if (!this.__pipes) {
 						throw new types.NotAvailable("'addPipe' is not available because pipes have already been proceed.");
@@ -1011,7 +1011,7 @@ exports.add = function add(modules) {
 						this.__pipes.push(pipe);
 					};
 				}),
-					
+
 				clearPipes: doodad.PUBLIC(function clearPipes() {
 					if (this.ended) {
 						throw new server.EndOfRequest();
@@ -1023,20 +1023,20 @@ exports.add = function add(modules) {
 
 					this.__pipes = [];
 				}),
-					
+
 				hasStream: doodad.PUBLIC(function hasStream() {
 					return !!this.stream;
 				}),
 
 				hasContent: doodad.PUBLIC(function hasContent() {
-					return this.hasStream() || 
-						!types.isNothing(this.status) || 
-						!types.isEmpty(this.headers) || 
+					return this.hasStream() ||
+						!types.isNothing(this.status) ||
+						!types.isEmpty(this.headers) ||
 						!types.isEmpty(this.trailers);
 				}),
 
 			})));
-				
+
 			http.REGISTER(doodad.EXPANDABLE(doodad.Object.$extend(
 								mixIns.RawEvents,
 			{
@@ -1049,16 +1049,16 @@ exports.add = function add(modules) {
 				url: doodad.PUBLIC(doodad.READ_ONLY(null)),
 				mustDestroy: doodad.PUBLIC(doodad.READ_ONLY(false)),
 			})));
-					
+
 			http.REGISTER(doodad.BASE(doodad.Object.$extend(
 								httpMixIns.Headers,
 								serverMixIns.Request,
 			{
 				$TYPE_NAME: 'Request',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RequestBase')), true) */,
-					
+
 				onGetStream: doodad.EVENT(false),
-					
+
 				__ending: doodad.PROTECTED(false),
 				ended: doodad.PUBLIC(doodad.PERSISTENT(doodad.READ_ONLY(false))),
 				response: doodad.PUBLIC(doodad.READ_ONLY(null)),
@@ -1068,7 +1068,7 @@ exports.add = function add(modules) {
 				clientCrashed: doodad.PUBLIC(doodad.READ_ONLY(false)),
 				clientCrashRecovery: doodad.PUBLIC(doodad.READ_ONLY(false)),
 				contentType: doodad.PUBLIC(doodad.READ_ONLY(null)),
-					
+
 				createResponse: doodad.PROTECTED(doodad.MUST_OVERRIDE()), // function createResponse(/*paramarray*/)
 
 				stream: doodad.PROTECTED(null),
@@ -1094,7 +1094,7 @@ exports.add = function add(modules) {
 
 				$__actives: doodad.PROTECTED(doodad.TYPE(0)),
 				$__active_requests: doodad.PROTECTED(doodad.TYPE( new types.Set() )),
-					
+
 				$__total: doodad.PROTECTED(doodad.TYPE(0)),
 				$__successful: doodad.PROTECTED(doodad.TYPE(0)),
 				$__redirected: doodad.PROTECTED(doodad.TYPE(0)),
@@ -1111,7 +1111,7 @@ exports.add = function add(modules) {
 						aborted: this.$__aborted,
 					});
 				})),
-					
+
 				$getActives: doodad.PUBLIC(doodad.TYPE(function $getActives() {
 					const actives = [];
 					this.$__active_requests.forEach(function(request) {
@@ -1127,7 +1127,7 @@ exports.add = function add(modules) {
 					this.$__failed = tools.nullObject();
 					this.$__aborted = 0;
 				})),
-					
+
 				$create: doodad.OVERRIDE(function $create() {
 					this._super();
 
@@ -1168,11 +1168,11 @@ exports.add = function add(modules) {
 
 				create: doodad.OVERRIDE(function create(server, verb, url, headers, /*optional*/responseArgs) {
 					const type = types.getType(this);
-						
+
 					if (type.$__total >= types.getSafeIntegerBounds().max) {
 						type.$clearStats();
 					};
-						
+
 					type.$__total++;
 					type.$__actives++;
 
@@ -1184,7 +1184,7 @@ exports.add = function add(modules) {
 						if (types.isString(url)) {
 							url = files.Url.parse(url);
 						};
-					
+
 						if (root.DD_ASSERT) {
 							root.DD_ASSERT && root.DD_ASSERT(types._implements(server, httpMixIns.Server), "Invalid server.");
 							root.DD_ASSERT(types.isString(verb), "Invalid verb.");
@@ -1193,7 +1193,7 @@ exports.add = function add(modules) {
 						};
 
 						this._super();
-						
+
 						types.setAttributes(this, {
 							server: server,
 							verb: verb.toUpperCase(),
@@ -1207,12 +1207,12 @@ exports.add = function add(modules) {
 						if (host) {
 							host = files.Url.parse(server.protocol + '://' + host + '/');
 						};
-						
+
 						url = files.Url.parse(url);
 						if (host) {
 							url = host.combine(url);
 						};
-						
+
 						this.__redirectsCount = types.toInteger(url.args.get('redirects', true));
 						if (!types.isFinite(this.__redirectsCount) || (this.__redirectsCount < 0)) {
 							this.__redirectsCount = 0;
@@ -1371,7 +1371,7 @@ exports.add = function add(modules) {
 					};
 
 					const acceptedTypes = [];
-						
+
 					if (allowedTypes) {
 						for (let i = 0; i < contentTypes.length; i++) {
 							let contentType = contentTypes[i];
@@ -1400,7 +1400,7 @@ exports.add = function add(modules) {
 							};
 						};
 					};
-						
+
 					acceptedTypes.sort(function(type1, type2) {
 						if (type1.weight > type2.weight) {
 							return -1;
@@ -1414,7 +1414,7 @@ exports.add = function add(modules) {
 							return 0;
 						};
 					});
-						
+
 					return acceptedTypes;
 				}),
 
@@ -1422,7 +1422,7 @@ exports.add = function add(modules) {
 					// NOTE: Must always throw an error.
 					if (this.ended) {
 						throw new server.EndOfRequest();
-					};							
+					};
 					const maxRedirects = this.server.options.maxRedirects || 5;
 					if (this.response.headersSent) {
 						throw new types.NotAvailable("Unable to redirect because HTTP headers are already sent.");
@@ -1442,7 +1442,7 @@ exports.add = function add(modules) {
 						});
 					};
 				})),
-					
+
 				redirectServer: doodad.PUBLIC(doodad.ASYNC(function redirectServer(url, /*optional*/options) {
 					// NOTE: Must always throw an error.
 					if (this.ended) {
@@ -1493,7 +1493,7 @@ exports.add = function add(modules) {
 						this.__pipes.push(pipe);
 					};
 				}),
-					
+
 				clearPipes: doodad.PUBLIC(function clearPipes() {
 					if (this.ended) {
 						throw new server.EndOfRequest();
@@ -1505,7 +1505,7 @@ exports.add = function add(modules) {
 
 					this.__pipes = [];
 				}),
-					
+
 				setStreamOptions: doodad.PUBLIC(function setStreamOptions(options) {
 					if (this.ended) {
 						throw new server.EndOfRequest();
@@ -1529,7 +1529,7 @@ exports.add = function add(modules) {
 				hasStream: doodad.PUBLIC(function hasStream() {
 					return !!this.stream;
 				}),
-					
+
 				isFullfilled: doodad.PUBLIC(function isFullfilled() {
 					return this.__fullfilled;
 				}),
@@ -1542,7 +1542,7 @@ exports.add = function add(modules) {
 					if (this.ended) {
 						throw new server.EndOfRequest();
 					};
-					
+
 					if (types.isString(type)) {
 						const tmp = namespaces.get(type);
 						if (!tmp) {
@@ -1573,7 +1573,7 @@ exports.add = function add(modules) {
 					if (this.ended) {
 						throw new server.EndOfRequest();
 					};
-						
+
 					if (!types.isArray(handlersOptions)) {
 						handlersOptions = [handlersOptions];
 					};
@@ -1646,7 +1646,7 @@ exports.add = function add(modules) {
 
 						return null;
 					};
-						
+
 					const loopProceedHandler = function _loopProceedHandler(handlersOptions, index, resolved) {
 						if (!this.ended) {
 							if (index < handlersOptions.length) {
@@ -1663,7 +1663,7 @@ exports.add = function add(modules) {
 						};
 						return undefined;
 					};
-					
+
 					if (urlToResolve) {
 						types.setAttribute(this, 'url', urlToResolve);
 
@@ -1674,7 +1674,7 @@ exports.add = function add(modules) {
 								if (err) {
 									throw err;
 								};
-								
+
 								return result;
 							}, this);
 
@@ -1683,7 +1683,7 @@ exports.add = function add(modules) {
 
 					};
 				})),
-					
+
 				catchError: doodad.OVERRIDE(function catchError(ex) {
 					const max = 5; // prevents infinite loop
 					let count = 0;
@@ -1755,7 +1755,7 @@ exports.add = function add(modules) {
 					tools.append(this.__contentEncodings, encodings.map(encoding => encoding.toLowerCase())); // case-insensitive
 				}),
 			})));
-				
+
 			httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
 			{
 				$TYPE_NAME: 'HandlersContainer',
@@ -1765,7 +1765,7 @@ exports.add = function add(modules) {
 					if (!types.isArray(handlersOptions)) {
 						handlersOptions = [handlersOptions];
 					};
-					
+
 					return tools.map(handlersOptions, function(handlerOptions) {
 						let handler;
 
@@ -1782,7 +1782,7 @@ exports.add = function add(modules) {
 						if (types.isString(handler)) {
 							handler = namespaces.get(handler);
 						};
-						
+
 						const isJsFunction = types.isJsFunction(handler);
 
 						const handlerType = (isJsFunction ? handler : types.getType(handler));
@@ -1822,7 +1822,7 @@ exports.add = function add(modules) {
 				handlersOptions: doodad.PUBLIC(doodad.READ_ONLY(null)),
 				options: doodad.PUBLIC(doodad.READ_ONLY(null)),
 			})));
-				
+
 			httpMixIns.REGISTER(doodad.MIX_IN(doodad.Class.$extend(
 								mixIns.Creatable,
 								serverMixIns.Response,
@@ -1836,7 +1836,7 @@ exports.add = function add(modules) {
 					options = tools.nullObject(options);
 
 					let val;
-						
+
 					val = options.depth;
 					if (!types.isNothing(val)) {
 						val = types.toInteger(val);
@@ -1853,7 +1853,7 @@ exports.add = function add(modules) {
 						});
 					};
 					options.mimeTypes = val;
-						
+
 					val = options.extensions;
 					if (!types.isNothing(val)) {
 						if (!types.isArray(val)) {
@@ -1864,7 +1864,7 @@ exports.add = function add(modules) {
 						});
 					};
 					options.extensions = val;
-						
+
 					val = options.verbs;
 					if (!types.isNothing(val)) {
 						if (!types.isArray(val)) {
@@ -1875,7 +1875,7 @@ exports.add = function add(modules) {
 						});
 					};
 					options.verbs = val;
-						
+
 					val = options.caseSensitive;
 					if (!types.isNothing(val)) {
 						val = types.toBoolean(val);
@@ -1901,30 +1901,30 @@ exports.add = function add(modules) {
 
 				resolve: doodad.PUBLIC(doodad.ASYNC(doodad.NOT_IMPLEMENTED())),  // function(request, type)
 			})));
-				
-				
+
+
 			httpMixIns.REGISTER(doodad.MIX_IN(httpMixIns.Handler.$extend(
 								httpMixIns.HandlersContainer,
 			{
 				$TYPE_NAME: 'Routes',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RoutesMixIn')), true) */,
-					
+
 				addRoutes: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(newRoutes)
 				createHandlers: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, targetUrl, /*optional*/type)
 
 				resolve: doodad.OVERRIDE(doodad.MUST_OVERRIDE()),  // function(request, type)
 			})));
-				
-				
+
+
 			httpMixIns.REGISTER(doodad.MIX_IN(httpMixIns.Handler.$extend(
 			{
 				$TYPE_NAME: 'Page',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('PageMixIn')), true) */,
-					
+
 				__knownVerbs: doodad.PROTECTED(doodad.ATTRIBUTE(['HEAD', 'GET', 'POST', 'PUT', 'DELETE', 'TRACE', 'CONNECT', 'OPTIONS'], extenders.UniqueArray)),
 
 				__allowedVerbs: doodad.PROTECTED(doodad.READ_ONLY(null)),
-					
+
 				execute_HEAD: doodad.PROTECTED(doodad.ASYNC(doodad.NOT_IMPLEMENTED())), // function(request)
 				execute_GET: doodad.PROTECTED(doodad.ASYNC(doodad.NOT_IMPLEMENTED())), // function(request)
 				execute_POST: doodad.PROTECTED(doodad.ASYNC(doodad.NOT_IMPLEMENTED())), // function(request)
@@ -1932,7 +1932,7 @@ exports.add = function add(modules) {
 				execute_DELETE: doodad.PROTECTED(doodad.ASYNC(doodad.NOT_IMPLEMENTED())), // function(request)
 				execute_TRACE: doodad.PROTECTED(doodad.ASYNC(doodad.NOT_IMPLEMENTED())), // function(request)
 				execute_CONNECT: doodad.PROTECTED(doodad.ASYNC(doodad.NOT_IMPLEMENTED())), // function(request)
-					
+
 				execute_OPTIONS: doodad.PROTECTED(doodad.ASYNC(function(request) {
 					let allowed = this.__allowedVerbs;
 					if (!allowed) {
@@ -1955,8 +1955,8 @@ exports.add = function add(modules) {
 					return types.isImplemented(this, 'execute_' + verb.toUpperCase());
 				}),
 			})));
-				
-				
+
+
 			http.REGISTER(doodad.Object.$extend(
 								httpMixIns.Page,
 			{
@@ -1969,19 +1969,19 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'StatusPage',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('StatusPage')), true) */,
-					
+
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					types.getDefault(options, 'depth', 0);
 
 					options = this._super(options);
-						
+
 					//let val;
-						
+
 					options.status = types.toInteger(options.status);
 
 					return options;
 				}),
-					
+
 				execute_HEAD: doodad.OVERRIDE(function execute_HEAD(request) {
 					return request.response.respondWithStatus(this.options.status);
 				}),
@@ -2016,7 +2016,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'WidgetPage',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('WidgetPageBase')), true) * /,
-					
+
 				execute_GET: doodad.OVERRIDE(function(request) {
 					const result = this.show(request);
 					if (result !== false) {
@@ -2031,7 +2031,7 @@ exports.add = function add(modules) {
 						this.render(stream);
 					};
 				}),
-					
+
 				show: doodad.PROTECTED(doodad.MUST_OVERRIDE()), // function(request)
 				load: doodad.PROTECTED(doodad.MUST_OVERRIDE()), // function(request)
 			})));
@@ -2049,7 +2049,7 @@ exports.add = function add(modules) {
 					options = this._super(options);
 
 					let val;
-						
+
 					val = options.targetUrl;
 					if (types.isString(val)) {
 						val = files.Url.parse(val);
@@ -2091,14 +2091,14 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'CrossOriginHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CrossOriginHandler')), true) */,
-					
+
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					types.getDefault(options, 'depth', Infinity);
 
 					options = this._super(options);
-						
+
 					let val;
-						
+
 					val = options.allowedOrigins;
 					if (!types.isNothing(val)) {
 						if (!types.isArray(val)) {
@@ -2107,7 +2107,7 @@ exports.add = function add(modules) {
 						val = tools.map(val, tools.toString);
 					};
 					options.allowedOrigins = val || [];
-						
+
 					val = options.allowedHeaders;
 					if (!types.isNothing(val)) {
 						if (!types.isArray(val)) {
@@ -2116,7 +2116,7 @@ exports.add = function add(modules) {
 						val = tools.map(val, tools.toString);
 					};
 					options.allowedHeaders = val || [];
-						
+
 					val = options.exposedHeaders;
 					if (!types.isNothing(val)) {
 						if (!types.isArray(val)) {
@@ -2125,9 +2125,9 @@ exports.add = function add(modules) {
 						val = tools.map(val, tools.toString);
 					};
 					options.exposedHeaders = val || [];
-						
+
 					options.allowCredentials = types.toBoolean(options.allowCredentials);
-						
+
 					val = options.maxAge;
 					options.maxAge = (types.isNothing(val) ? null : types.toInteger(val) || null);
 
@@ -2138,7 +2138,7 @@ exports.add = function add(modules) {
 					const cors = request.getHeader('Origin');
 					if (cors) {
 						// Preflight CORS
-							
+
 						const allowedOrigins = this.options.allowedOrigins;
 						if (allowedOrigins.length && (tools.indexOf(allowedOrigins, cors) < 0)) { // Case sensitive
 							// Invalid origin
@@ -2146,19 +2146,19 @@ exports.add = function add(modules) {
 						};
 
 						const allowCredentials = this.options.allowCredentials;
-							
+
 						const wantedMethod = request.getHeader('Access-Control-Request-Method');
 						if (!wantedMethod) {
 							// No method
 							return request.end();
 						};
-							
+
 						const allowedMethods = this.options.verbs || ['HEAD', 'GET', 'POST'];
 						if (tools.indexOf(allowedMethods, wantedMethod) < 0) { // Case sensitive
 							// Invalid method
 							return request.end();
 						};
-							
+
 						let wantedHeaders = request.getHeader('Access-Control-Request-Headers');
 						const allowedHeaders = this.options.allowedHeaders;
 						if (wantedHeaders) {
@@ -2175,7 +2175,7 @@ exports.add = function add(modules) {
 								return request.end();
 							};
 						};
-							
+
 						request.response.addHeaders({
 							'Access-Control-Max-Age': (types.isNothing(this.options.maxAge) ? '' : types.toString(this.options.maxAge)),
 							'Access-Control-Allow-Origin': (allowCredentials || allowedOrigins.length ? cors : '*'),
@@ -2188,13 +2188,13 @@ exports.add = function add(modules) {
 					};
 					return undefined;
 				})),
-					
+
 				execute: doodad.OVERRIDE(function execute(request) {
 					const method = 'execute_' + request.verb;
 
 					if (types.isImplemented(this, method)) {
 						return this[method](request);
-							
+
 					} else {
 						const cors = request.getHeader('Origin');
 						if (cors) {
@@ -2203,17 +2203,17 @@ exports.add = function add(modules) {
 								// Invalid origin
 								return request.end();
 							};
-								
+
 							const allowedMethods = this.options.verbs || ['HEAD', 'GET', 'POST'];
 							if (tools.indexOf(allowedMethods, request.verb) < 0) { // Case sensitive
 								// Invalid method
 								return request.end();
 							};
-								
+
 							const allowCredentials = this.options.allowCredentials;
-								
+
 							const exposedHeaders = this.options.exposedHeaders;
-								
+
 							request.response.addHeaders({
 								'Access-Control-Allow-Origin': (allowCredentials || allowedOrigins.length ? cors : '*'),
 								'Access-Control-Allow-Credentials': (allowCredentials ? 'true' : 'false'),
@@ -2259,7 +2259,7 @@ exports.add = function add(modules) {
 						'upgrade-insecure-requests': null,
 					});
 				})),
-					
+
 				$updatePolicy: doodad.PUBLIC(doodad.TYPE(function $updatePolicy(policy, value, /*optional*/replace) {
 					tools.forEach(tools.trim(value, ';', 0).split(';'), function(val) {
 						const args = val.trim().split(' ');
@@ -2309,14 +2309,14 @@ exports.add = function add(modules) {
 					types.getDefault(options, 'depth', Infinity);
 
 					options = this._super(options);
-						
+
 					const val = options.policy;
 					const policy = this.$createPolicy();
 					if (val) {
 						this.$updatePolicy(policy, val);
 					};
 					options.policy = this.$getPolicyString(policy);
-						
+
 					return options;
 				}),
 
@@ -2347,14 +2347,14 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'ContentSecurityPolicyReportHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ContentSecurityPolicyReportHandler')), true) * /,
-					
+
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					types.getDefault(options, 'depth', Infinity);
 
 					options = this._super(options);
-						
+
 					let val;
-						
+
 					//CSP: report-uri
 					//Content-Security-Policy-Report-Only: default-src https:; report-uri /endpoint
 
@@ -2375,7 +2375,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'UpgradeInsecureRequestsHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('UpgradeInsecureRequestsHandler')), true) */,
-					
+
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					types.getDefault(options, 'depth', Infinity);
 
@@ -2407,10 +2407,10 @@ exports.add = function add(modules) {
 					} else {
 						cspState.update('upgrade-insecure-requests');
 					};
-						
+
 					if (uirs === '1') {
 						request.response.setVary('Upgrade-Insecure-Requests');
-							
+
 						if (!this.options.hstsSafe) {
 							request.response.addHeaders({
 								'Strict-Transport-Security': 'max-age=' + types.toString(this.options.hstsMaxAge),
@@ -2419,7 +2419,7 @@ exports.add = function add(modules) {
 					};
 
 					request.setFullfilled(false);
-						
+
 					if (this.options.hstsSafe || (uirs === '1')) {
 						if ((request.url.protocol !== 'https') && (request.url.domain || this.options.sslDomain)) {
 							const opts = {protocol: 'https', port: this.options.sslPort};
@@ -2441,7 +2441,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'ClientCrashHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ClientCrashHandler')), true) */,
-					
+
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					types.getDefault(options, 'depth', Infinity);
 
@@ -2481,7 +2481,7 @@ exports.add = function add(modules) {
 					serverOptions = tools.nullObject(serverOptions);
 
 					let val;
-						
+
 					val = serverOptions.validHosts;
 					if (!types.isNothing(val) && !types.isArray(val)) {
 						val = [val];
@@ -2565,19 +2565,19 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'RequestMatcher',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('RequestMatcherBase')), true) */,
-					
+
 				match: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function(request, url, options)
 			})));
-				
-				
+
+
 			http.REGISTER(http.RequestMatcher.$extend(
 			{
 				$TYPE_NAME: 'UrlMatcher',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('UrlMatcher')), true) */,
-					
+
 				baseUrl: doodad.PUBLIC( null ),
 				allowArguments: doodad.PUBLIC( true ),
-					
+
 				create: doodad.OVERRIDE(function create(baseUrl) {
 					this._super();
 					if (types.isString(baseUrl)) {
@@ -2586,7 +2586,7 @@ exports.add = function add(modules) {
 					root.DD_ASSERT && root.DD_ASSERT(types._instanceof(baseUrl, files.Url), "Invalid url.");
 					this.baseUrl = baseUrl;
 				}),
-					
+
 				match: doodad.OVERRIDE(function match(request, requestUrl, options) {
 					const urlPath = requestUrl.toArray({pathOnly: true, trim: false});
 					const urlPathLen = urlPath.length;
@@ -2680,15 +2680,15 @@ exports.add = function add(modules) {
 								urlLevel++;
 							};
 						};
-							
+
 						if ((i >= basePathLen) && (urlLastPos - urlLevel <= maxDepth)) {
 							full = (urlLength >= weight);
 						} else {
 							weight = 0;
 						};
-							
+
 						url = files.Url.parse(urlPath.slice(urlFirstPos, urlLevel));
-							
+
 						const ar = urlPath.slice(urlLevel);
 						let file = null;
 						if (requestUrl.file) {
@@ -2765,7 +2765,7 @@ exports.add = function add(modules) {
 						queryArgs: queryArgs,
 					});
 				}),
-					
+
 				toString: doodad.OVERRIDE(function toString() {
 					if (types.isType(this)) {
 						return this._super();
@@ -2775,7 +2775,7 @@ exports.add = function add(modules) {
 					};
 				}),
 			}));
-				
+
 			http.REGISTER(doodad.Object.$extend(
 								httpMixIns.Routes,
 			{
@@ -2799,7 +2799,7 @@ exports.add = function add(modules) {
 
 					this.addRoutes(routes);
 				}),
-					
+
 				addRoutes: doodad.OVERRIDE(function addRoutes(newRoutes) {
 					root.DD_ASSERT && root.DD_ASSERT(types._instanceof(newRoutes, types.Map) || types.isObject(newRoutes), "Invalid routes.");
 
@@ -2808,7 +2808,7 @@ exports.add = function add(modules) {
 					tools.forEach(newRoutes, function(route, matcher) {
 						if (!types.isNothing(route)) {
 							root.DD_ASSERT && root.DD_ASSERT(types.isJsObject(route), "Invalid route.");
-							
+
 							route = tools.nullObject(route);
 
 							if (route.handlers && route.handlers.length) {
@@ -2816,7 +2816,7 @@ exports.add = function add(modules) {
 									matcher = new http.UrlMatcher(matcher);
 								};
 								root.DD_ASSERT && root.DD_ASSERT(types._instanceof(matcher, http.RequestMatcher), "Invalid request matcher.");
-							
+
 								if (!types.get(route, 'id', null)) {
 									route.id = types.getSymbol();
 								};
@@ -2830,7 +2830,7 @@ exports.add = function add(modules) {
 						};
 					}, this);
 				}),
-					
+
 				createHandlers: doodad.OVERRIDE(function createHandlers(request, targetUrl, /*optional*/type) {
 					// TODO: Filter by "type"
 
@@ -2848,7 +2848,7 @@ exports.add = function add(modules) {
 							if (handlerOptions.verbs && (tools.indexOf(handlerOptions.verbs, request.verb) === -1)) {
 								continue;
 							};
-								
+
 							if (handlerOptions.extensions && targetUrl.file) {
 								if (tools.indexOf(handlerOptions.extensions, targetUrl.extension) === -1) {
 									continue;
@@ -2864,7 +2864,7 @@ exports.add = function add(modules) {
 								handlers.push(handlerOptions);
 							};
 						};
-							
+
 						return handlers;
 					}, [], this);
 
@@ -2889,7 +2889,7 @@ exports.add = function add(modules) {
 
 					return handlers;
 				}),
-					
+
 				execute: doodad.OVERRIDE(function execute(request) {
 					const state = request.getHandlerState(this);
 					const remaining = state.matcherResult && state.matcherResult.urlRemaining;
@@ -2914,7 +2914,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'JsonBodyHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JsonBodyHandler')), true) */,
-					
+
 				/*
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					types.getDefault(options, 'depth', Infinity);
@@ -2924,7 +2924,7 @@ exports.add = function add(modules) {
 					return options;
 				}),
 				*/
-					
+
 				__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 					const request = ev.handlerData[0];
 					const contentType = request.contentType;
@@ -2948,7 +2948,7 @@ exports.add = function add(modules) {
 
 				execute: doodad.OVERRIDE(function(request) {
 					request.setStreamOptions({
-						accept: 'application/json', 
+						accept: 'application/json',
 					});
 
 					request.onGetStream.attach(this, this.__onGetStream, null, [request]);
@@ -2962,7 +2962,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'XmlBodyHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('XmlBodyHandler')), true) * /,
-					
+
 				/ *
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					types.getDefault(options, 'depth', Infinity);
@@ -2972,7 +2972,7 @@ exports.add = function add(modules) {
 					return options;
 				}),
 				* /
-					
+
 				__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 					const request = ev.handlerData[0];
 					const contentType = request.contentType;
@@ -2991,7 +2991,7 @@ exports.add = function add(modules) {
 
 				execute: doodad.OVERRIDE(function(request) {
 					request.setStreamOptions({
-						accept: ['application/xml', 'text/xml'], 
+						accept: ['application/xml', 'text/xml'],
 					});
 
 					request.onGetStream.attach(this, this.__onGetStream, null, [request]);
@@ -3004,7 +3004,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'UrlBodyHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('UrlBodyHandler')), true) */,
-					
+
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					types.getDefault(options, 'depth', Infinity);
 
@@ -3020,7 +3020,7 @@ exports.add = function add(modules) {
 
 					return options;
 				}),
-					
+
 				__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 					const request = ev.handlerData[0];
 					const contentType = request.contentType;
@@ -3050,7 +3050,7 @@ exports.add = function add(modules) {
 
 				execute: doodad.OVERRIDE(function(request) {
 					request.setStreamOptions({
-						accept: 'application/x-www-form-urlencoded', 
+						accept: 'application/x-www-form-urlencoded',
 					});
 
 					request.onGetStream.attach(this, this.__onGetStream, null, [request]);
@@ -3063,7 +3063,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'Base64BodyHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('Base64BodyHandler')), true) */,
-					
+
 				//$prepare: doodad.OVERRIDE(function $prepare(options) {
 				//	types.getDefault(options, 'depth', Infinity);
 				//
@@ -3073,7 +3073,7 @@ exports.add = function add(modules) {
 				//
 				//	return options;
 				//}),
-					
+
 				__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 					const request = ev.handlerData[0];
 					const contentEncoding = request.getHeader('Content-Transfer-Encoding');
@@ -3102,7 +3102,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'TextBodyHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('TextBodyHandler')), true) */,
-					
+
 				//$prepare: doodad.OVERRIDE(function $prepare(options) {
 				//	types.getDefault(options, 'depth', Infinity);
 				//
@@ -3112,7 +3112,7 @@ exports.add = function add(modules) {
 				//
 				//	return options;
 				//}),
-					
+
 				__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 					const request = ev.handlerData[0];
 					const contentType = request.contentType;
@@ -3136,7 +3136,7 @@ exports.add = function add(modules) {
 
 				execute: doodad.OVERRIDE(function(request) {
 					request.setStreamOptions({
-						accept: 'text/plain', 
+						accept: 'text/plain',
 					});
 
 					request.onGetStream.attach(this, this.__onGetStream, null, [request]);
@@ -3149,7 +3149,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'FormMultipartBodyHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('FormMultipartBodyHandler')), true) */,
-					
+
 				$applyGlobalHandlerStates: doodad.OVERRIDE(function $applyGlobalHandlerStates(server) {
 					this._super(server);
 
@@ -3162,12 +3162,12 @@ exports.add = function add(modules) {
 				//	types.getDefault(options, 'depth', Infinity);
 				//
 				//	options = this._super(options);
-				//	
+				//
 				//	//let val;
-				//	
+				//
 				//	return options;
 				//}),
-				
+
 				__onBOF: doodad.PROTECTED(function __onBOF(ev) {
 					const request = ev.handlerData[0];
 						//mpStream = ev.handlerData[1];
@@ -3186,7 +3186,7 @@ exports.add = function add(modules) {
 
 				__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 					const request = ev.handlerData[0];
-						
+
 					let mpStream = ev.handlerData[1];
 
 					// Prevents the request from returning "this.stream"
@@ -3218,7 +3218,7 @@ exports.add = function add(modules) {
 						state.attached = true;
 
 						request.setStreamOptions({
-							accept: 'multipart/form-data, multipart/mixed', 
+							accept: 'multipart/form-data, multipart/mixed',
 						});
 
 						request.onGetStream.attachOnce(this, this.__onGetStream, 10, [request, null]);

@@ -81,17 +81,17 @@ exports.add = function add(modules) {
 				templatesHtml = templates.Html,
 				dates = tools.Dates,
 				moment = dates.Moment; // Optional
-			
+
 
 			const modulePath = files.parsePath(module.filename).set({file: null});
 
 
 			const __Internal__ = {
 			};
-				
+
 			tools.complete(_shared.Natives, {
 				windowJSON: global.JSON,
-					
+
 				globalBuffer: global.Buffer,
 
 				globalProcess: global.process,
@@ -101,7 +101,7 @@ exports.add = function add(modules) {
 				mathMax: global.Math.max,
 			});
 
-			// TODO: 
+			// TODO:
 			// 1) (todo) Setup page: IPs, Ports, Base URLs, Fall-back Pages (html status), Max number of processes, Storage Manager location
 			// 3) (working on) Static files : Base URL (done), file(done)/folder(done), alias (done), Verbs (done), in/out process option (todo), mime type (auto or custom) (done), charset (done), metadata (if text/html) (todo)
 			// 4) (todo) Dynamic files : Base URL (done), Page class (done), Verbs (done), in/out process option, mime type ('text/html' or custom) (done), charset (done), metadata (if text/html) (todo)
@@ -125,21 +125,21 @@ exports.add = function add(modules) {
 						this.__endRacer.resolve(this.end(true));
 					};
 				}),
-					
+
 				nodeJsStreamOnClose: doodad.NODE_EVENT('close', function nodeJsStreamOnClose(context) {
 					// Response stream has been closed
 					if (!this.ended) {
 						this.__endRacer.resolve(this.end(true));
 					};
 				}),
-					
+
 				nodeJsStreamOnFinish: doodad.NODE_EVENT('finish', function nodeJsStreamOnFinish(context) {
 					// Response stream has been closed
 					if (!this.ended) {
 						this.__endRacer.resolve(this.end(true));
 					};
 				}),
-					
+
 				create: doodad.OVERRIDE(function create(request, nodeJsStream) {
 					types.setAttribute(this, 'message', nodeHttp.STATUS_CODES[this.status]);
 
@@ -174,7 +174,7 @@ exports.add = function add(modules) {
 
 					this._super();
 				}),
-					
+
 				end: doodad.PUBLIC(doodad.NON_REENTRANT(doodad.ASYNC(function end(forceDisconnect) {
 					// NOTE: MUST ALWAYS REJECTS
 
@@ -270,9 +270,9 @@ exports.add = function add(modules) {
 					};
 
 					this.onSendHeaders(new doodad.Event());
-							
+
 					const response = this.nodeJsStream;
-						
+
 					response.statusCode = this.status;
 					response.statusMessage = this.message;
 
@@ -283,23 +283,23 @@ exports.add = function add(modules) {
 							response.removeHeader(name);
 						};
 					});
-						
+
 					types.setAttribute(this, 'headersSent', true);
 				}),
-					
+
 				__streamOnWrite: doodad.PROTECTED(function __streamOnWrite(ev) {
 					if ((!this.ended || this.__ending) && !this.headersSent) {
 						this.sendHeaders();
 					};
 				}),
-					
+
 				__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
 					ev.preventDefault(); // error handled
 					if (!this.ended) {
 						this.__endRacer.resolve(this.end(true));
 					};
 				}),
-					
+
 				getStream: doodad.OVERRIDE(doodad.NON_REENTRANT(function getStream(/*optional*/options) {
 					// NOTE: "getStream" is NON_REENTRANT
 
@@ -332,7 +332,7 @@ exports.add = function add(modules) {
 					} else if (options.encoding) {
 						this.setContentType(this.contentType || 'text/plain', {encoding: options.encoding});
 					};
-						
+
 					const currentStream = this.stream;
 					if (currentStream) {
 						return currentStream;
@@ -356,7 +356,7 @@ exports.add = function add(modules) {
 					});
 
 					this.onGetStream(ev);
-						
+
 					// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream itself.
 					return this.__endRacer.race(ev.data.stream
 						.then(function(responseStream) {
@@ -393,7 +393,7 @@ exports.add = function add(modules) {
 								const isNodeStream = !types._implements(pipeStream, ioMixIns.StreamBase);
 								const sourceStream = (isNodeStream ? new nodejsIO.BinaryInputOutputStream(pipeStream) : pipeStream);
 								sourceStream.pipe(responseStream, pipe.options.pipeOptions);
-								
+
 								if (isNodeStream) {
 									this.request.onSanitize.attachOnce(null, function() {
 										types.DESTROY(sourceStream);
@@ -450,7 +450,7 @@ exports.add = function add(modules) {
 							throw err;
 						}, this));
 				})),
-					
+
 				sendTrailers: doodad.PROTECTED(function sendTrailers(/*optional*/trailers) {
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
@@ -459,11 +459,11 @@ exports.add = function add(modules) {
 					if (this.trailersSent) {
 						throw new types.NotAvailable("Trailers have already been sent and the request will be closed.");
 					};
-						
+
 					if (!this.headersSent) {
 						this.sendHeaders(); // must write headers before
 					};
-						
+
 					if (trailers) {
 						this.addTrailers(trailers);
 					};
@@ -475,7 +475,7 @@ exports.add = function add(modules) {
 
 					types.setAttribute(this, 'trailersSent', true);
 				}),
-					
+
 				clear: doodad.OVERRIDE(function clear() {
 					if (this.ended) {
 						throw new server.EndOfRequest();
@@ -493,7 +493,7 @@ exports.add = function add(modules) {
 						this.stream.clear();
 					};
 				}),
-					
+
 				respondWithStatus: doodad.OVERRIDE(function respondWithStatus(status, /*optional*/message, /*optional*/headers, /*optional*/data) {
 					// NOTE: Must always throws an error.
 					if (this.ended) {
@@ -504,7 +504,7 @@ exports.add = function add(modules) {
 					if (this.headersSent) {
 						throw new types.NotAvailable("Can't respond with a new status or new headers because the headers have already been sent to the client.");
 					};
-						
+
 					this.addHeaders(headers);
 
 					types.setAttributes(this, {
@@ -582,7 +582,7 @@ exports.add = function add(modules) {
 							};
 
 							this.setContentType(contentTypes[0]);
-								
+
 							this.addHeaders({
 								'Last-Modified': http.toRFC1123Date(stats.mtime), // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
 								'Content-Length': stats.size,
@@ -629,7 +629,7 @@ exports.add = function add(modules) {
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('NodeJsRequest')), true) */,
 
 				__endRacer: doodad.PRIVATE(null),
-					
+
 				nodeJsStream: doodad.PROTECTED(null),
 
 				startTime: doodad.PROTECTED(null),
@@ -654,10 +654,10 @@ exports.add = function add(modules) {
 						perHour: this.$__perHour,
 					});
 				}),
-					
+
 				$clearStats: doodad.OVERRIDE(function $clearStats() {
 					this._super();
-					
+
 					this.$__time = null;
 					this.$__totalHour = 0;
 					this.$__perSecond = 0.0;
@@ -670,7 +670,7 @@ exports.add = function add(modules) {
 					} else {
 						this.$__oldPerSecond = [];
 					};
-						
+
 					const noActivityTimeout = this.$__noActivityTimeout;
 					if (noActivityTimeout) {
 						noActivityTimeout.cancel();
@@ -679,7 +679,7 @@ exports.add = function add(modules) {
 					this.$__noActivityStart = null;
 					this.$__statsUpdated = false;
 				}),
-					
+
 				$compileStats: doodad.PROTECTED(doodad.TYPE(function $compileStats() {
 					const oldPerSecond = this.$__oldPerSecond;
 					let perSecond = 0.0;
@@ -759,7 +759,7 @@ exports.add = function add(modules) {
 						this.__endRacer.resolve(this.end(true));
 					};
 				}),
-					
+
 				nodeJsStreamOnClose: doodad.NODE_EVENT('close', function nodeJsStreamOnClose(context) {
 					if (this.ended) {
 						this.__aborted = true;
@@ -767,7 +767,7 @@ exports.add = function add(modules) {
 						this.__endRacer.resolve(this.end(true));
 					};
 				}),
-					
+
 				create: doodad.OVERRIDE(function create(server, nodeJsRequest, nodeJsResponse) {
 					const Promise = types.getPromise();
 
@@ -776,7 +776,7 @@ exports.add = function add(modules) {
 					this.nodeJsStream = nodeJsRequest;
 					this.nodeJsStreamOnError.attach(nodeJsRequest);
 					this.nodeJsStreamOnClose.attachOnce(nodeJsRequest);
-						
+
 					this._super(server, nodeJsRequest.method, nodeJsRequest.url, nodeJsRequest.headers, [nodeJsResponse]);
 
 					this.__endRacer = Promise.createRacer();
@@ -801,7 +801,7 @@ exports.add = function add(modules) {
 					};
 
 				}),
-					
+
 				destroy: doodad.OVERRIDE(function destroy() {
 					this.nodeJsStreamOnError.clear();
 					this.nodeJsStreamOnClose.clear();
@@ -816,7 +816,7 @@ exports.add = function add(modules) {
 
 					this._super();
 				}),
-					
+
 				createResponse: doodad.OVERRIDE(function createResponse(nodeJsRequest) {
 					return new nodejsHttp.Response(this, nodeJsRequest);
 				}),
@@ -827,7 +827,7 @@ exports.add = function add(modules) {
 
 				end: doodad.OVERRIDE(function end(/*optional*/forceDisconnect) {
 					// NOTE: MUST ALWAYS REJECTS
-						
+
 					const Promise = types.getPromise();
 
 					if (this.ended) {
@@ -872,7 +872,7 @@ exports.add = function add(modules) {
 									return stream.flushAsync({purge: true});
 								};
 							};
-							
+
 							return undefined;
 						}, null, this)
 						.then(wait, null, this)
@@ -913,7 +913,7 @@ exports.add = function add(modules) {
 						this.__endRacer.resolve(this.end(true));
 					};
 				}),
-					
+
 				getStream: doodad.OVERRIDE(doodad.NON_REENTRANT(function getStream(/*optional*/options) {
 					// NOTE: "getStream" is NON_REENTRANT
 
@@ -921,7 +921,7 @@ exports.add = function add(modules) {
 
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
-					};							
+					};
 
 					options = tools.nullObject(this.__streamOptions, options);
 
@@ -932,7 +932,7 @@ exports.add = function add(modules) {
 
 					const acceptContentEncodings = (this.__contentEncodings.length ? this.__contentEncodings : ['identity']);
 					const contentEncoding = (this.getHeader('Content-Encoding') || 'identity').toLowerCase(); // case-insensitive
-					if (acceptContentEncodings.indexOf(contentEncoding) < 0) { 
+					if (acceptContentEncodings.indexOf(contentEncoding) < 0) {
 						return this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 					};
 
@@ -948,7 +948,7 @@ exports.add = function add(modules) {
 					});
 
 					this.onGetStream(ev);
-						
+
 					// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream itself.
 					return this.__endRacer.race(ev.data.stream
 						.then(function(requestStream) {
@@ -965,7 +965,7 @@ exports.add = function add(modules) {
 							if (!accept || !accept.length) {
 								return this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 							};
-							
+
 							const requestType = this.contentType;
 							if (!requestType) {
 								return this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
@@ -980,15 +980,15 @@ exports.add = function add(modules) {
 							const contentTypes = tools.filter(accept, function(type) {
 								return (((type.name === requestType.name) || (type.name === '*/*') || ((type.type === requestType.type) && (type.subtype === '*'))) && (type.weight > 0.0));
 							});
-							
+
 							if (types.isEmpty(contentTypes)) {
 								return this.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 							};
-							
+
 							if (!requestEncoding) {
 								requestEncoding = options.encoding; // default encoding
 							};
-							
+
 							requestStream.onError.attach(this, this.__streamOnError, 10);
 
 							tools.forEach(this.__pipes, function forEachPipe(pipe) {
@@ -1017,7 +1017,7 @@ exports.add = function add(modules) {
 								requestStream = sourceStream;
 							}, this);
 							this.__pipes = null;  // disables "addPipe".
-							
+
 							if (types._implements(requestStream, io.Stream)) {
 								if (requestEncoding && !types._implements(requestStream, [ioMixIns.TextInputStream, ioMixIns.ObjectTransformableOut])) {
 									const textStream = new io.TextDecoderStream({encoding: requestEncoding});
@@ -1055,26 +1055,26 @@ exports.add = function add(modules) {
 							throw err;
 						}, this));
 				})),
-					
+
 				getTime: doodad.PUBLIC(function getTime() {
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
-					};							
+					};
 					const time = _shared.Natives.globalProcess.hrtime(this.startTime);
 					return (time[0] * 1000) + (time[1] / 1e6);
 				}),
-					
+
 				getSource: doodad.PUBLIC(function getSource() {
 					// TODO: Add more informations
 					if (this.ended && !this.__ending) {
 						throw new server.EndOfRequest();
-					};							
+					};
 					return tools.nullObject({
 						address: this.nodeJsStream.socket.remoteAddress,
 					});
 				}),
 			})));
-				
+
 			nodejsHttp.REGISTER(http.Server.$extend(
 							mixIns.NodeEvents,
 			{
@@ -1084,7 +1084,7 @@ exports.add = function add(modules) {
 				__nodeServer: doodad.PROTECTED(doodad.READ_ONLY()),
 				__address: doodad.PROTECTED(doodad.READ_ONLY()),
 				__listening: doodad.PROTECTED(false),
-					
+
 				onNodeRequest: doodad.NODE_EVENT('request', function onNodeRequest(context, nodeRequest, nodeResponse) {
 					//const Promise = types.getPromise();
 					if (this.__listening) {
@@ -1099,7 +1099,7 @@ exports.add = function add(modules) {
 
 						try {
 							const request = new nodejsHttp.Request(this, nodeRequest, nodeResponse);
-							
+
 							request.onError.attach(this, function(ev) {
 								this.onError(ev);
 							});
@@ -1111,9 +1111,9 @@ exports.add = function add(modules) {
 							const ev = new doodad.Event({
 									request: request,
 								});
-								
+
 							this.onNewRequest(ev);
-								
+
 							if (!ev.prevent) {
 								request.proceed(this.handlersOptions)
 									.catch(request.catchError)
@@ -1150,7 +1150,7 @@ exports.add = function add(modules) {
 						};
 					};
 				}),
-					
+
 				//onNodeConnect: doodad.NODE_EVENT('connect', function onNodeConnect(context) {
 				//}),
 
@@ -1163,30 +1163,30 @@ exports.add = function add(modules) {
 				onNodeError: doodad.NODE_EVENT('error', function onNodeError(context, ex) {
 					this.onError(new doodad.ErrorEvent(ex));
 				}),
-					
+
 				onNodeClose: doodad.NODE_EVENT('close', function onNodeClose(context) {
 					const server = this.__nodeServer;
-						
+
 					this.onNodeListening.detach(server);
 					this.onNodeError.detach(server);
 					this.onNodeClose.detach(server);
 					//this.onNodeConnect.detach(server);
-						
+
 					tools.log(tools.LogLevels.Info, "Listening socket closed (address '~address~', port '~port~').", this.__address);
 
 					types.setAttribute(this, '__nodeServer', null);
 				}),
-					
+
 				isListening: doodad.OVERRIDE(function isListening() {
 					return this.__listening;
 				}),
-					
+
 				listen: doodad.OVERRIDE(function listen(/*optional*/options) {
 					if (!this.__listening) {
 						this.__listening = true;
 
 						options = tools.nullObject(options);
-							
+
 						const protocol = options.protocol || 'http';
 						let factory;
 						if ((protocol === 'http') || (protocol === 'https')) {
@@ -1195,7 +1195,7 @@ exports.add = function add(modules) {
 						} else {
 							throw new doodad.Error("Invalid protocol : '~0~'.", [protocol]);
 						};
-							
+
 						let server;
 						if (protocol === 'https') {
 							// TODO: Implement other available options
@@ -1228,7 +1228,7 @@ exports.add = function add(modules) {
 						} else {
 							server = factory.createServer();
 						};
-							
+
 						if (types.has(options, 'timeout')) {
 							server.setTimeout(options.timeout);
 						} else {
@@ -1244,14 +1244,14 @@ exports.add = function add(modules) {
 						//if (options.acceptConnect) {
 						//	this.onNodeConnect.attach(server);
 						//};
-							
+
 						//server.on('connection');
 						//server.on('checkContinue');
 						//server.on('upgrade');
 						//server.on('clientError');
-							
+
 						types.setAttribute(this, '__nodeServer', server);
-							
+
 						const target = options.target || '127.0.0.1';
 						const type = options.type || 'tcp'; // 'tcp', 'unix', 'handle'
 						if (type === 'tcp') { // TCP/IP Socket
@@ -1272,9 +1272,9 @@ exports.add = function add(modules) {
 						} else {
 							throw new doodad.Error("Invalid target type option : '~0~'.", [type]);
 						};
-							
+
 						types.setAttribute(this, 'protocol', protocol);
-							
+
 						this.onListen(new doodad.Event());
 					};
 				}),
@@ -1290,14 +1290,14 @@ exports.add = function add(modules) {
 					};
 				}),
 			}));
-				
+
 			nodejsHttp.REGISTER(doodad.BASE(templatesHtml.PageTemplate.$extend(
 			{
 				$TYPE_NAME: 'FolderPageTemplate',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('FolderPageTemplate')), true) */,
 
 				path: doodad.PROTECTED(null),
-					
+
 				$readDir: doodad.PUBLIC(doodad.ASYNC(function $readDir(handler, path) {
 					return files.readdir(path, {async: true})
 						.then(function sortFiles(filesList) {
@@ -1357,7 +1357,7 @@ exports.add = function add(modules) {
 					return types.getType(this).$readDir(this.request.currentHandler, this.path);
 				})),
 			})));
-				
+
 			nodejsHttp.REGISTER(http.FileSystemPage.$extend(
 			{
 				$TYPE_NAME: 'FileSystemPage',
@@ -1387,11 +1387,11 @@ exports.add = function add(modules) {
 					types.getDefault(options, 'depth', Infinity);
 
 					options = this._super(options);
-						
+
 					let val;
-						
+
 					options.defaultEncoding = options.defaultEncoding || 'utf-8';
-						
+
 					val = files.parsePath(options.path);
 					const stats = nodeFs.statSync(val.toApiString());
 					options.isFolder = !stats.isFile();
@@ -1436,7 +1436,7 @@ exports.add = function add(modules) {
 					};
 					return path;
 				}),
-					
+
 				__getFileUrl: doodad.PROTECTED(function getFileUrl(request) {
 					const state = request.getHandlerState(this);
 					const urlRemaining = state.matcherResult.urlRemaining;
@@ -1511,8 +1511,8 @@ exports.add = function add(modules) {
 							.then(function toCanonical(stats) {
 								if (stats) {
 									if (this.options.caseSensitive && this.options.forceCaseSensitive) {
-										// Windows/MacOS X : File systems are case-insensitive by default. 
-										//					If "forceCaseSensitive" is true, we scan the file system for the right name and require that exact name. 
+										// Windows/MacOS X : File systems are case-insensitive by default.
+										//					If "forceCaseSensitive" is true, we scan the file system for the right name and require that exact name.
 										//					But please note that it causes an overhead and enabling the case-sensitive option on the file system,
 										//					when possible, is a better choice.
 										return files.getCanonical(path, {async: true})
@@ -1551,7 +1551,7 @@ exports.add = function add(modules) {
 							if (!stats) {
 								return null;
 							};
-								
+
 							if (stats.path !== stats.realPath) {
 								return null;
 							};
@@ -1564,7 +1564,7 @@ exports.add = function add(modules) {
 							} else {
 								contentTypes = ['text/html; charset=utf-8', 'application/json; charset=utf-8'];
 							};
-								
+
 							let contentType;
 							if (request.url.args.has('res')) {
 								contentType = contentTypes[0];
@@ -1578,7 +1578,7 @@ exports.add = function add(modules) {
 							request.response.addHeaders({
 								'Last-Modified': http.toRFC1123Date(stats.mtime), // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
 							});
-								
+
 							if (stats.isFile()) {
 								request.response.addHeaders({
 									'Content-Disposition': 'filename="' + path.file.replace(/"/g, '\\"') + '"',
@@ -1670,7 +1670,7 @@ exports.add = function add(modules) {
 					};
 					return undefined;
 				})),
-					
+
 				sendFolder: doodad.PROTECTED(doodad.ASYNC(function sendFolder(request, data) {
 					//const Promise = types.getPromise();
 					request.data.isFolder = true;
@@ -1729,13 +1729,13 @@ exports.add = function add(modules) {
 							return sendJson.call(this, filesList);
 						};
 					};
-						
+
 					return send.call(this)
 						.then(function() {
 							return request.end();
 						}, null, this);
 				})),
-					
+
 				execute_HEAD: doodad.OVERRIDE(function execute_HEAD(request) {
 					return this.addHeaders(request)
 						.then(function(data) {
@@ -1744,7 +1744,7 @@ exports.add = function add(modules) {
 							};
 						});
 				}),
-					
+
 				execute_GET: doodad.OVERRIDE(function execute_GET(request) {
 					// TODO: Range
 					return this.addHeaders(request)
@@ -1772,7 +1772,7 @@ exports.add = function add(modules) {
 							return undefined;
 						}, this);
 				}),
-					
+
 			}));
 
 			nodejsHttp.REGISTER(doodad.Object.$extend(
@@ -1780,7 +1780,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'ClusterDataServiceMaster',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ClusterDataServiceMaster')), true) */,
-			
+
 				syncData: ipc.CALLABLE(function syncData(request, id, handlerName, token) {
 					const Promise = types.getPromise();
 					if (nodeCluster.isMaster) {
@@ -1803,7 +1803,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'ClusterDataServiceWorker',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ClusterDataServiceWorker')), true) */,
-			
+
 				setData: ipc.CALLABLE(function setData(request, id, handlerName, token) {
 					if (nodeCluster.isWorker && id && handlerName && token && token.data) {
 						const handler = namespaces.get(handlerName);
@@ -1951,11 +1951,11 @@ exports.add = function add(modules) {
 
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					options = this._super(options);
-						
+
 					//let val;
 
 					options.defaultTTL = types.toInteger(options.defaultTTL) || 5 * 60; // seconds
-					
+
 					return options;
 				}),
 
@@ -2018,7 +2018,7 @@ exports.add = function add(modules) {
 
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					options = this._super(options);
-						
+
 					//let val;
 
 					if (nodeCluster.isWorker) {
@@ -2026,7 +2026,7 @@ exports.add = function add(modules) {
 							throw new types.ValueError("Invalid or missing 'messenger' option.");
 						};
 					};
-						
+
 					return options;
 				}),
 
@@ -2043,12 +2043,12 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'JavascriptFileSystemPage',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JavascriptFileSystemPage')), true) */,
-					
+
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					options = this._super(options);
-						
+
 					//let val;
-						
+
 					options.runDirectives = types.toBoolean(options.runDirectives);
 					options.keepComments = types.toBoolean(options.keepComments);
 					options.keepSpaces = types.toBoolean(options.keepSpaces);
@@ -2144,8 +2144,8 @@ exports.add = function add(modules) {
 						}, null, this);
 				}),
 			}));
-				
-				
+
+
 			nodejsHttp.REGISTER(io.BufferedInputOutputStream.$extend(
 								ioMixIns.BinaryTransformableIn,
 								ioMixIns.BinaryTransformableOut,
@@ -2171,7 +2171,7 @@ exports.add = function add(modules) {
 
 					types.getDefault(this.options, 'headersOnly', false);
 				}),
-					
+
 				reset: doodad.OVERRIDE(function reset() {
 					this._super();
 
@@ -2367,7 +2367,7 @@ exports.add = function add(modules) {
 					};
 				}),
 			}));
-					
+
 			nodejsHttp.REGISTER(types.CustomEventTarget.$inherit(
 				/*typeProto*/
 				{
@@ -2447,7 +2447,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'CacheHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CacheHandler')), true) */,
-					
+
 				$__cache: doodad.PROTECTED(doodad.TYPE(  new types.Map()  )), // <FUTURE> Global to threads (shared)
 
 				$applyGlobalHandlerStates: doodad.OVERRIDE(function $applyGlobalHandlerStates(server) {
@@ -2469,9 +2469,9 @@ exports.add = function add(modules) {
 					types.getDefault(options, 'depth', Infinity);
 
 					options = this._super(options);
-						
+
 					let val;
-						
+
 					val = options.cachePath;
 					if (!(val instanceof files.Path)) {
 						val = files.Path.parse(val);
@@ -2520,7 +2520,7 @@ exports.add = function add(modules) {
 
 					if (types.isNothing(key)) {
 						key = this.createKey();
-							
+
 						key.url = request.url.toDataObject({domain: null, args: null, functions: true});
 						key.headers = new nodejsHttp.CacheHeaders();
 						key.section = section;
@@ -2596,9 +2596,9 @@ exports.add = function add(modules) {
 						section = types.get(options, 'section'), // string
 						create = types.get(options, 'create', false), // boolean
 						onNew = types.get(options, 'onNew', null); // function
-					
+
 					const key = types.get(options, 'key', null); // object
-					
+
 					let cached = null;
 
 					if (types.isNothing(key)) {
@@ -2619,7 +2619,7 @@ exports.add = function add(modules) {
 						throw new types.ValueError("Invalid cached object key '~0~'.", [key]);
 
 					};
-						
+
 					if (cached && section) {
 						const sectionHash = section.toHash();
 						cached = tools.filter(cached.children, function(child) {
@@ -2650,7 +2650,7 @@ exports.add = function add(modules) {
 
 					};
 				}),
-					
+
 				openFile: doodad.PUBLIC(doodad.ASYNC(function openFile(request, cached) {
 					const Promise = types.getPromise();
 
@@ -2736,7 +2736,7 @@ exports.add = function add(modules) {
 
 				createFile: doodad.PUBLIC(doodad.ASYNC(function createFile(request, cached, /*optional*/options) {
 					const Promise = types.getPromise();
-						
+
 					const state = request.getHandlerState(this);
 
 					if (state.disabled) {
@@ -2804,7 +2804,7 @@ exports.add = function add(modules) {
 								};
 							}, this);
 					};
-						
+
 					cached.writing = true;
 
 					return tools.Files.mkdirAsync(this.options.cachePath, {makeParents: true})
@@ -2916,22 +2916,22 @@ exports.add = function add(modules) {
 					request.response.onGetStream.attachOnce(this, this.__onGetStream, 100, [request]);
 				}),
 			}));
-				
-				
+
+
 			// Request input
 			nodejsHttp.REGISTER(doodad.Object.$extend(
 								httpMixIns.Handler,
 			{
 				$TYPE_NAME: 'CompressionBodyHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CompressionBodyHandler')), true) */,
-					
+
 				$prepare: doodad.OVERRIDE(function $prepare(options) {
 					types.getDefault(options, 'depth', Infinity);
 
 					options = this._super(options);
 
 					let val;
-						
+
 					val = options.encodings;
 					if (types.isNothing(val)) {
 						val = ['gzip', 'deflate', 'identity'];
@@ -2947,14 +2947,14 @@ exports.add = function add(modules) {
 						val = tools.append([], val, ['identity']);
 					};
 					options.encodings = val;
-						
+
 					// TODO: Options per mime types per encoding
 					// TODO: Default options
 					options.optionsPerEncoding = tools.nullObject(options.optionsPerEncoding);
 
 					return options;
 				}),
-					
+
 				__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 					const request = ev.handlerData[0];
 					const encoding = (request.getHeader('Content-Encoding') || 'identity').toLowerCase(); // case insensitive
@@ -3004,7 +3004,7 @@ exports.add = function add(modules) {
 			{
 				$TYPE_NAME: 'CompressionHandler',
 				$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('CompressionHandler')), true) */,
-					
+
 				$applyGlobalHandlerStates: doodad.OVERRIDE(function $applyGlobalHandlerStates(server) {
 					this._super(server);
 
@@ -3032,7 +3032,7 @@ exports.add = function add(modules) {
 					options = this._super(options);
 
 					let val;
-						
+
 					val = options.encodings;
 					if (types.isNothing(val)) {
 						val = ['gzip', 'deflate', 'identity'];
@@ -3049,7 +3049,7 @@ exports.add = function add(modules) {
 						val = tools.append([], val, ['identity']);
 					};
 					options.encodings = val;
-						
+
 
 					// TODO: Options per mime types per encoding
 					// TODO: Default options
@@ -3057,7 +3057,7 @@ exports.add = function add(modules) {
 
 					return options;
 				}),
-					
+
 				__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 					const request = ev.handlerData[0];
 
@@ -3105,36 +3105,36 @@ exports.add = function add(modules) {
 
 				execute: doodad.OVERRIDE(function(request) {
 					// TODO: Options per mime types per encoding
-						
+
 					let encoding = request.response.getHeader('Content-Encoding');
 					if (!encoding) {
 						const encodings = this.options.encodings;
 						const accept = http.parseAcceptEncodingHeader(request.getHeader('Accept-Encoding') || 'identity');
-						
+
 						const acceptable = tools.filter(accept, function(encoding) {
 							return (tools.indexOf(encodings, encoding.name) >= 0);
 						});
-							
+
 						if (!acceptable.length) {
 							return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 						};
-						
+
 						let ok = false;
-						
+
 						encoding = acceptable[0].name; // case-insensitive (should be already in lower-case)
 						switch (encoding) {
 							case 'gzip':
 							case 'deflate':
 								ok = true;
 								break;
-							case 'identity':							
+							case 'identity':
 								// No compression
 								break;
 							default:
 								// Unknown compression method
 								return request.response.respondWithStatus(types.HttpStatus.UnsupportedMediaType);
 						};
-						
+
 						if (ok) {
 							request.getHandlerState(this).contentEncoding = encoding;
 
@@ -3145,7 +3145,7 @@ exports.add = function add(modules) {
 					return undefined;
 				}),
 			}));
-			
+
 		},
 	};
 	return modules;
