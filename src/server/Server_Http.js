@@ -2528,7 +2528,8 @@ exports.add = function add(modules) {
 
 						let statesMap = this.__globalHandlersStates;
 						if (!statesMap) {
-							this.__globalHandlersStates = statesMap = new types.WeakMap();
+							statesMap = new types.WeakMap();
+							this.__globalHandlersStates = statesMap;
 						};
 
 						const handlerType = types.getType(handler) || handler;
