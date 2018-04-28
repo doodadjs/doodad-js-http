@@ -127,14 +127,14 @@ exports.add = function add(modules) {
 					}),
 
 					nodeJsStreamOnClose: doodad.NODE_EVENT('close', function nodeJsStreamOnClose(context) {
-					// Response stream has been closed
+						// Response stream has been closed
 						if (!this.ended) {
 							this.__endRacer.resolve(this.end(true));
 						};
 					}),
 
 					nodeJsStreamOnFinish: doodad.NODE_EVENT('finish', function nodeJsStreamOnFinish(context) {
-					// Response stream has been closed
+						// Response stream has been closed
 						if (!this.ended) {
 							this.__endRacer.resolve(this.end(true));
 						};
@@ -176,7 +176,7 @@ exports.add = function add(modules) {
 					}),
 
 					end: doodad.PUBLIC(doodad.NON_REENTRANT(doodad.ASYNC(function end(forceDisconnect) {
-					// NOTE: MUST ALWAYS REJECTS
+						// NOTE: MUST ALWAYS REJECTS
 
 						if (this.ended) {
 							throw new server.EndOfRequest();
@@ -265,7 +265,7 @@ exports.add = function add(modules) {
 						};
 
 						if (this.nodeJsStream.headersSent) {
-						// NOTE: Should not happen
+							// NOTE: Should not happen
 							throw new types.NotAvailable("Can't send the headers and the status because Node.js has already sent headers to the client.");
 						};
 
@@ -301,7 +301,7 @@ exports.add = function add(modules) {
 					}),
 
 					getStream: doodad.OVERRIDE(doodad.NON_REENTRANT(function getStream(/*optional*/options) {
-					// NOTE: "getStream" is NON_REENTRANT
+						// NOTE: "getStream" is NON_REENTRANT
 
 						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
@@ -407,7 +407,7 @@ exports.add = function add(modules) {
 
 								if (headers) {
 									this.onSendHeaders.attachOnce(this, function(ev) {
-									// Re-add pipe headers
+										// Re-add pipe headers
 										this.addHeaders(headers);
 									});
 								};
@@ -495,7 +495,7 @@ exports.add = function add(modules) {
 					}),
 
 					respondWithStatus: doodad.OVERRIDE(function respondWithStatus(status, /*optional*/message, /*optional*/headers, /*optional*/data) {
-					// NOTE: Must always throws an error.
+						// NOTE: Must always throws an error.
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
@@ -519,7 +519,7 @@ exports.add = function add(modules) {
 					}),
 
 					respondWithError: doodad.OVERRIDE(function respondWithError(ex) {
-					// NOTE: Must always throw an error.
+						// NOTE: Must always throw an error.
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
@@ -536,10 +536,10 @@ exports.add = function add(modules) {
 								this.request.setFullfilled(true);
 
 								if (!this.nodeJsStream) {
-								// Too late !
+									// Too late !
 									return this.end();
 								} else if (this.headersSent) {
-								// Too late !
+									// Too late !
 									return this.request.end();
 								} else {
 									return this.respondWithStatus(types.HttpStatus.InternalError, null, null, ex);
@@ -826,7 +826,7 @@ exports.add = function add(modules) {
 					}),
 
 					end: doodad.OVERRIDE(function end(/*optional*/forceDisconnect) {
-					// NOTE: MUST ALWAYS REJECTS
+						// NOTE: MUST ALWAYS REJECTS
 
 						const Promise = types.getPromise();
 
@@ -915,7 +915,7 @@ exports.add = function add(modules) {
 					}),
 
 					getStream: doodad.OVERRIDE(doodad.NON_REENTRANT(function getStream(/*optional*/options) {
-					// NOTE: "getStream" is NON_REENTRANT
+						// NOTE: "getStream" is NON_REENTRANT
 
 						const Promise = types.getPromise();
 
@@ -973,7 +973,7 @@ exports.add = function add(modules) {
 
 								let requestEncoding = null;
 								if (types.has(requestType.params, 'charset')) {
-								// Encoding of the request body
+									// Encoding of the request body
 									requestEncoding = requestType.params.charset;
 								};
 
@@ -1037,10 +1037,10 @@ exports.add = function add(modules) {
 									} else {
 										requestStream = new nodejsIO.BinaryInputStream(requestStream);
 									};
-								//requestStream.onError.attachOnce(this, this.onError);
-								//this.onSanitize.attachOnce(null, function() {
-								//	types.DESTROY(requestStream);
-								//});
+									//requestStream.onError.attachOnce(this, this.onError);
+									//this.onSanitize.attachOnce(null, function() {
+									//	types.DESTROY(requestStream);
+									//});
 								};
 
 								this.stream = requestStream;
@@ -1065,7 +1065,7 @@ exports.add = function add(modules) {
 					}),
 
 					getSource: doodad.PUBLIC(function getSource() {
-					// TODO: Add more informations
+						// TODO: Add more informations
 						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};
@@ -1086,7 +1086,7 @@ exports.add = function add(modules) {
 					__listening: doodad.PROTECTED(false),
 
 					onNodeRequest: doodad.NODE_EVENT('request', function onNodeRequest(context, nodeRequest, nodeResponse) {
-					//const Promise = types.getPromise();
+						//const Promise = types.getPromise();
 						if (this.__listening) {
 							if (this.options.validHosts) {
 								const host = nodeRequest.headers['host'];
@@ -1140,7 +1140,7 @@ exports.add = function add(modules) {
 										.catch(tools.catchAndExit); // fatal error
 								};
 							} catch(ex) {
-							// <PRB> On error, we must return something to the browser or otherwise it will repeat the request if we just drop the connection !!!
+								// <PRB> On error, we must return something to the browser or otherwise it will repeat the request if we just drop the connection !!!
 								nodeResponse.statusCode = types.HttpStatus.InternalError;
 								nodeResponse.end(function() {
 									types.DESTROY(nodeRequest);
@@ -1190,7 +1190,7 @@ exports.add = function add(modules) {
 							const protocol = options.protocol || 'http';
 							let factory;
 							if ((protocol === 'http') || (protocol === 'https')) {
-							/* eslint global-require: "off", import/no-dynamic-require: "off" */
+								/* eslint global-require: "off", import/no-dynamic-require: "off" */
 								factory = require(protocol);
 							} else {
 								throw new doodad.Error("Invalid protocol : '~0~'.", [protocol]);
@@ -1198,8 +1198,8 @@ exports.add = function add(modules) {
 
 							let server;
 							if (protocol === 'https') {
-							// TODO: Implement other available options
-							// TODO: Ask for private key's passphrase from the terminal if encrypted and decrypt the key.
+								// TODO: Implement other available options
+								// TODO: Ask for private key's passphrase from the terminal if encrypted and decrypt the key.
 								const opts = tools.nullObject();
 								if (options.pfxFile) {
 									opts.pfx = nodeFs.readFileSync(types.toString(options.pfxFile));
@@ -1232,7 +1232,7 @@ exports.add = function add(modules) {
 							if (types.has(options, 'timeout')) {
 								server.setTimeout(options.timeout);
 							} else {
-							// Default of 2 minutes is too limited...
+								// Default of 2 minutes is too limited...
 								server.setTimeout(5 * 60 * 1000); // 5 minutes
 							};
 
@@ -1511,10 +1511,10 @@ exports.add = function add(modules) {
 								.then(function toCanonical(stats) {
 									if (stats) {
 										if (this.options.caseSensitive && this.options.forceCaseSensitive) {
-										// Windows/MacOS X : File systems are case-insensitive by default.
-										//					If "forceCaseSensitive" is true, we scan the file system for the right name and require that exact name.
-										//					But please note that it causes an overhead and enabling the case-sensitive option on the file system,
-										//					when possible, is a better choice.
+											// Windows/MacOS X : File systems are case-insensitive by default.
+											//					If "forceCaseSensitive" is true, we scan the file system for the right name and require that exact name.
+											//					But please note that it causes an overhead and enabling the case-sensitive option on the file system,
+											//					when possible, is a better choice.
 											return files.getCanonical(path, {async: true})
 												.then(function(canonicalPath) {
 													if (stats.isFile()) {
@@ -1541,7 +1541,7 @@ exports.add = function add(modules) {
 
 						return stat.call(this, path)
 							.then(function(stats) {
-							// TODO: Do not hardcode. Make options.
+								// TODO: Do not hardcode. Make options.
 								if (!stats && (path.extension === 'ddtx')) {
 									return stat.call(this, path.set({extension: 'ddt'}));
 								};
@@ -1606,17 +1606,17 @@ exports.add = function add(modules) {
 					})),
 
 					sendDDT: doodad.PROTECTED(doodad.ASYNC(function sendDDT(request, data) {
-					// TODO: Allow to extend with other template engines.
+						// TODO: Allow to extend with other template engines.
 						request.data.isFolder = false;
 						if (!request.url.file) {
 							return request.redirectClient(request.url.popFile());
 						};
 						if (request.url.extension === 'ddt') {
-						// We always show the extension "ddtx"
+							// We always show the extension "ddtx"
 							return request.redirectClient(request.url.set({extension: 'ddtx'}));
 						};
 						if (data.path) {
-						// NOTE: By changing the extension to "ddt", it will first try to serve the "ddtx". And if the 'ddtx' file doesn't exist, it will serve the "ddt".
+							// NOTE: By changing the extension to "ddt", it will first try to serve the "ddtx". And if the 'ddtx' file doesn't exist, it will serve the "ddt".
 							return templatesHtml.getTemplate(null, data.path.set({extension: 'ddt'}))
 								.then(function renderTemplate(templType) {
 									const cacheHandlers = request.getHandlers(nodejsHttp.CacheHandler);
@@ -1644,7 +1644,7 @@ exports.add = function add(modules) {
 					})),
 
 					sendFile: doodad.PROTECTED(doodad.ASYNC(function sendFile(request, data) {
-					//const Promise = types.getPromise();
+						//const Promise = types.getPromise();
 
 						if (data.path) {
 							request.data.isFolder = false;
@@ -1672,7 +1672,7 @@ exports.add = function add(modules) {
 					})),
 
 					sendFolder: doodad.PROTECTED(doodad.ASYNC(function sendFolder(request, data) {
-					//const Promise = types.getPromise();
+						//const Promise = types.getPromise();
 						request.data.isFolder = true;
 						if (request.url.file) {
 							return request.redirectClient(request.url.pushFile());
@@ -1702,9 +1702,9 @@ exports.add = function add(modules) {
 						};
 
 						function sendJson() {
-						// TODO: Create helper functions in the request object, with an option to use a specific format handler
-						// TODO: JSON Stream (instead of global.JSON)
-						// TODO: Use template from "this.options.folderTemplate" for $readDir
+							// TODO: Create helper functions in the request object, with an option to use a specific format handler
+							// TODO: JSON Stream (instead of global.JSON)
+							// TODO: Use template from "this.options.folderTemplate" for $readDir
 							return nodejsHttp.FolderPageTemplate.$readDir(this, data.path)
 								.then(function stringifyDir(filesList) {
 									filesList = tools.map(filesList, function(file) {
@@ -1746,12 +1746,12 @@ exports.add = function add(modules) {
 					}),
 
 					execute_GET: doodad.OVERRIDE(function execute_GET(request) {
-					// TODO: Range
+						// TODO: Range
 						return this.addHeaders(request)
 							.then(function(data) {
 								if (data) {
 									if (data.stats.isFile()) {
-									// TODO: Allow to extend with other template engines.
+										// TODO: Allow to extend with other template engines.
 										const isDDT = (data.path.extension === 'ddt') || (data.path.extension === 'ddi') || (data.path.extension === 'ddtx');
 										if (isDDT && (data.contentType.name === 'text/html')) {
 											return this.sendDDT(request, data);
@@ -1855,10 +1855,10 @@ exports.add = function add(modules) {
 
 						const foreignId = types.get(options, 'id');
 						if (foreignId) {
-						// NOTE: "$set" called with an ID should comes from IPC
+							// NOTE: "$set" called with an ID should comes from IPC
 							if (types.has(storage, foreignId)) {
-							// Signal the collision.
-							// TODO: LOW: Create a specific error type (types.SyncingError ?).
+								// Signal the collision.
+								// TODO: LOW: Create a specific error type (types.SyncingError ?).
 								throw new types.Error("That id is not available : ~0~.", [foreignId]);
 							};
 							id = foreignId;
@@ -1890,8 +1890,8 @@ exports.add = function add(modules) {
 											try {
 												const exchanged = this.$__exchangedDatas;
 												tools.forEach(exchanged, function(storage, handlerType) {
-												// TODO: Make sure the main thread will not lock for too long by doing X items per tick
-												// TODO: Isolate Infinity ttls so that we don't loop through them.
+													// TODO: Make sure the main thread will not lock for too long by doing X items per tick
+													// TODO: Isolate Infinity ttls so that we don't loop through them.
 													tools.forEach(storage, function(token, id) {
 														const diff = process.hrtime(token.time);
 														const seconds = diff[0] + (diff[1] / 1e9);
@@ -2229,7 +2229,7 @@ exports.add = function add(modules) {
 									const name = tools.trim(header[0] || '');
 									const value = tools.trim(header[1] || '');
 									if (name === 'X-Cache-Key') {
-									//this.__key = value;
+										//this.__key = value;
 									} else if (name === 'X-Cache-File') {
 										const val = tools.split(value, ' ', 2);
 										this.__verb = val[0] || '';
@@ -2239,11 +2239,11 @@ exports.add = function add(modules) {
 										this.__status = parseInt(val[0], 10) || 200;
 										this.__message = val[1] || '';
 									} else if (name === 'X-Cache-Section') {
-									//this.__section = value;
+										//this.__section = value;
 									} else if (name === 'X-Cache-Encoding') {
 										this.__encoding = value;
 									} else if (name.slice(0, 8) === 'X-Cache-') {
-									// Ignored
+										// Ignored
 									} else if (name) {
 										this.__headers[name] = value;
 									};
@@ -2602,18 +2602,18 @@ exports.add = function add(modules) {
 						let cached = null;
 
 						if (types.isNothing(key)) {
-						//key = ...
+							//key = ...
 
 						} else if (types.isJsObject(key)) {
-						// Get from object key
+							// Get from object key
 							cached = type.$__cache.get(key);
 
 						} else if (types.isString(key)) {
-						// Get from hashed key
+							// Get from hashed key
 							cached = type.$__cache.get(key);
-						//if (cached) {
-						//	key = cached.key;
-						//};
+							//if (cached) {
+							//	key = cached.key;
+							//};
 
 						} else {
 							throw new types.ValueError("Invalid cached object key '~0~'.", [key]);
@@ -2694,7 +2694,7 @@ exports.add = function add(modules) {
 								cached.invalidate();
 								cached.path = null;
 								if ((err.code === 'ENOENT') || (err.code === 'EPERM')) {
-								// Cache file has been deleted or is not accessible
+									// Cache file has been deleted or is not accessible
 									return null;
 								} else {
 									throw err;
@@ -2714,7 +2714,7 @@ exports.add = function add(modules) {
 											if (ev.data.options.data.file) { // Main file
 												request.response.clearHeaders();
 												request.response.addHeaders(ev.data.options.data.headers);
-											//ev.data.options.data.code && request.response.setStatus(ev.data.options.data.code, ev.data.options.data.message);
+												//ev.data.options.data.code && request.response.setStatus(ev.data.options.data.code, ev.data.options.data.message);
 											};
 											cacheStream.setOptions({flushMode: 'manual'});
 											cacheStream.onFlush.attachOnce(this, function(ev) {
@@ -2722,7 +2722,7 @@ exports.add = function add(modules) {
 											});
 											return cacheStream;
 										} else {
-										// Cancels resolve and waits next 'onData' event
+											// Cancels resolve and waits next 'onData' event
 											return false;
 										};
 									}, this, _shared.SECRET);
@@ -2792,7 +2792,7 @@ exports.add = function add(modules) {
 									if ((err.code === 'EEXIST') && (count > 1)) {
 										return loopOpenFile.call(this, count - 1);
 									} else {
-									// Abort writing of cache file, but give the response to the client
+										// Abort writing of cache file, but give the response to the client
 										cached.path = null;
 										cached.abort();
 
@@ -2825,7 +2825,7 @@ exports.add = function add(modules) {
 										headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
 									};
 									if (!cached.section) {
-									// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
+										// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
 										if (!request.response.headersSent) {
 											request.response.sendHeaders();
 										};
@@ -2871,7 +2871,7 @@ exports.add = function add(modules) {
 														return request.end();
 													}, null, this);
 											} else {
-											// Cache file has been deleted or is no longer accessible. Will try to recreate the file.
+												// Cache file has been deleted or is no longer accessible. Will try to recreate the file.
 												return start.call(this, output);
 											};
 										}, null, this);
@@ -3045,7 +3045,7 @@ exports.add = function add(modules) {
 							});
 						};
 						if (tools.indexOf(val, 'identity') < 0) {
-						// Server MUST accept 'identity' unless explicitly not acceptable by the client (weight at 0.0)
+							// Server MUST accept 'identity' unless explicitly not acceptable by the client (weight at 0.0)
 							val = tools.append([], val, ['identity']);
 						};
 						options.encodings = val;
@@ -3104,7 +3104,7 @@ exports.add = function add(modules) {
 					}),
 
 					execute: doodad.OVERRIDE(function(request) {
-					// TODO: Options per mime types per encoding
+						// TODO: Options per mime types per encoding
 
 						let encoding = request.response.getHeader('Content-Encoding');
 						if (!encoding) {

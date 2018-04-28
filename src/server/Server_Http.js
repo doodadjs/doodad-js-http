@@ -1347,7 +1347,7 @@ exports.add = function add(modules) {
 					}),
 
 					getAcceptables: doodad.PUBLIC(function getAcceptables(/*optional*/contentTypes, /*optional*/options) {
-					// Get negociated mime types between the handler and the client. Defaults to the "Accept" header.
+						// Get negociated mime types between the handler and the client. Defaults to the "Accept" header.
 
 						options = tools.nullObject(options);
 
@@ -1391,7 +1391,7 @@ exports.add = function add(modules) {
 										return result;
 									}, {mimeType: null, score: 0, index: -1});
 									if (result.mimeType) {
-									// Get parameters from the allowed mime types (typicaly 'charset')
+										// Get parameters from the allowed mime types (typicaly 'charset')
 										const newParams = tools.complete({}, result.mimeType.params, contentType.params);
 										const newContentType = contentType.set({weight: result.mimeType.weight, params: newParams});
 										newContentType.customData.index = result.index; // for "sort"
@@ -1419,7 +1419,7 @@ exports.add = function add(modules) {
 					}),
 
 					redirectClient: doodad.PUBLIC(doodad.ASYNC(function redirectClient(url, /*optional*/isPermanent) {
-					// NOTE: Must always throw an error.
+						// NOTE: Must always throw an error.
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
@@ -1429,7 +1429,7 @@ exports.add = function add(modules) {
 						} else if (this.__redirectsCount >= maxRedirects) {
 							return this.end();
 						} else {
-						//this.response.clear();
+							//this.response.clear();
 							this.__redirectsCount++;
 							url = this.url.set({file: null}).combine(url);
 							const status = (isPermanent ? types.HttpStatus.MovedPermanently : types.HttpStatus.TemporaryRedirect);
@@ -1444,7 +1444,7 @@ exports.add = function add(modules) {
 					})),
 
 					redirectServer: doodad.PUBLIC(doodad.ASYNC(function redirectServer(url, /*optional*/options) {
-					// NOTE: Must always throw an error.
+						// NOTE: Must always throw an error.
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
@@ -1597,7 +1597,7 @@ exports.add = function add(modules) {
 
 								let mustDestroy = false;
 								if (types.isType(handler)) {
-								// TODO: Reuse objects on "redirectServer"
+									// TODO: Reuse objects on "redirectServer"
 									handler = handler.$createInstance(handlerOptions);
 									mustDestroy = true;
 								};
@@ -1690,11 +1690,11 @@ exports.add = function add(modules) {
 
 						const _catchError = function _catchError(ex) {
 							if (count >= max) {
-							// Failed to respond with internal error.
+								// Failed to respond with internal error.
 								try {
 									doodad.trapException(ex);
 								} catch(o) {
-								// Do nothing
+									// Do nothing
 								};
 								throw ex;
 							} else if (_shared.DESTROYED(this)) {
@@ -1710,16 +1710,16 @@ exports.add = function add(modules) {
 									return this.proceed(ex.handlersOptions, ex.options)
 										.catch(_catchError, this);
 								} else if (types._instanceof(ex, http.StreamAborted)) {
-								// Do nothing
+									// Do nothing
 								} else if (types._instanceof(ex, server.EndOfRequest)) {
-								// Do nothing
+									// Do nothing
 								} else if (ex.critical) {
 									throw ex;
 								} else if (ex.bubble) {
 									return this.end(true)
 										.catch(_catchError, this);
 								} else {
-								// Internal error.
+									// Internal error.
 									return this.response.respondWithError(ex)
 										.catch(_catchError, this);
 								};
@@ -2137,11 +2137,11 @@ exports.add = function add(modules) {
 					execute_OPTIONS: doodad.PROTECTED(doodad.ASYNC(function execute_OPTIONS(request) {
 						const cors = request.getHeader('Origin');
 						if (cors) {
-						// Preflight CORS
+							// Preflight CORS
 
 							const allowedOrigins = this.options.allowedOrigins;
 							if (allowedOrigins.length && (tools.indexOf(allowedOrigins, cors) < 0)) { // Case sensitive
-							// Invalid origin
+								// Invalid origin
 								return request.end();
 							};
 
@@ -2149,13 +2149,13 @@ exports.add = function add(modules) {
 
 							const wantedMethod = request.getHeader('Access-Control-Request-Method');
 							if (!wantedMethod) {
-							// No method
+								// No method
 								return request.end();
 							};
 
 							const allowedMethods = this.options.verbs || ['HEAD', 'GET', 'POST'];
 							if (tools.indexOf(allowedMethods, wantedMethod) < 0) { // Case sensitive
-							// Invalid method
+								// Invalid method
 								return request.end();
 							};
 
@@ -2171,7 +2171,7 @@ exports.add = function add(modules) {
 								if (!tools.every(wantedHeaders, function(val) {
 									return (tools.indexOf(allowedHeadersLC, val) >= 0);  // Case insensitive
 								})) {
-								// Invalid header
+									// Invalid header
 									return request.end();
 								};
 							};
@@ -2200,13 +2200,13 @@ exports.add = function add(modules) {
 							if (cors) {
 								const allowedOrigins = this.options.allowedOrigins;
 								if (allowedOrigins.length && (tools.indexOf(allowedOrigins, cors) < 0)) { // Case sensitive
-								// Invalid origin
+									// Invalid origin
 									return request.end();
 								};
 
 								const allowedMethods = this.options.verbs || ['HEAD', 'GET', 'POST'];
 								if (tools.indexOf(allowedMethods, request.verb) < 0) { // Case sensitive
-								// Invalid method
+									// Invalid method
 									return request.end();
 								};
 
@@ -2458,7 +2458,7 @@ exports.add = function add(modules) {
 							if (this.options.reportUrl) {
 								return request.redirectClient(request.url.combine(this.options.reportUrl));
 							} else {
-							// TODO: Use "crashRecovery" flag
+								// TODO: Use "crashRecovery" flag
 								return request.redirectClient(request.url.setArgs({crashRecovery: true})); // NOTE: "?crashReport=true" is removed by the "Request" object
 							};
 						};
@@ -2654,10 +2654,10 @@ exports.add = function add(modules) {
 								} else {
 									const pos = (name1 && allowArgs ? name1.indexOf(':') : -1);
 									if (pos >= 0) {
-									// Url arguments matching and extraction : ex. "/invoice/id:/edit" will match "/invoice/194/edit"
+										// Url arguments matching and extraction : ex. "/invoice/id:/edit" will match "/invoice/194/edit"
 										let val = name1.slice(pos + 1).trim();
 										if ((val[0] === '(') && (val.slice(-1) === ')')) {
-										// RegExp matching
+											// RegExp matching
 											val = new _shared.Natives.windowRegExp('^' + val + '$', caseSensitive ? '' : 'i');
 											val = val.exec(name2Lc);
 											if (!val) {
@@ -2704,7 +2704,7 @@ exports.add = function add(modules) {
 							});
 
 							if (allowArgs) {
-							// Query string matching and extraction : ex. "/invoice/edit?id&details=1" will match "/invoice/edit?id=194&details=1"
+								// Query string matching and extraction : ex. "/invoice/edit?id&details=1" will match "/invoice/edit?id=194&details=1"
 								const args = this.baseUrl.args.toArray();
 								if (args) {
 									for (let i = 0; i < args.length; i++) {
@@ -2720,7 +2720,7 @@ exports.add = function add(modules) {
 														val = val.toLowerCase();
 													};
 												} else if ((val[0] === '(') && (val.slice(-1) === ')')) {
-												// RegExp matching
+													// RegExp matching
 													val = new _shared.Natives.windowRegExp('^' + val + '$', caseSensitive ? '' : 'i');
 													val = val.exec(remainingVal);
 													if (!val) {
@@ -2833,7 +2833,7 @@ exports.add = function add(modules) {
 					}),
 
 					createHandlers: doodad.OVERRIDE(function createHandlers(request, targetUrl, /*optional*/type) {
-					// TODO: Filter by "type"
+						// TODO: Filter by "type"
 
 						let handlers = tools.reduce(this.routes, function(handlers, route, routeId) {
 							if (!route.prepared) {
