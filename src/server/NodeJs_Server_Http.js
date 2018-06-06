@@ -634,6 +634,7 @@ exports.add = function add(modules) {
 
 					startTime: doodad.PROTECTED(null),
 
+					$__setAbortedWhenEnded: doodad.PROTECTED(false),
 					__aborted: doodad.PROTECTED(false),
 
 					$__time: doodad.PROTECTED(doodad.TYPE(null)),
@@ -762,10 +763,20 @@ exports.add = function add(modules) {
 
 					nodeJsStreamOnClose: doodad.NODE_EVENT('close', function nodeJsStreamOnClose(context) {
 						if (this.ended) {
-							this.__aborted = true;
+							const type = types.getType(this);
+							if (type.$__setAbortedWhenEnded) {
+								this.__aborted = true;
+							};
 						} else {
 							this.__endRacer.resolve(this.end(true));
 						};
+					}),
+
+					$create: doodad.OVERRIDE(function $create(/*paramarray*/...args) {
+						this._super(...args);
+
+						// <PRB> Before Node.js version 10.2.1, the 'close' event was normally not emitted when the request was ended.
+						this.$__setAbortedWhenEnded = (tools.Version.compare("10.2.1", process.versions.node) < 0);
 					}),
 
 					create: doodad.OVERRIDE(function create(server, nodeJsRequest, nodeJsResponse) {
