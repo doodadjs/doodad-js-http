@@ -1328,13 +1328,17 @@ exports.add = function add(modules) {
 							hndlrs = [handler];
 						};
 
-						const globalState = this.server.getGlobalHandlerState(handlerType);
+						let globalState = null;
 
 						const states = this.__handlersStates;
 
 						tools.forEach(hndlrs, function(hndlr) {
 							let state = states.get(hndlr);
 							if (!state) {
+								if (!globalState) {
+									globalState = this.server.getGlobalHandlerState(handlerType);
+								};
+
 								state = new globalState();
 
 								states.set(hndlr, state);
@@ -1352,7 +1356,6 @@ exports.add = function add(modules) {
 						options = tools.nullObject(options);
 
 						const handlerState = options.handler && this.getHandlerState(options.handler);
-
 						const handlerTypes = handlerState && handlerState.mimeTypes;
 						const acceptableTypes = this.__parsedAccept;
 						const allowedTypes = handlerTypes || acceptableTypes;
