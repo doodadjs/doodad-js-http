@@ -129,7 +129,7 @@ exports.add = function add(modules) {
 					nodeJsStreamOnClose: doodad.NODE_EVENT('close', function nodeJsStreamOnClose(context) {
 						// Response stream has been closed
 						if (!this.ended) {
-							this.__endRacer.resolve(this.end(true));
+							this.__endRacer.resolve(this.end(!!this.nodeJsStream.finished));
 						};
 					}),
 
@@ -768,7 +768,7 @@ exports.add = function add(modules) {
 								this.__aborted = true;
 							};
 						} else {
-							this.__endRacer.resolve(this.end(!this.nodeJsStream.complete));
+							this.__endRacer.resolve(this.end(!!this.nodeJsStream.aborted));
 						};
 					}),
 
