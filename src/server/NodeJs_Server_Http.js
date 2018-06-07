@@ -768,7 +768,7 @@ exports.add = function add(modules) {
 								this.__aborted = true;
 							};
 						} else {
-							this.__endRacer.resolve(this.end(true));
+							this.__endRacer.resolve(this.end(!this.nodeJsStream.complete));
 						};
 					}),
 
