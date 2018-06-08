@@ -358,7 +358,7 @@ exports.add = function add(modules) {
 						this.onGetStream(ev);
 
 						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream itself.
-						return this.__endRacer.race(ev.data.stream
+						return this.__endRacer.race(Promise.resolve(ev.data.stream)
 							.then(function(responseStream) {
 								if (types.isNothing(responseStream)) {
 									throw new http.StreamAborted();
@@ -961,7 +961,7 @@ exports.add = function add(modules) {
 						this.onGetStream(ev);
 
 						// NOTE: "ev.data.stream" can be overriden, and it can be a Promise that returns a stream, or the stream itself.
-						return this.__endRacer.race(ev.data.stream
+						return this.__endRacer.race(Promise.resolve(ev.data.stream)
 							.then(function(requestStream) {
 								if (types.isNothing(requestStream)) {
 									throw new http.StreamAborted();
