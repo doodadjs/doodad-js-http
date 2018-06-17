@@ -2522,8 +2522,6 @@ exports.add = function add(modules) {
 						if (section) {
 							if (!state.noMainFile) {
 								parent = this.getCached(request, {key: key});
-
-								root.DD_ASSERT && root.DD_ASSERT(!types.isNothing(parent), "Section '~0~' has no parent.", [section]);
 							};
 
 							key = null;
@@ -2546,25 +2544,9 @@ exports.add = function add(modules) {
 							types.freezeObject(key); // TODO: depthFreeze
 						};
 
-						let keyHash = null;
-
 						const cacheMap = type.$__cache;
 
-						if (cacheMap.has(key)) {
-							const cached = cacheMap.get(key);
-							return cached;
-						} else {
-							keyHash = key.toHash();
-
-							if (cacheMap.has(keyHash)) {
-								const cached = cacheMap.get(keyHash);
-								return cached;
-							};
-						};
-
-						if (!keyHash) {
-							keyHash = key.toHash();
-						};
+						const keyHash = key.toHash();
 
 						const cached = new nodejsHttp.CachedObject();
 						cached.key = key; // Key Object
@@ -2591,6 +2573,11 @@ exports.add = function add(modules) {
 							cached.parent.children[section] = cached;
 						};
 
+						const onNew = types.get(options, 'onNew', null);
+						if (onNew) {
+							onNew(cached);
+						};
+
 						state.onNewCached(this, cached);
 
 						return cached;
@@ -2605,8 +2592,7 @@ exports.add = function add(modules) {
 
 						const type = types.getType(this),
 							section = types.get(options, 'section'), // string
-							create = types.get(options, 'create', false), // boolean
-							onNew = types.get(options, 'onNew', null); // function
+							create = types.get(options, 'create', false); // boolean
 
 						const key = types.get(options, 'key', null); // object
 
@@ -2618,6 +2604,10 @@ exports.add = function add(modules) {
 						} else if (types.isJsObject(key)) {
 							// Get from object key
 							cached = type.$__cache.get(key);
+
+							if (!cached) {
+								cached = type.$__cache.get(key.toHash());
+							};
 
 						} else if (types.isString(key)) {
 							// Get from hashed key
@@ -2648,13 +2638,7 @@ exports.add = function add(modules) {
 							return cached;
 
 						} else if (create && (section || !state.noMainFile)) {
-							cached = this.__createCached(request, key, section, options);
-
-							if (onNew) {
-								onNew(cached);
-							};
-
-							return cached;
+							return this.__createCached(request, key, section, options);
 
 						} else {
 							return null;
