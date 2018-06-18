@@ -2537,8 +2537,8 @@ exports.add = function add(modules) {
 						};
 
 						if (root.DD_ASSERT) {
-							root.DD_ASSERT(types.isFrozen(key), "Key is not finalized. You must freeze the key object when it is final.")
-							root.DD_ASSERT(!isMain || !state.noMain, "Main file has been disabled.")
+							root.DD_ASSERT(types.isFrozen(key), "Key is not finalized. You must freeze the key object when it is final.");
+							root.DD_ASSERT(!isMain || !state.noMain, "Main file has been disabled.");
 						};
 
 						const hashedKey = key.toHash();
