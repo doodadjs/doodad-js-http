@@ -1950,7 +1950,7 @@ exports.add = function add(modules) {
 							generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
 								this._super(request, handler, keyObj);
 
-								if (!keyObj.section) {
+								if (!keyObj.isSection) {
 									const varsId = request.url.getArg('vars', true);
 									if (!types.isNothing(varsId)) {
 										keyObj.varsId = varsId;
@@ -2172,7 +2172,8 @@ exports.add = function add(modules) {
 					__status: doodad.PROTECTED(null),
 					__message: doodad.PROTECTED(null),
 					//__key: doodad.PROTECTED(null),
-					//__section: doodad.PROTECTED(null),
+					//__section: doodad.PROTECTED(false),
+					//__parent: doodad.PROTECTED(null),
 					__encoding: doodad.PROTECTED(null),
 
 					__listening: doodad.PROTECTED(false),
@@ -2194,7 +2195,8 @@ exports.add = function add(modules) {
 						this.__status = null;
 						this.__message = null;
 						//this.__key = null;
-						//this.__section = null;
+						//this.__section = false;
+						//this.__parent = null;
 						this.__encoding = null;
 					}),
 
@@ -2250,7 +2252,9 @@ exports.add = function add(modules) {
 										this.__status = parseInt(val[0], 10) || 200;
 										this.__message = val[1] || '';
 									} else if (name === 'X-Cache-Section') {
-										//this.__section = value;
+										//this.__section = types.toBoolean(value.toLowerCase());
+									} else if (name === 'X-Cache-Parent') {
+										//this.__parent = value;
 									} else if (name === 'X-Cache-Encoding') {
 										this.__encoding = value;
 									} else if (name.slice(0, 8) === 'X-Cache-') {
@@ -2393,9 +2397,10 @@ exports.add = function add(modules) {
 
 					key: null, // Key Object
 					hashedKey: null, // String
-					section: null, // Key Object
+					isSection: false, // Boolean
 					parent: null, // Cached object
 					duration: null, // Moment Duration
+					isMain: false, // Boolean
 
 					path: null, // Path
 					writing: false, // Boolean
@@ -2466,7 +2471,7 @@ exports.add = function add(modules) {
 
 						server.applyGlobalHandlerState(this, {
 							disabled: doodad.PUBLIC(false), // Boolean
-							noMainFile: doodad.PUBLIC(false), // Boolean
+							noMain: doodad.PUBLIC(false), // Boolean
 							defaultDuration: doodad.PUBLIC(null), // Moment Duration
 							cached: doodad.PUBLIC(null), // CachedObject instance
 							onNewCached: doodad.PUBLIC(doodad.RAW_EVENT()),
@@ -2516,61 +2521,53 @@ exports.add = function add(modules) {
 						};
 
 						const type = types.getType(this);
-
-						let parent = null;
-
-						if (section) {
-							if (!state.noMainFile) {
-								parent = this.getCached(request, {key: key});
-							};
-
-							key = null;
-						};
-
-						if (types.isNothing(key)) {
-							key = this.createKey();
-
-							key.url = request.url.toDataObject({domain: null, args: null, functions: true});
-							key.headers = new nodejsHttp.CacheHeaders();
-							key.section = section;
-						};
-
-						root.DD_ASSERT && root.DD_ASSERT(types.isJsObject(key), "Invalid cache key.");
-						root.DD_ASSERT && root.DD_ASSERT(types.isNothing(section) || types.isJsObject(section), "Invalid cache section key.");
-
-						if (!types.isFrozen(key)) {
-							state.generateKey(request, this, key);
-
-							types.freezeObject(key); // TODO: depthFreeze
-						};
-
 						const cacheMap = type.$__cache;
 
-						const keyHash = key.toHash();
+						let isMain = types.get(options, 'isMain', true);
+
+						let parent = null;
+						if (section) {
+							isMain = false;
+							parent = this.getCached(request, {key: key});
+							if (!parent) {
+								parent = this.__createCached(request, key, null, {isMain: false});
+							};
+							root.DD_ASSERT && root.DD_ASSERT(parent, "Section has no parent.");
+							key = section;
+						};
+
+						if (root.DD_ASSERT) {
+							root.DD_ASSERT(types.isFrozen(key), "Key is not finalized. You must freeze the key object when it is final.")
+							root.DD_ASSERT(!isMain || !state.noMain, "Main file has been disabled.")
+						};
+
+						const hashedKey = key.toHash();
 
 						const cached = new nodejsHttp.CachedObject();
 						cached.key = key; // Key Object
-						cached.hashedKey = keyHash; // String
-						cached.section = section; // Key Object
-						cached.hashedSection = section && section.toHash();  // String
+						cached.hashedKey = hashedKey; // String
+						cached.isSection = !!section; // Boolean
 						cached.parent = parent; // Cached object
 						cached.duration = state.defaultDuration; // Moment Duration
-						cached.children = tools.nullObject(); // objectof(Cached objects)
+						cached.children = new types.Map(); // Cached objects
+						cached.isMain = isMain; // Boolean
 
 						cached.addEventListener('destroy', function() {
-							cacheMap.delete(key);
-							cacheMap.delete(keyHash);
+							cacheMap.delete(cached.key);
+							cacheMap.delete(cached.hashedKey);
 
-							if (section && !types.DESTROYED(cached.parent)) {
-								delete cached.parent.children[section];
+							if (cached.isSection && !types.DESTROYED(cached.parent)) {
+								cached.parent.children.delete(cached.key);
+								cached.parent.children.delete(cached.hashedKey);
 							};
 						});
 
 						cacheMap.set(key, cached);
-						cacheMap.set(keyHash, cached);
+						cacheMap.set(hashedKey, cached);
 
 						if (section && parent) {
-							cached.parent.children[section] = cached;
+							parent.children.set(key, cached);
+							parent.children.set(hashedKey, cached);
 						};
 
 						const onNew = types.get(options, 'onNew', null);
@@ -2590,20 +2587,39 @@ exports.add = function add(modules) {
 							return null;
 						};
 
-						const type = types.getType(this),
-							section = types.get(options, 'section'), // string
-							create = types.get(options, 'create', false); // boolean
+						const section = types.get(options, 'section'); // string
 
-						const key = types.get(options, 'key', null); // object
+						if (!section && state.noMain) {
+							return null;
+						};
+
+						const create = types.get(options, 'create', false); // boolean
+
+						let key = types.get(options, 'key', null); // object
+
+						if (types.isNothing(key)) {
+							key = this.createKey();
+							key.url = request.url.toDataObject({domain: null, args: null, functions: true});
+							key.headers = new nodejsHttp.CacheHeaders();
+						};
+
+						if (root.DD_ASSERT) {
+							root.DD_ASSERT(types.isJsObject(key), "Invalid cache key.");
+							root.DD_ASSERT(types.isNothing(section) || types.isJsObject(section), "Invalid cache section key.");
+						};
+
+						const type = types.getType(this);
 
 						let cached = null;
 
-						if (types.isNothing(key)) {
-							//key = ...
-
-						} else if (types.isJsObject(key)) {
-							// Get from object key
-							cached = type.$__cache.get(key);
+						if (types.isJsObject(key)) {
+							if (types.isFrozen(key)) {
+								// Get from object key
+								cached = type.$__cache.get(key);
+							} else {
+								state.generateKey(request, this, key);
+								types.freezeObject(key); // TODO: depthFreeze
+							};
 
 							if (!cached) {
 								cached = type.$__cache.get(key.toHash());
@@ -2612,9 +2628,7 @@ exports.add = function add(modules) {
 						} else if (types.isString(key)) {
 							// Get from hashed key
 							cached = type.$__cache.get(key);
-							//if (cached) {
-							//	key = cached.key;
-							//};
+							//key = cached.key;
 
 						} else {
 							throw new types.ValueError("Invalid cached object key '~0~'.", [key]);
@@ -2622,10 +2636,12 @@ exports.add = function add(modules) {
 						};
 
 						if (cached && section) {
-							const sectionHash = section.toHash();
-							cached = tools.filter(cached.children, function(child) {
-								return (child.section === section) || (child.hashedSection === sectionHash);
-							})[0];
+							let child = cached.children.get(section);
+							if (!child) {
+								const hashedSection = section.toHash();
+								child = cached.children.get(hashedSection);
+							};
+							cached = child;
 						};
 
 						if (cached) {
@@ -2634,10 +2650,9 @@ exports.add = function add(modules) {
 									cached.invalidate();
 								};
 							};
-
 							return cached;
 
-						} else if (create && (section || !state.noMainFile)) {
+						} else if (create && (section || !state.noMain)) {
 							return this.__createCached(request, key, section, options);
 
 						} else {
@@ -2809,9 +2824,10 @@ exports.add = function add(modules) {
 							.then(function afterOpen(stream) {
 								if (stream) {
 									let headers = '';
-									headers += 'X-Cache-Key: ' + cached.key.toHash() + '\n';
-									if (cached.section) {
-										headers += 'X-Cache-Section: ' + cached.section.toHash() + '\n';
+									headers += 'X-Cache-Key: ' + cached.hashedKey + '\n';
+									if (cached.isSection) {
+										headers += 'X-Cache-Section: True\n';
+										headers += 'X-Cache-Parent: ' + cached.parent.hashedKey + '\n';
 									};
 									if (cached.expiration) {
 										headers += 'X-Cache-Expiration: ' + http.toRFC1123Date(cached.expiration) + '\n'; // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
@@ -2819,7 +2835,7 @@ exports.add = function add(modules) {
 									if (encoding) {
 										headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
 									};
-									if (!cached.section) {
+									if (cached.isMain) {
 										// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
 										if (!request.response.headersSent) {
 											request.response.sendHeaders();
@@ -3011,7 +3027,7 @@ exports.add = function add(modules) {
 							generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
 								this._super(request, handler, keyObj);
 
-								if (!keyObj.section) {
+								if (!keyObj.isSection) {
 									const encoding = request.response.getHeader('Content-Encoding');
 									if (encoding) {
 										keyObj.headers.addHeader('Content-Encoding', encoding);
