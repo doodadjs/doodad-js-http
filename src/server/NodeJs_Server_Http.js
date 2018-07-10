@@ -1573,14 +1573,17 @@ exports.add = function add(modules) {
 									contentTypes = mime.getTypes(path.file) || ['application/octet-stream'];
 									handler = request.currentHandler;
 								} else {
+									// TODO: Make it dynamic
 									contentTypes = ['text/html; charset=utf-8', 'application/json; charset=utf-8'];
 								};
 
+								const isResource = request.url.args.has('res');
+
 								let contentType;
-								if (request.url.args.has('res')) {
+								if (isResource) {
 									contentType = contentTypes[0];
 								} else {
-									contentType = request.getAcceptables(contentTypes, {handler: handler})[0];
+									contentType = request.getAcceptables(contentTypes, {handler})[0];
 								};
 								if (!contentType) {
 									return request.response.respondWithStatus(types.HttpStatus.NotAcceptable);
@@ -1605,13 +1608,13 @@ exports.add = function add(modules) {
 								// Use HTTP 1.1 chunks, or let Node.js provide it.
 								request.response.clearHeaders('Content-Length');
 
-								request.response.setContentType(contentType, {handler: handler});
+								request.response.setContentType(contentType, {handler});
 
 								return tools.nullObject({
-									contentType: contentType,
-									stats: stats,
-									url: url,
-									path: path,
+									contentType,
+									stats,
+									url,
+									path,
 								});
 							}, null, this);
 					})),

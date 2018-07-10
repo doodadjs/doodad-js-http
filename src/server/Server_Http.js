@@ -423,6 +423,8 @@ exports.add = function add(modules) {
 					return null;
 				};
 
+				root.DD_ASSERT && root.DD_ASSERT(types.isString(contentType), "'contentType' must be a string.");
+
 				const pos = [];
 				let delimiters = [];
 
@@ -1361,9 +1363,10 @@ exports.add = function add(modules) {
 						const allowedTypes = handlerTypes || acceptableTypes;
 						const hasHandlerTypes = !!handlerTypes;
 						const hasAcceptableTypes = !!acceptableTypes;
-						const discardWilcards = hasHandlerTypes && hasAcceptableTypes && !tools.some(acceptableTypes, function(mimeType) {
+
+						const discardWilcards = (types.isNothing(options.discardWilcards) ? (hasHandlerTypes && hasAcceptableTypes && !tools.some(acceptableTypes, function(mimeType) {
 							return (mimeType.type === '*') && (mimeType.subtype === '*');
-						});
+						})) : options.discardWilcards);
 
 						if (!contentTypes) {
 							return allowedTypes;
@@ -1591,7 +1594,11 @@ exports.add = function add(modules) {
 
 							let handler = handlerOptions.handler;
 
-							const acceptedMimeTypes = this.getAcceptables(handlerOptions.mimeTypes || ['*/*']);
+							const mimeTypes = handlerOptions.mimeTypes || [http.parseContentTypeHeader('*/*')];
+							const discardWilcards = !tools.some(mimeTypes, function(mimeType) {
+								return (mimeType.type === '*') && (mimeType.subtype === '*');
+							});
+							const acceptedMimeTypes = this.getAcceptables(mimeTypes, {discardWilcards});
 
 							if (acceptedMimeTypes && acceptedMimeTypes.length) {
 								const parentState = handlerOptions.parent && this.getHandlerState(handlerOptions.parent);
