@@ -29,6 +29,7 @@
 	//! INJECT("import {default as nodeFs} from 'fs';")
 	//! INJECT("import {default as nodeZlib} from 'zlib';")
 	//! INJECT("import {default as nodeHttp} from 'http';")
+	//! INJECT("import {default as nodeHttps} from 'https';")
 	//! INJECT("import {default as nodeCrypto} from 'crypto';")
 	//! INJECT("import {default as nodeCluster} from 'cluster';")
 //! ELSE()
@@ -37,6 +38,7 @@
 	const nodeFs = require('fs'),
 		nodeZlib = require('zlib'),
 		nodeHttp = require('http'),
+		nodeHttps = require('https'),
 		nodeCrypto = require('crypto'),
 		nodeCluster = require('cluster');
 //! END_IF()
@@ -215,7 +217,7 @@ exports.add = function add(modules) {
 										this.nodeJsStream.once('finish', resolve);
 										this.nodeJsStream.once('error', reject);
 										if (buffered) {
-											stream.flushAsync({purge: true})
+											return stream.flushAsync({purge: true})
 												.then(function(dummy) {
 													if (stream.canWrite()) {
 														stream.write(io.EOF);
@@ -448,7 +450,7 @@ exports.add = function add(modules) {
 								types.DESTROY(responseStream);
 
 								throw err;
-							}, this));
+							}));
 					})),
 
 					sendTrailers: doodad.PROTECTED(function sendTrailers(/*optional*/trailers) {
@@ -857,13 +859,15 @@ exports.add = function add(modules) {
 							return undefined;
 						};
 
+						const type = types.getType(this);
+
 						return Promise.try(function tryEndRequest() {
 							types.setAttribute(this, 'ended', true); // blocks additional operations...
 							this.__ending = true; // ...but some operations are still allowed
 
 							if (!this.response.ended) {
 								return this.response.end(forceDisconnect)
-									.catch(server.EndOfRequest, function () { });
+									.catch(server.EndOfRequest, function() {});
 							};
 
 							return undefined;
@@ -889,23 +893,10 @@ exports.add = function add(modules) {
 							.then(wait, null, this)
 							.catch(this.catchError, this)
 							.nodeify(function(err, dummy) {
-								const type = types.getType(this);
+								let status = this.response.status;
+
 								if (this.__aborted || forceDisconnect || types.DESTROYED(this.response)) {
-									type.$__aborted++;
-								} else {
-									const status = this.response.status;
-									if (types.HttpStatus.isInformative(status) || types.HttpStatus.isSuccessful(status)) {
-										type.$__successful++;
-									} else if (types.HttpStatus.isRedirect(status)) {
-										type.$__redirected++;
-									} else { // if (types.HttpStatus.isError(status))
-										const failed = type.$__failed;
-										if (types.has(failed, status)) {
-											failed[status]++;
-										} else {
-											failed[status] = 1;
-										};
-									};
+									status = null;
 								};
 
 								this.onEnd();
@@ -914,8 +905,27 @@ exports.add = function add(modules) {
 									throw err;
 								};
 
+								return status;
+							}, this)
+							.nodeify(function(err, status) {
+								if (err || types.isNothing(status)) {
+									this.$__aborted++;
+								} else if (types.HttpStatus.isInformative(status) || types.HttpStatus.isSuccessful(status)) {
+									this.$__successful++;
+								} else if (types.HttpStatus.isRedirect(status)) {
+									this.$__redirected++;
+								} else {
+									const failed = this.$__failed;
+									const statusStr = types.toString(status);
+									if (types.has(failed, statusStr)) {
+										failed[statusStr]++;
+									} else {
+										failed[statusStr] = 1;
+									};
+								};
+
 								throw new server.EndOfRequest();
-							}, this);
+							}, type);
 					}),
 
 					__streamOnError: doodad.PROTECTED(function __streamOnError(ev) {
@@ -1064,7 +1074,7 @@ exports.add = function add(modules) {
 								types.DESTROY(requestStream);
 
 								throw err;
-							}, this));
+							}));
 					})),
 
 					getTime: doodad.PUBLIC(function getTime() {
@@ -1098,6 +1108,7 @@ exports.add = function add(modules) {
 
 					onNodeRequest: doodad.NODE_EVENT('request', function onNodeRequest(context, nodeRequest, nodeResponse) {
 						//const Promise = types.getPromise();
+
 						if (this.__listening) {
 							if (this.options.validHosts) {
 								const host = nodeRequest.headers['host'];
@@ -1127,11 +1138,13 @@ exports.add = function add(modules) {
 
 								if (!ev.prevent) {
 									request.proceed(this.handlersOptions)
-										.catch(request.catchError)
+										.catch(request.catchError, request)
 										.then(function endRequest() {
 											if (!types.DESTROYED(request) && !request.ended) {
 												if (request.isFullfilled()) {
-													return request.end();
+													if (!request.ended) {
+														return request.end();
+													};
 												} else {
 													request.response.clear();
 													return request.response.respondWithStatus(types.HttpStatus.NotFound);
@@ -1139,8 +1152,8 @@ exports.add = function add(modules) {
 											};
 											return undefined;
 										})
-										.catch(request.catchError)
-										.nodeify(function requestCleanup(err, result) {
+										.catch(request.catchError, request)
+										.nodeify(function requestCleanup(err, dummy) {
 											types.DESTROY(request);
 											types.DESTROY(nodeRequest);
 											types.DESTROY(nodeResponse);
@@ -1167,7 +1180,7 @@ exports.add = function add(modules) {
 
 					onNodeListening: doodad.NODE_EVENT('listening', function onNodeListening(context) {
 						types.setAttribute(this, '__address', this.__nodeServer.address());
-						tools.log(tools.LogLevels.Info, "HTTP server listening on port '~port~', address '~address~'.", this.__address);
+						tools.log(tools.LogLevels.Info, "~protocol~ server listening on port '~port~', address '~address~' (~family~).", tools.extend({protocol: this.protocol.toUpperCase()}, this.__address));
 						tools.log(tools.LogLevels.Warning, "IMPORTANT: It is an experimental and not finished software. Don't use it on production, or do it at your own risks. Please report bugs and suggestions to 'doodadjs [at] gmail <dot> com'.");
 					}),
 
@@ -1193,6 +1206,8 @@ exports.add = function add(modules) {
 					}),
 
 					listen: doodad.OVERRIDE(function listen(/*optional*/options) {
+						// TODO: Multiple calls to "listen" for multiple IPs to bind to, instead of multiple server objects.
+
 						if (!this.__listening) {
 							this.__listening = true;
 
@@ -1200,9 +1215,10 @@ exports.add = function add(modules) {
 
 							const protocol = options.protocol || 'http';
 							let factory;
-							if ((protocol === 'http') || (protocol === 'https')) {
-								/* eslint global-require: "off", import/no-dynamic-require: "off" */
-								factory = require(protocol);
+							if (protocol === 'http') {
+								factory = nodeHttp;
+							} else if (protocol === 'https') {
+								factory = nodeHttps;
 							} else {
 								throw new doodad.Error("Invalid protocol : '~0~'.", [protocol]);
 							};
@@ -1312,7 +1328,7 @@ exports.add = function add(modules) {
 					$readDir: doodad.PUBLIC(doodad.ASYNC(function $readDir(handler, path) {
 						return files.readdir(path, {async: true})
 							.then(function sortFiles(filesList) {
-								filesList = filesList
+								return filesList
 									.filter(function(file) {
 										if (file.isFolder) {
 											return true;
@@ -1343,8 +1359,6 @@ exports.add = function add(modules) {
 											return 0;
 										};
 									});
-								//console.log(require('util').inspect(filesList));
-								return filesList;
 							}, null, this);
 					})),
 
@@ -1380,8 +1394,8 @@ exports.add = function add(modules) {
 						const resType = this.DD_FULL_NAME;
 
 						server.applyGlobalHandlerState(nodejsHttp.CacheHandler, {
-							generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
-								this._super(request, handler, keyObj);
+							generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj, sectionName) {
+								this._super(request, handler, keyObj, sectionName);
 
 								const res = !request.url.file && request.url.getArg('res', true);
 								if (res) {
@@ -1526,7 +1540,7 @@ exports.add = function add(modules) {
 											//					If "forceCaseSensitive" is true, we scan the file system for the right name and require that exact name.
 											//					But please note that it causes an overhead and enabling the case-sensitive option on the file system,
 											//					when possible, is a better choice.
-											return files.getCanonical(path, {async: true})
+											return files.getCanonicalAsync(path)
 												.then(function(canonicalPath) {
 													if (stats.isFile()) {
 														if (canonicalPath.file) {
@@ -1541,7 +1555,7 @@ exports.add = function add(modules) {
 														stats.realPath = canonicalPath.toApiString();
 													};
 													return stats;
-												});
+												}, null, this);
 										} else {
 											stats.realPath = stats.path;
 										};
@@ -1651,7 +1665,10 @@ exports.add = function add(modules) {
 										});
 								}, null, this)
 								.then(function() {
-									return request.end();
+									if (!request.ended) {
+										return request.end();
+									};
+									return undefined;
 								});
 						};
 						return undefined;
@@ -1679,9 +1696,13 @@ exports.add = function add(modules) {
 										}, null, this);
 								}, null, this)
 								.then(function() {
-									return request.end();
+									if (!request.ended) {
+										return request.end();
+									};
+									return undefined;
 								});
 						};
+
 						return undefined;
 					})),
 
@@ -1693,7 +1714,7 @@ exports.add = function add(modules) {
 						};
 
 						// Get negociated mime types between the handler and the client
-						function sendHtml(filesList) {
+						function sendHtml() {
 							return templatesHtml.getTemplate(null, this.options.folderTemplate)
 								.then(function renderTemplate(templType) {
 									const cacheHandlers = request.getHandlers(nodejsHttp.CacheHandler);
@@ -1736,17 +1757,20 @@ exports.add = function add(modules) {
 								}, null, this);
 						};
 
-						function send(filesList) {
+						function send() {
 							if (data.contentType.name === 'text/html') {
-								return sendHtml.call(this, filesList);
+								return sendHtml.call(this);
 							} else {
-								return sendJson.call(this, filesList);
+								return sendJson.call(this);
 							};
 						};
 
 						return send.call(this)
 							.then(function() {
-								return request.end();
+								if (!request.ended) {
+									return request.end();
+								};
+								return undefined;
 							}, null, this);
 					})),
 
@@ -1784,7 +1808,7 @@ exports.add = function add(modules) {
 									request.setFullfilled(false);
 								};
 								return undefined;
-							}, this);
+							}, null, this);
 					}),
 
 				}));
@@ -1795,7 +1819,7 @@ exports.add = function add(modules) {
 					$TYPE_NAME: 'ClusterDataServiceMaster',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ClusterDataServiceMaster')), true) */,
 
-					syncData: ipc.CALLABLE(function syncData(request, id, handlerName, token) {
+					syncSetToken: ipc.CALLABLE(function syncSetToken(request, handlerName, token) {
 						const Promise = types.getPromise();
 						if (nodeCluster.isMaster) {
 							const keys = types.keys(nodeCluster.workers);
@@ -1803,10 +1827,26 @@ exports.add = function add(modules) {
 								const worker = nodeCluster.workers[key];
 								// TODO: Get "worker" from Request and remove that argument.
 								if (worker.id !== request.msg.worker.id) {
-									return request.server.callService(nodejsHttp.ClusterDataServiceWorker.DD_FULL_NAME, 'setData', [id, handlerName, token], {worker: worker /*ttl: ..., ...*/});
+									return request.server.callService(nodejsHttp.ClusterDataServiceWorker.DD_FULL_NAME, 'setToken', [handlerName, token], {worker: worker /*ttl: ..., ...*/});
 								};
 								return undefined;
-							});
+							}, this);
+						};
+						return undefined;
+					}),
+
+					syncDeleteToken: ipc.CALLABLE(function syncDeleteToken(request, handlerName, id) {
+						const Promise = types.getPromise();
+						if (nodeCluster.isMaster) {
+							const keys = types.keys(nodeCluster.workers);
+							return Promise.map(keys, function(key) {
+								const worker = nodeCluster.workers[key];
+								// TODO: Get "worker" from Request and remove that argument.
+								if (worker.id !== request.msg.worker.id) {
+									return request.server.callService(nodejsHttp.ClusterDataServiceWorker.DD_FULL_NAME, 'deleteToken', [handlerName, id], {worker: worker /*ttl: ..., ...*/});
+								};
+								return undefined;
+							}, this);
 						};
 						return undefined;
 					}),
@@ -1818,12 +1858,27 @@ exports.add = function add(modules) {
 					$TYPE_NAME: 'ClusterDataServiceWorker',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ClusterDataServiceWorker')), true) */,
 
-					setData: ipc.CALLABLE(function setData(request, id, handlerName, token) {
-						if (nodeCluster.isWorker && id && handlerName && token && token.data) {
+					setToken: ipc.CALLABLE(function setToken(request, handlerName, token, /*optional*/options) {
+						if (nodeCluster.isWorker && handlerName && token && token.id && token.data) {
 							const handler = namespaces.get(handlerName);
-							if (handler) {
-								return nodejsHttp.ClusterDataHandler.$set(request, handler, token.data, {id: id, ttl: token.ttl});
+							if (!types._implements(handler, httpMixIns.Handler)) {
+								throw new types.ValueError("Invalid handler name.");
 							};
+							return nodejsHttp.ClusterDataHandler.$set(request, handler, token.data, tools.nullObject({foreignId: token.id, ttl: token.ttl}, options))
+								.then(function(token) {
+									// Does nothing
+								});
+						};
+						return undefined;
+					}),
+
+					deleteToken: ipc.CALLABLE(function deleteToken(request, handlerName, id, /*optional*/options) {
+						if (nodeCluster.isWorker && handlerName && id) {
+							const handler = namespaces.get(handlerName);
+							if (!types._implements(handler, httpMixIns.Handler)) {
+								throw new types.ValueError("Invalid handler name.");
+							};
+							return nodejsHttp.ClusterDataHandler.$delete(request, handler, id, options);
 						};
 						return undefined;
 					}),
@@ -1841,16 +1896,49 @@ exports.add = function add(modules) {
 
 					$__dataTimeoutId: doodad.PROTECTED(null),
 
-					$createToken: doodad.PROTECTED(doodad.ASYNC(function $createToken(request, handler, id, tokenData, options) {
-						return tokenData;
-					})),
+					$__collectInternal: doodad.PROTECTED(function $__collectInternal() {
+						this.$__dataTimeoutId = null;
+						let count = 0;
+						try {
+							const exchanged = this.$__exchangedDatas;
+							tools.forEach(exchanged, function(storage, handlerType) {
+								// TODO: Make sure the main thread will not lock for too long by doing X items per tick
+								// TODO: Isolate Infinity ttls so that we don't loop through them.
+								tools.forEach(storage, function(token, id) {
+									const diff = process.hrtime(token.time);
+									const seconds = diff[0] + (diff[1] / 1e9);
+									if (seconds >= token.ttl) {
+										storage.delete(id);
+									} else {
+										count++;
+									};
+								}, this);
+							}, this);
+						} catch(o) {
+							if (root.getOptions().debug) {
+								types.DEBUGGER();
+							};
+						};
+						if (count > 0) {
+							this.$__startCollector();
+						};
+					}),
 
-					// TODO: URGENT: Flood protection on "$set".
+					$__startCollector: doodad.PROTECTED(function $__startCollector() {
+						if (!this.$__dataTimeoutId) {
+							this.$__dataTimeoutId = tools.callAsync(this.$__collectInternal, this.$timeoutDelay * 1000, this, null, true);
+						};
+					}),
+
+					// TODO: Flood protection on "$set".
 					// FUTURE: Reuse id for the same request url and session, or just the url (depends if data is common to a session or not).
 					$set: doodad.PUBLIC(doodad.TYPE(doodad.ASYNC(function $set(request, handler, data, /*optional*/options) {
 						const MAX_RETRIES = 5;
 
-						root.DD_ASSERT && root.DD_ASSERT(types._implements(handler, httpMixIns.Handler), "Invalid handler.");
+						if (root.DD_ASSERT) {
+							root.DD_ASSERT(data, "Invalid data.");
+							root.DD_ASSERT(types._implements(handler, httpMixIns.Handler), "Invalid handler.");
+						};
 
 						const ttl = types.get(options, 'ttl', 5 * 60);
 						root.DD_ASSERT && root.DD_ASSERT(types.isInteger(ttl), "Invalid TTL option.");
@@ -1861,26 +1949,26 @@ exports.add = function add(modules) {
 
 						let storage = exchanged.get(handlerType);
 						if (!storage) {
-							storage = tools.nullObject();
+							storage = new types.Map();
 							exchanged.set(handlerType, storage);
 						};
 
 						let id = null;
 
-						const foreignId = types.get(options, 'id');
+						const foreignId = types.get(options, 'foreignId');
 						if (foreignId) {
+							const foreignIdStr = types.toString(foreignId);
 							// NOTE: "$set" called with an ID should comes from IPC
-							if (types.has(storage, foreignId)) {
+							if (storage.has(foreignIdStr)) {
 								// Signal the collision.
-								// TODO: LOW: Create a specific error type (types.SyncingError ?).
-								throw new types.Error("That id is not available : ~0~.", [foreignId]);
+								// TODO: LOW: Create a specific error type (types.SyncError ?).
+								throw new types.Error("That id is not available : ~0~.", [foreignIdStr]);
 							};
-							id = foreignId;
-
+							id = foreignIdStr;
 						} else {
 							id = tools.generateUUID();
 							let retries = 0;
-							while ((retries < MAX_RETRIES) && types.has(storage, id)) {
+							while ((retries < MAX_RETRIES) && storage.has(id)) {
 								id = tools.generateUUID();
 								retries++;
 							};
@@ -1889,48 +1977,18 @@ exports.add = function add(modules) {
 							};
 						};
 
-						return this.$createToken(request, handler, id, {
-							data: data,
-							ttl: ttl,
-						}, options)
-							.then(function(token) {
-								token.time = process.hrtime();
+						const token = {
+							id,
+							data,
+							ttl,
+							time: process.hrtime(),
+						};
 
-								storage[id] = types.freezeObject(token);
+						storage.set(id, token);
 
-								if (!this.$__dataTimeoutId) {
-									const createTimeout = function _createTimeout() {
-										return tools.callAsync(function() {
-											try {
-												const exchanged = this.$__exchangedDatas;
-												tools.forEach(exchanged, function(storage, handlerType) {
-													// TODO: Make sure the main thread will not lock for too long by doing X items per tick
-													// TODO: Isolate Infinity ttls so that we don't loop through them.
-													tools.forEach(storage, function(token, id) {
-														const diff = process.hrtime(token.time);
-														const seconds = diff[0] + (diff[1] / 1e9);
-														if (seconds >= token.ttl) {
-															delete storage[id];
-														};
-													}, this);
-												}, this);
-											} catch(o) {
-												if (root.getOptions().debug) {
-													types.DEBUGGER();
-												};
-											};
+						this.$__startCollector();
 
-											if (this.$__dataTimeoutId) { // if not canceled...
-												this.$__dataTimeoutId = createTimeout.call(this);
-											};
-										}, this.$timeoutDelay * 1000, this, null, true);
-									};
-
-									this.$__dataTimeoutId = createTimeout.call(this);
-								};
-
-								return id;
-							}, null, this);
+						return token;
 					}))),
 
 					$get: doodad.PUBLIC(doodad.TYPE(doodad.ASYNC(function $get(request, handler, id, /*optional*/options) {
@@ -1938,30 +1996,24 @@ exports.add = function add(modules) {
 						const handlerType = types.getType(handler);
 						const storage = exchanged.get(handlerType);
 						if (storage) {
-							const token = types.get(storage, id, null);
+							const token = storage.get(id);
 							if (token) {
-								return token.data;
+								token.time = process.hrtime(); // Revives the token
+								return token;
 							};
 						};
 						return null;
 					}))),
 
-					$applyGlobalHandlerStates: doodad.OVERRIDE(function $applyGlobalHandlerStates(server) {
-						this._super(server);
-
-						server.applyGlobalHandlerState(nodejsHttp.CacheHandler, {
-							generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
-								this._super(request, handler, keyObj);
-
-								if (!keyObj.isSection) {
-									const varsId = request.url.getArg('vars', true);
-									if (!types.isNothing(varsId)) {
-										keyObj.varsId = varsId;
-									};
-								};
-							}),
-						});
-					}),
+					$delete: doodad.PUBLIC(doodad.TYPE(doodad.ASYNC(function $delete(request, handler, id, /*optional*/options) {
+						const exchanged = this.$__exchangedDatas;
+						const handlerType = types.getType(handler);
+						const storage = exchanged.get(handlerType);
+						if (storage) {
+							storage.delete(id);
+						};
+						return null;
+					}))),
 
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						options = this._super(options);
@@ -1989,15 +2041,29 @@ exports.add = function add(modules) {
 					}),
 
 					getData: doodad.PUBLIC(doodad.ASYNC(function getData(request, handler, id, /*optional*/options) {
-						return types.getType(this).$get(request, handler, id, options);
+						return types.getType(this).$get(request, handler, id, options)
+							.then(function(token) {
+								if (token) {
+									return token.data;
+								};
+								return null;
+							});
 					})),
 
 					setData: doodad.PUBLIC(doodad.ASYNC(function setData(request, handler, data, /*optional*/options) {
 						return types.getType(this).$set(request, handler, data, tools.nullObject({
 							ttl: this.options.defaultTTL,
-						}, options));
+						}, options))
+							.then(function(token) {
+								return token.id;
+							});
 					})),
 
+					deleteData: doodad.PUBLIC(doodad.ASYNC(function deleteData(request, handler, id, /*optional*/options) {
+						return types.getType(this).$delete(request, handler, id, options);
+					})),
+
+					// TODO: Probably I should remove "MUST_OVERRIDE" ?
 					execute: doodad.OVERRIDE(function(request) {
 						return this._super(request);
 					}),
@@ -2007,28 +2073,6 @@ exports.add = function add(modules) {
 				{
 					$TYPE_NAME: 'ClusterDataHandler',
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('ClusterDataHandler')), true) */,
-
-					$createToken: doodad.OVERRIDE(function $createToken(request, handler, id, tokenData, options) {
-						return this._super(request, handler, id, tokenData, options)
-							.then(function(tokenData) {
-								if (nodeCluster.isWorker && types.has(options, 'messenger') && !types.has(options, 'id')) {
-									const handlerType = types.getType(handler);
-									const handlerName = handlerType.DD_FULL_NAME;
-									root.DD_ASSERT && root.DD_ASSERT(namespaces.get(handlerName) === handlerType, "Handler is not registred.");
-
-									// TODO: LOW: Handle ID collisions while syncing by generating a new ID and syncing X more time(s).
-									return options.messenger.callService(nodejsHttp.ClusterDataServiceMaster.DD_FULL_NAME, 'syncData', [id, handlerName, tokenData])
-										.then(function(dummy) {
-											return tokenData;
-										});
-									//.catch(function(ex) {
-
-									//});
-								};
-
-								return tokenData;
-							});
-					}),
 
 					$prepare: doodad.OVERRIDE(function $prepare(options) {
 						options = this._super(options);
@@ -2044,10 +2088,45 @@ exports.add = function add(modules) {
 						return options;
 					}),
 
+					$set: doodad.OVERRIDE(function $set(request, handler, data, /*optional*/options) {
+						return this._super(request, handler, data, options)
+							.then(function(token) {
+								if (nodeCluster.isWorker && !types.has(options, 'foreignId')) {
+									const handlerType = types.getType(handler);
+									const handlerName = handlerType.DD_FULL_NAME;
+									//root.DD_ASSERT && root.DD_ASSERT(namespaces.get(handlerName) === handlerType, "Handler is not registred.");
+
+									// TODO: Handle ID collisions while syncing by generating a new ID and syncing X more time(s).
+									return options.messenger.callService(nodejsHttp.ClusterDataServiceMaster.DD_FULL_NAME, 'syncSetToken', [handlerName, token])
+										.then(function(dummy) {
+											return token;
+										}, null, this);
+								};
+								return token;
+							}, null, this);
+					}),
+
+					$delete: doodad.OVERRIDE(function $delete(request, handler, id, /*optional*/options) {
+						return this._super(request, handler, id)
+							.then(function(dummy) {
+								if (nodeCluster.isWorker) {
+									const handlerType = types.getType(handler);
+									const handlerName = handlerType.DD_FULL_NAME;
+									//root.DD_ASSERT && root.DD_ASSERT(namespaces.get(handlerName) === handlerType, "Handler is not registred.");
+
+									// TODO: Handle ID collisions while syncing by generating a new ID and syncing X more time(s).
+									return options.messenger.callService(nodejsHttp.ClusterDataServiceMaster.DD_FULL_NAME, 'syncDeleteToken', [handlerName, id]);
+								};
+								return undefined;
+							}, null, this);
+					}),
+
 					setData: doodad.OVERRIDE(function setData(request, handler, data, /*optional*/options) {
-						return this._super(request, handler, data, tools.nullObject(options, {
-							messenger: this.options.messenger,
-						}));
+						return this._super(request, handler, data, tools.nullObject({messenger: this.options.messenger}, options));
+					}),
+
+					deleteData: doodad.OVERRIDE(function deleteData(request, handler, id, /*optional*/options) {
+						return this._super(request, handler, id, tools.nullObject({messenger: this.options.messenger}, options));
 					}),
 				}));
 
@@ -2072,13 +2151,30 @@ exports.add = function add(modules) {
 						return options;
 					}),
 
+					$applyGlobalHandlerStates: doodad.OVERRIDE(function $applyGlobalHandlerStates(server) {
+						this._super(server);
+
+						server.applyGlobalHandlerState(nodejsHttp.CacheHandler, {
+							generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj, sectionName) {
+								this._super(request, handler, keyObj, sectionName);
+
+								if (!sectionName) {
+									const varsId = request.url.getArg('vars', true);
+									if (!types.isNothing(varsId)) {
+										keyObj.varsId = varsId;
+									};
+								};
+							}),
+						});
+					}),
+
 					getJsVars: doodad.PUBLIC(doodad.ASYNC(function getJsVars(request, id, /*optional*/options) {
 						const dataHandlers = request.getHandlers(nodejsHttp.DataHandler);
 						const dataHandler = (dataHandlers.length > 0 ? dataHandlers[dataHandlers.length - 1] : null);
 						if (!dataHandler) {
 							throw new types.NotAvailable("Data handler is not loaded.");
 						};
-						return dataHandler.getData(request, this, id);
+						return dataHandler.getData(request, this, id, options);
 					})),
 
 					setJsVars: doodad.PUBLIC(doodad.ASYNC(function setJsVars(request, vars, /*optional*/options) {
@@ -2087,8 +2183,16 @@ exports.add = function add(modules) {
 						if (!dataHandler) {
 							throw new types.NotAvailable("Data handler is not loaded.");
 						};
-						const ttl = types.get(options, 'ttl', 5 * 60);
-						return dataHandler.setData(request, this, vars, {ttl: ttl});
+						return dataHandler.setData(request, this, vars, options);
+					})),
+
+					deleteJsVars: doodad.PUBLIC(doodad.ASYNC(function deleteJsVars(request, id, /*optional*/options) {
+						const dataHandlers = request.getHandlers(nodejsHttp.DataHandler);
+						const dataHandler = (dataHandlers.length > 0 ? dataHandlers[dataHandlers.length - 1] : null);
+						if (!dataHandler) {
+							throw new types.NotAvailable("Data handler is not loaded.");
+						};
+						return dataHandler.deleteData(request, this, id, options);
 					})),
 
 					createStream: doodad.OVERRIDE(function createStream(request, /*optional*/options) {
@@ -2141,9 +2245,13 @@ exports.add = function add(modules) {
 											return this.getJsVars(request, varsId);
 										}, null, this)
 										.then(function(vars) {
+											if (!vars) {
+												return request.response.respondWithStatus(types.HttpStatus.NotFound);
+											};
 											tools.forEach(vars, function forEachVar(value, name) {
 												jsStream.define(name, value);
 											});
+											return undefined;
 										}, null, this);
 								};
 
@@ -2362,27 +2470,26 @@ exports.add = function add(modules) {
 					toString: doodad.OVERRIDE(function toString() {
 						if (types.isType(this)) {
 							return this._super();
-
-						} else {
-							this.overrideSuper();
-
-							const headers = this.headers;
-							const names = types.keys(headers);
-
-							names.sort(function(name1, name2) {
-								if (name1 < name2) {
-									return -1;
-								} else if (name1 > name2) {
-									return 1;
-								} else {
-									return 0;
-								};
-							});
-
-							return '{' + tools.reduce(names, function(str, name) {
-								return str + name + ':' + headers[name] + '|';
-							}, '', this) + '}';
 						};
+
+						this.overrideSuper();
+
+						const headers = this.headers;
+						const names = types.keys(headers);
+
+						names.sort(function(name1, name2) {
+							if (name1 < name2) {
+								return -1;
+							} else if (name1 > name2) {
+								return 1;
+							} else {
+								return 0;
+							};
+						});
+
+						return '{' + tools.reduce(names, function(str, name) {
+							return str + name + ':' + headers[name] + '|';
+						}, '', this) + '}';
 					}),
 				}));
 
@@ -2445,6 +2552,7 @@ exports.add = function add(modules) {
 					},
 					invalidate: function invalidate() {
 						const ok = this.ready && !this.writing;
+						let retval = ok;
 						if (ok) {
 							this.ready = false;
 							if (this.path) {
@@ -2453,11 +2561,15 @@ exports.add = function add(modules) {
 							};
 						};
 						tools.forEach(this.children, function(child) {
-							child.invalidate();
+							const done = child.invalidate();
+							if (done) {
+								retval = true;
+							};
 						});
 						if (ok) {
 							this.dispatchEvent(new types.CustomEvent('invalidate'));
 						};
+						return retval;
 					},
 				}));
 
@@ -2478,7 +2590,7 @@ exports.add = function add(modules) {
 							defaultDuration: doodad.PUBLIC(null), // Moment Duration
 							cached: doodad.PUBLIC(null), // CachedObject instance
 							onNewCached: doodad.PUBLIC(doodad.RAW_EVENT()),
-							generateKey: doodad.PUBLIC(function generateKey(request, handler, keyObj) {
+							generateKey: doodad.PUBLIC(function generateKey(request, handler, keyObj, sectionName) {
 								keyObj.headers.addHeader('Content-Type', request.response.getHeader('Content-Type') || '*/*');
 							}),
 						});
@@ -2506,6 +2618,14 @@ exports.add = function add(modules) {
 
 						return options;
 					}),
+
+					$expire: doodad.PUBLIC(doodad.TYPE(function $expire(key) {
+						const cached = this.$__cache.get(key);
+						if (!cached) {
+							throw new types.ValueError("Invalid key.");
+						};
+						return cached.invalidate();
+					})),
 
 					createKey: doodad.PUBLIC(function createKey(/*optional*/data) {
 						const key = tools.nullObject(data);
@@ -2620,7 +2740,7 @@ exports.add = function add(modules) {
 								// Get from object key
 								cached = type.$__cache.get(key);
 							} else {
-								state.generateKey(request, this, key);
+								state.generateKey(request, this, key, section);
 								types.freezeObject(key); // TODO: depthFreeze
 							};
 
@@ -2828,6 +2948,9 @@ exports.add = function add(modules) {
 								if (stream) {
 									let headers = '';
 									headers += 'X-Cache-Key: ' + cached.hashedKey + '\n';
+									if (root.getOptions().debug) {
+										headers += 'X-Cache-Key-Debug: ' + cached.key.toString() + '\n';
+									};
 									if (cached.isSection) {
 										headers += 'X-Cache-Section: True\n';
 										headers += 'X-Cache-Parent: ' + cached.parent.hashedKey + '\n';
@@ -2882,7 +3005,10 @@ exports.add = function add(modules) {
 												cacheStream.flush();
 												return promise
 													.then(function() {
-														return request.end();
+														if (!request.ended) {
+															return request.end();
+														};
+														return undefined;
 													}, null, this);
 											} else {
 												// Cache file has been deleted or is no longer accessible. Will try to recreate the file.
@@ -2893,7 +3019,7 @@ exports.add = function add(modules) {
 									return this.createFile(request, cached)
 										.then(function(cacheStream) {
 											if (cacheStream) {
-												request.waitFor(cacheStream.onEOF.promise(function onEOF() {
+												const promise = cacheStream.onEOF.promise(function onEOF() {
 													cached.validate();
 													// TODO: Refactor "watch" without using "options". See FileSystemPage.sendFile
 													if (ev.data.options.watch) {
@@ -2905,7 +3031,10 @@ exports.add = function add(modules) {
 													.catch(function(err) {
 														cached.abort();
 														throw err;
-													}, this));
+													});
+
+												request.waitFor(promise);
+
 												output.pipe(cacheStream);
 											};
 											return output;
@@ -3027,10 +3156,10 @@ exports.add = function add(modules) {
 						});
 
 						server.applyGlobalHandlerState(nodejsHttp.CacheHandler, {
-							generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj) {
-								this._super(request, handler, keyObj);
+							generateKey: doodad.OVERRIDE(function generateKey(request, handler, keyObj, sectionName) {
+								this._super(request, handler, keyObj, sectionName);
 
-								if (!keyObj.isSection) {
+								if (!sectionName) {
 									const encoding = request.response.getHeader('Content-Encoding');
 									if (encoding) {
 										keyObj.headers.addHeader('Content-Encoding', encoding);
@@ -3082,7 +3211,7 @@ exports.add = function add(modules) {
 
 						const type = request.response.getHeader('Content-Type');
 
-						if (!type || request.getAcceptables(type, {handler: this}).length) {
+						if (!type || (request.getAcceptables(type, {handler: this}).length > 0)) {
 							switch (encoding) {
 							case 'gzip':
 								stream = nodeZlib.createGzip(optionsPerEncoding.gzip);
