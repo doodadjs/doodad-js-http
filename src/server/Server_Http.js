@@ -1182,70 +1182,57 @@ exports.add = function add(modules) {
 							type.$__active_requests.add(this);
 						};
 
-						try {
-							if (types.isString(url)) {
-								url = files.Url.parse(url);
-							};
-
-							if (root.DD_ASSERT) {
-								root.DD_ASSERT && root.DD_ASSERT(types._implements(server, httpMixIns.Server), "Invalid server.");
-								root.DD_ASSERT(types.isString(verb), "Invalid verb.");
-								root.DD_ASSERT(types._instanceof(url, files.Url), "Invalid URL.");
-								root.DD_ASSERT(types.isObject(headers), "Invalid headers.");
-							};
-
-							this._super();
-
-							types.setAttributes(this, {
-								server: server,
-								verb: verb.toUpperCase(),
-								data: tools.nullObject(),
-								id: tools.generateUUID(),
-							});
-
-							this.addHeaders(headers);
-
-							let host = this.getHeader('Host');
-							if (host) {
-								host = files.Url.parse(server.protocol + '://' + host + '/');
-							};
-
+						if (types.isString(url)) {
 							url = files.Url.parse(url);
-							if (host) {
-								url = host.combine(url);
-							};
-
-							this.__redirectsCount = types.toInteger(url.args.get('redirects', true));
-							if (!types.isFinite(this.__redirectsCount) || (this.__redirectsCount < 0)) {
-								this.__redirectsCount = 0;
-							};
-
-							const clientCrashed = types.toBoolean(url.args.get('crashReport', false));
-							const clientCrashRecovery = types.toBoolean(url.args.get('crashRecovery', false));
-							//throw new types.Error("allo"); // To simulate an error on 'create'
-							url = url.removeArgs(['redirects', 'crashReport', 'crashRecovery']);
-
-							this.reset();
-
-							types.setAttributes(this, {
-								url: url,
-								clientCrashed: clientCrashed,
-								clientCrashRecovery: (clientCrashRecovery && !clientCrashed),
-								__parsedAccept: http.parseAcceptHeader(this.getHeader('Accept') || '*/*'),
-								response: this.createResponse.apply(this, responseArgs || []),
-							});
-
-						} catch(ex) {
-							type.$__actives--;
-							const failed = type.$__failed;
-							const status = types.HttpStatus.InternalError;
-							if (types.has(failed, status)) {
-								failed[status]++;
-							} else {
-								failed[status] = 1;
-							};
-							throw ex;
 						};
+
+						if (root.DD_ASSERT) {
+							root.DD_ASSERT && root.DD_ASSERT(types._implements(server, httpMixIns.Server), "Invalid server.");
+							root.DD_ASSERT(types.isString(verb), "Invalid verb.");
+							root.DD_ASSERT(types._instanceof(url, files.Url), "Invalid URL.");
+							root.DD_ASSERT(types.isObject(headers), "Invalid headers.");
+						};
+
+						this._super();
+
+						types.setAttributes(this, {
+							server: server,
+							verb: verb.toUpperCase(),
+							data: tools.nullObject(),
+							id: tools.generateUUID(),
+						});
+
+						this.addHeaders(headers);
+
+						let host = this.getHeader('Host');
+						if (host) {
+							host = files.Url.parse(server.protocol + '://' + host + '/');
+						};
+
+						url = files.Url.parse(url);
+						if (host) {
+							url = host.combine(url);
+						};
+
+						this.__redirectsCount = types.toInteger(url.args.get('redirects', true));
+						if (!types.isFinite(this.__redirectsCount) || (this.__redirectsCount < 0)) {
+							this.__redirectsCount = 0;
+						};
+
+						const clientCrashed = types.toBoolean(url.args.get('crashReport', false));
+						const clientCrashRecovery = types.toBoolean(url.args.get('crashRecovery', false));
+						//throw new types.Error("allo"); // To simulate an error on 'create'
+						url = url.removeArgs(['redirects', 'crashReport', 'crashRecovery']);
+
+						this.reset();
+
+						types.setAttributes(this, {
+							url: url,
+							clientCrashed: clientCrashed,
+							clientCrashRecovery: (clientCrashRecovery && !clientCrashed),
+							__parsedAccept: http.parseAcceptHeader(this.getHeader('Accept') || '*/*'),
+							response: this.createResponse(...(responseArgs || [])),
+						});
 					}),
 
 					destroy: doodad.OVERRIDE(function destroy() {
@@ -1695,11 +1682,11 @@ exports.add = function add(modules) {
 					})),
 
 					catchError: doodad.OVERRIDE(function catchError(ex) {
-						const max = 5; // prevents infinite loop
+						const MAX_COUNT = 5; // prevents infinite loop
 						let count = 0;
 
 						const _catchError = function _catchError(ex) {
-							if (count >= max) {
+							if (count >= MAX_COUNT) {
 								// Failed to respond with internal error.
 								try {
 									doodad.trapException(ex);
@@ -2927,14 +2914,14 @@ exports.add = function add(modules) {
 					$TYPE_UUID: '' /*! INJECT('+' + TO_SOURCE(UUID('JsonBodyHandler')), true) */,
 
 					/*
-				$prepare: doodad.OVERRIDE(function $prepare(options) {
-					types.getDefault(options, 'depth', Infinity);
+					$prepare: doodad.OVERRIDE(function $prepare(options) {
+						types.getDefault(options, 'depth', Infinity);
 
-					options = this._super(options);
+						options = this._super(options);
 
-					return options;
-				}),
-				*/
+						return options;
+					}),
+					*/
 
 					__onGetStream: doodad.PROTECTED(function __onGetStream(ev) {
 						const request = ev.handlerData[0];
