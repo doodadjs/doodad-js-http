@@ -1587,7 +1587,7 @@ exports.add = function add(modules) {
 									contentTypes = mime.getTypes(path.file) || ['application/octet-stream'];
 									handler = request.currentHandler;
 								} else {
-									// TODO: Make it dynamic
+									// TODO: Make it dynamic. Based on folder index (currently Folder.ddt or json output, depending on the "Accept" header).
 									contentTypes = ['text/html; charset=utf-8', 'application/json; charset=utf-8'];
 								};
 
