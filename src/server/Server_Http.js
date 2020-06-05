@@ -1610,7 +1610,7 @@ exports.add = function add(modules) {
 									url: stateUrl || null,
 									mustDestroy: mustDestroy,
 								};
-								types.setAttributes(handlerState, stateValues, null, _shared.SECRET);
+								types.setAttributes(handlerState, stateValues, _shared.SECRET);
 
 								const remaining = matcherResult && matcherResult.urlRemaining;
 								const full = (matcherResult ? matcherResult.full : false);
