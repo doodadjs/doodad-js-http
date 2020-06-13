@@ -2581,7 +2581,7 @@ exports.add = function add(modules) {
 
 					$__cache: doodad.PROTECTED(doodad.TYPE(  new types.Map()  )), // <FUTURE> Global to threads (shared)
 
-					$__enabled: doodad.PROTECTED(doodad.TYPE( true )),
+					$enabled: doodad.PUBLIC(doodad.TYPE(doodad.READ_ONLY( true ))), // <FUTURE> Global to threads (shared)
 
 					$applyGlobalHandlerStates: doodad.OVERRIDE(function $applyGlobalHandlerStates(server) {
 						this._super(server);
@@ -2630,11 +2630,11 @@ exports.add = function add(modules) {
 					})),
 
 					$enable: doodad.PUBLIC(doodad.TYPE(function $enable() {
-						this.$__enabled = true;
+						types.setAttribute(this, '$enabled', true);
 					})),
 
 					$disable: doodad.PUBLIC(doodad.TYPE(function $disable() {
-						this.$__enabled = false;
+						types.setAttribute(this, '$enabled', false);
 					})),
 
 					createKey: doodad.PUBLIC(function createKey(/*optional*/data) {
@@ -2647,7 +2647,7 @@ exports.add = function add(modules) {
 					}),
 
 					__createCached: doodad.PROTECTED(function __createCached(request, /*optional*/key, /*optional*/section, /*optional*/options) {
-						if (!nodejsHttp.CacheHandler.$__enabled) {
+						if (!nodejsHttp.CacheHandler.$enabled) {
 							return null;
 						};
 
@@ -2718,7 +2718,7 @@ exports.add = function add(modules) {
 					}),
 
 					getCached: doodad.PUBLIC(function getCached(request, /*optional*/options) {
-						if (!nodejsHttp.CacheHandler.$__enabled) {
+						if (!nodejsHttp.CacheHandler.$enabled) {
 							return null;
 						};
 
@@ -2803,7 +2803,7 @@ exports.add = function add(modules) {
 					}),
 
 					openFile: doodad.PUBLIC(doodad.ASYNC(function openFile(request, cached) {
-						if (!nodejsHttp.CacheHandler.$__enabled) {
+						if (!nodejsHttp.CacheHandler.$enabled) {
 							return null;
 						};
 
@@ -2890,7 +2890,7 @@ exports.add = function add(modules) {
 					})),
 
 					createFile: doodad.PUBLIC(doodad.ASYNC(function createFile(request, cached, /*optional*/options) {
-						if (!nodejsHttp.CacheHandler.$__enabled) {
+						if (!nodejsHttp.CacheHandler.$enabled) {
 							return null;
 						};
 
@@ -3076,7 +3076,7 @@ exports.add = function add(modules) {
 					}),
 
 					execute: doodad.OVERRIDE(function execute(request) {
-						if (!nodejsHttp.CacheHandler.$__enabled) {
+						if (!nodejsHttp.CacheHandler.$enabled) {
 							return;
 						};
 
