@@ -1614,7 +1614,7 @@ exports.add = function add(modules) {
 								} else {
 									const state = request.getHandlerState(this);
 									if (state.matcherResult) {
-										types.setAttribute(state.matcherResult, 'url', state.matcherResult.url.pushFile());
+										types.setJsAttribute(state.matcherResult, 'url', state.matcherResult.url.pushFile());
 									};
 									request.response.setVary('Accept');
 								};
