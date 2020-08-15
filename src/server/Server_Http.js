@@ -1551,7 +1551,7 @@ exports.add = function add(modules) {
 						return this.proceed(this.server.handlersOptions, {resolve: url, handlerType: type})
 							.then(function(resolved) {
 								if (resolved && type) {
-									resolved = resolved.filter(obj => types.isLike(obj.handler, type));
+									resolved = resolved.filter((obj) => types.isLike(obj.handler, type));
 								};
 								if (resolved && resolved.length) {
 									return resolved;
@@ -1749,7 +1749,7 @@ exports.add = function add(modules) {
 						};
 
 						// To validate later on getStream
-						tools.append(this.__contentEncodings, encodings.map(encoding => encoding.toLowerCase())); // case-insensitive
+						tools.append(this.__contentEncodings, encodings.map((encoding) => encoding.toLowerCase())); // case-insensitive
 					}),
 				})));
 
