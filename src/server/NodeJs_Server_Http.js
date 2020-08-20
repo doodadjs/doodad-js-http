@@ -1421,7 +1421,7 @@ exports.add = function add(modules) {
 						const stats = nodeFs.statSync(val.toApiString());
 						options.isFolder = !stats.isFile();
 						if (options.isFolder) {
-							val = val.pushFile();
+							val = val.toFolder();
 						};
 						options.path = val;
 
@@ -1451,7 +1451,7 @@ exports.add = function add(modules) {
 									path = this.options.path.combine(targetUrl.set({domain: null}));
 								} else {
 									const handlerState = request.getHandlerState(this);
-									const handlerUrl = handlerState.url.pushFile();
+									const handlerUrl = handlerState.url.toFolder();
 									const relativeUrl = targetUrl.relative(handlerUrl);
 									path = this.options.path.combine(relativeUrl);
 								};
@@ -1525,7 +1525,7 @@ exports.add = function add(modules) {
 												stats.path = (newPath ? newPath.toApiString() : pathStr);
 											};
 										} else if (path.file) {
-											stats.path = path.pushFile().toApiString();
+											stats.path = path.toFolder().toApiString();
 										} else {
 											stats.path = pathStr;
 										};
@@ -1550,7 +1550,7 @@ exports.add = function add(modules) {
 															stats.realPath = (newPath ? newPath.toApiString() : canonicalPath.toApiString());
 														};
 													} else if (canonicalPath.file) {
-														stats.realPath = canonicalPath.pushFile().toApiString();
+														stats.realPath = canonicalPath.toFolder().toApiString();
 													} else {
 														stats.realPath = canonicalPath.toApiString();
 													};
@@ -1614,7 +1614,7 @@ exports.add = function add(modules) {
 								} else {
 									const state = request.getHandlerState(this);
 									if (state.matcherResult) {
-										types.setJsAttribute(state.matcherResult, 'url', state.matcherResult.url.pushFile());
+										types.setJsAttribute(state.matcherResult, 'url', state.matcherResult.url.toFolder());
 									};
 									request.response.setVary('Accept');
 								};
@@ -1710,7 +1710,7 @@ exports.add = function add(modules) {
 						//const Promise = types.getPromise();
 						request.data.isFolder = true;
 						if (request.url.file) {
-							return request.redirectClient(request.url.pushFile());
+							return request.redirectClient(request.url.toFolder());
 						};
 
 						// Get negociated mime types between the handler and the client
