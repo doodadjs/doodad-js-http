@@ -1424,7 +1424,7 @@ exports.add = function add(modules) {
 						} else {
 							//this.response.clear();
 							this.__redirectsCount++;
-							url = this.url.set({file: null}).combine(url);
+							url = this.url.combine(url);
 							const status = (isPermanent ? types.HttpStatus.MovedPermanently : types.HttpStatus.TemporaryRedirect);
 							return this.response.respondWithStatus(status, null, {
 								'Location': url.toString({
@@ -1479,7 +1479,7 @@ exports.add = function add(modules) {
 						// TODO: Assert on "stream"
 						// NOTE: Don't immediatly do pipes to not start the transfer. Pipes and transfer are made at "getStream".
 						options = tools.nullObject(options);
-						const pipe = {stream: stream, options: options};
+						const pipe = {stream, options};
 						if (options.unshift) {
 							this.__pipes.unshift(pipe);
 						} else {

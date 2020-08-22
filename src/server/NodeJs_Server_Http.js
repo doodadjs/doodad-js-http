@@ -89,6 +89,7 @@ exports.add = function add(modules) {
 
 
 			const __Internal__ = {
+				warned: false,
 			};
 
 			tools.complete(_shared.Natives, {
@@ -1181,7 +1182,10 @@ exports.add = function add(modules) {
 					onNodeListening: doodad.NODE_EVENT('listening', function onNodeListening(context) {
 						types.setAttribute(this, '__address', this.__nodeServer.address());
 						tools.log(tools.LogLevels.Info, "~protocol~ server listening on port '~port~', address '~address~' (~family~).", tools.extend({protocol: this.protocol.toUpperCase()}, this.__address));
-						tools.log(tools.LogLevels.Warning, "IMPORTANT: It is an experimental and not finished software. Don't use it on production, or do it at your own risks. Please report bugs and suggestions to 'doodadjs [at] gmail <dot> com'.");
+						if (!__Internal__.warned) {
+							tools.log(tools.LogLevels.Warning, "IMPORTANT: It is an experimental and not finished software. Don't use it on production, or do it at your own risks. Please report bugs and suggestions to 'doodadjs [at] gmail <dot> com'.");
+							__Internal__.warned = true;
+						};
 					}),
 
 					onNodeError: doodad.NODE_EVENT('error', function onNodeError(context, ex) {
@@ -1521,7 +1525,7 @@ exports.add = function add(modules) {
 											if (path.file) {
 												stats.path = pathStr;
 											} else {
-												const newPath = path.popFile();
+												const newPath = path.toFile();
 												stats.path = (newPath ? newPath.toApiString() : pathStr);
 											};
 										} else if (path.file) {
@@ -1546,7 +1550,7 @@ exports.add = function add(modules) {
 														if (canonicalPath.file) {
 															stats.realPath = canonicalPath.toApiString();
 														} else {
-															const newPath = canonicalPath.popFile();
+															const newPath = canonicalPath.toFile();
 															stats.realPath = (newPath ? newPath.toApiString() : canonicalPath.toApiString());
 														};
 													} else if (canonicalPath.file) {
@@ -1637,7 +1641,7 @@ exports.add = function add(modules) {
 						// TODO: Allow to extend with other template engines.
 						request.data.isFolder = false;
 						if (!request.url.file) {
-							return request.redirectClient(request.url.popFile());
+							return request.redirectClient(request.url.toFile());
 						};
 						if (request.url.extension === 'ddt') {
 							// We always show the extension "ddtx"
