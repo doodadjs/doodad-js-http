@@ -2199,6 +2199,19 @@ exports.add = function add(modules) {
 						return dataHandler.deleteData(request, this, id, options);
 					})),
 
+					addHeaders: doodad.OVERRIDE(function addHeaders(request) {
+						if (request.url.getArg('vars', true)) {
+							// Disable client (browser) and proxy cache.
+							request.response.addHeaders({
+								'Cache-Control': 'no-cache, no-store, must-revalidate',
+								'Pragma': 'no-cache',
+								'Expires': '0',
+							});
+						};
+
+						return this._super(request);
+					}),
+
 					createStream: doodad.OVERRIDE(function createStream(request, /*optional*/options) {
 						const Promise = types.getPromise();
 
