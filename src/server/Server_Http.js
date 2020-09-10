@@ -1585,7 +1585,11 @@ exports.add = function add(modules) {
 							const discardWilcards = !tools.some(mimeTypes, function(mimeType) {
 								return (mimeType.type === '*') && (mimeType.subtype === '*');
 							});
-							const acceptedMimeTypes = this.getAcceptables(mimeTypes, {discardWilcards});
+							let acceptedMimeTypes = this.getAcceptables(mimeTypes, {discardWilcards});
+
+							if (discardWilcards && (!acceptedMimeTypes || !acceptedMimeTypes.length)) {
+								acceptedMimeTypes = this.getAcceptables(mimeTypes, {discardWilcards: false});
+							};
 
 							if (acceptedMimeTypes && acceptedMimeTypes.length) {
 								const parentState = handlerOptions.parent && this.getHandlerState(handlerOptions.parent);
