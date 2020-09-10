@@ -752,7 +752,7 @@ exports.add = function add(modules) {
 						this.headers['Vary'] = vary.slice(2);
 						this.onHeadersChanged(new doodad.Event({headers: ['Vary']}));
 
-						return vary;
+						return this.headers['Vary'];
 					}),
 
 					storeHeaders: doodad.PUBLIC(function storeHeaders(storeObj, /*optional*/names) {
