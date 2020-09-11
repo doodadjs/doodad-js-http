@@ -989,7 +989,7 @@ exports.add = function add(modules) {
 					}),
 
 					addPipe: doodad.PUBLIC(function addPipe(stream, /*optional*/options) {
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};
 
@@ -1468,7 +1468,7 @@ exports.add = function add(modules) {
 					})),
 
 					addPipe: doodad.PUBLIC(function addPipe(stream, /*optional*/options) {
-						if (this.ended) {
+						if (this.ended && !this.__ending) {
 							throw new server.EndOfRequest();
 						};
 
