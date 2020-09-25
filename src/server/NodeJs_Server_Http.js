@@ -1979,12 +1979,12 @@ exports.add = function add(modules) {
 							};
 						};
 
-						const token = types.freezeObject({
+						const token = {
 							id,
 							data,
 							ttl,
 							time: process.hrtime(),
-						});
+						};
 
 						storage.set(id, token);
 
