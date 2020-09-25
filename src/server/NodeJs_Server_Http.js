@@ -1868,7 +1868,7 @@ exports.add = function add(modules) {
 							if (!types._implements(handler, httpMixIns.Handler)) {
 								throw new types.ValueError("Invalid handler name.");
 							};
-							return nodejsHttp.ClusterDataHandler.$set(request, handler, token.data, tools.nullObject({foreignId: token.id, ttl: token.ttl}, options))
+							return nodejsHttp.ClusterDataHandler.$set(request, handler, token.data, tools.nullObject({id: token.id, ttl: token.ttl}, options))
 								.then(function(token) {
 									// Does nothing
 								});
@@ -1957,18 +1957,16 @@ exports.add = function add(modules) {
 							exchanged.set(handlerType, storage);
 						};
 
-						let id = null;
-
-						const foreignId = types.get(options, 'foreignId');
-						if (foreignId) {
-							const foreignIdStr = types.toString(foreignId);
+						let id = types.get(options, 'id');
+						if (id) {
+							const idStr = types.toString(id);
 							// NOTE: "$set" called with an ID should comes from IPC
-							if (storage.has(foreignIdStr)) {
+							if (storage.has(idStr)) {
 								// Signal the collision.
 								// TODO: LOW: Create a specific error type (types.SyncError ?).
-								throw new types.Error("That id is not available : ~0~.", [foreignIdStr]);
+								throw new types.Error("That id is not available : ~0~.", [idStr]);
 							};
-							id = foreignIdStr;
+							id = idStr;
 						} else {
 							id = tools.generateUUID();
 							let retries = 0;
@@ -1981,12 +1979,12 @@ exports.add = function add(modules) {
 							};
 						};
 
-						const token = {
+						const token = types.freezeObject({
 							id,
 							data,
 							ttl,
 							time: process.hrtime(),
-						};
+						});
 
 						storage.set(id, token);
 
@@ -2095,7 +2093,7 @@ exports.add = function add(modules) {
 					$set: doodad.OVERRIDE(function $set(request, handler, data, /*optional*/options) {
 						return this._super(request, handler, data, options)
 							.then(function(token) {
-								if (nodeCluster.isWorker && !types.has(options, 'foreignId')) {
+								if (nodeCluster.isWorker && !types.has(options, 'id')) {
 									const handlerType = types.getType(handler);
 									const handlerName = handlerType.DD_FULL_NAME;
 									//root.DD_ASSERT && root.DD_ASSERT(namespaces.get(handlerName) === handlerType, "Handler is not registred.");
@@ -2300,7 +2298,6 @@ exports.add = function add(modules) {
 					__status: doodad.PROTECTED(null),
 					__message: doodad.PROTECTED(null),
 					//__key: doodad.PROTECTED(null),
-					//__section: doodad.PROTECTED(false),
 					//__parent: doodad.PROTECTED(null),
 					__encoding: doodad.PROTECTED(null),
 
@@ -2323,7 +2320,6 @@ exports.add = function add(modules) {
 						this.__status = null;
 						this.__message = null;
 						//this.__key = null;
-						//this.__section = false;
 						//this.__parent = null;
 						this.__encoding = null;
 					}),
@@ -2379,8 +2375,6 @@ exports.add = function add(modules) {
 										const val = tools.split(value, ' ', 2);
 										this.__status = parseInt(val[0], 10) || 200;
 										this.__message = val[1] || '';
-									} else if (name === 'X-Cache-Section') {
-										//this.__section = types.toBoolean(value.toLowerCase());
 									} else if (name === 'X-Cache-Parent') {
 										//this.__parent = value;
 									} else if (name === 'X-Cache-Encoding') {
@@ -2989,35 +2983,36 @@ exports.add = function add(modules) {
 							}, null, this)
 							.then(function afterOpen(stream) {
 								if (stream) {
-									let headers = '';
-									headers += 'X-Cache-Key: ' + cached.hashedKey + '\n';
-									if (root.getOptions().debug) {
-										headers += 'X-Cache-Key-Debug: ' + cached.key.toString() + '\n';
-									};
-									if (cached.isSection) {
-										headers += 'X-Cache-Section: True\n';
-										headers += 'X-Cache-Parent: ' + cached.parent.hashedKey + '\n';
-									};
-									if (cached.expiration) {
-										headers += 'X-Cache-Expiration: ' + http.toRFC1123Date(cached.expiration) + '\n'; // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
-									};
-									if (encoding) {
-										headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
-									};
-									if (cached.isMain) {
-										// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
-										if (!request.response.headersSent) {
-											request.response.sendHeaders();
+									stream.onWrite.attachOnce(this, function(ev) {
+										let headers = '';
+										headers += 'X-Cache-Key: ' + cached.hashedKey + '\n';
+										if (root.getOptions().debug) {
+											headers += 'X-Cache-Key-Debug: ' + cached.key.toString() + '\n';
 										};
-										const status = request.response.status || 200;
-										headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toApiString() + '\n';
-										headers += 'X-Cache-Status: ' + types.toString(status) + ' ' + (request.response.message || nodeHttp.STATUS_CODES[status] || '') + '\n';
-										tools.forEach(request.response.getHeaders(), function(value, name) {
-											headers += (name + ': ' + value + '\n');
-										});
-									};
+										if (cached.isSection) {
+											headers += 'X-Cache-Parent: ' + cached.parent.hashedKey + '\n';
+										};
+										if (cached.expiration) {
+											headers += 'X-Cache-Expiration: ' + http.toRFC1123Date(cached.expiration) + '\n'; // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
+										};
+										if (encoding) {
+											headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
+										};
+										if (cached.isMain) {
+											if (!request.response.headersSent) {
+												request.response.sendHeaders();
+											};
+											// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
+											const status = request.response.status || 200;
+											headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toApiString() + '\n';
+											headers += 'X-Cache-Status: ' + types.toString(status) + ' ' + (request.response.message || nodeHttp.STATUS_CODES[status] || '') + '\n';
+											tools.forEach(request.response.getHeaders(), function(value, name) {
+												headers += (name + ': ' + value + '\n');
+											});
+										};
 
-									stream.write(io.TextData.$encode(headers + '\n', 'utf-8')); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
+										stream.write(io.TextData.$encode(headers + '\n', 'utf-8')); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
+									});
 
 									request.waitFor(stream.onEOF.promise());
 
@@ -3066,9 +3061,13 @@ exports.add = function add(modules) {
 													cached.validate();
 													// TODO: Refactor "watch" without using "options". See FileSystemPage.sendFile
 													if (ev.data.options.watch) {
-														files.watch(ev.data.options.watch, function() {
-															cached.invalidate();
-														}, {once: true});
+														try {
+															files.watch(ev.data.options.watch, function() {
+																cached.invalidate();
+															}, {once: true});
+														} catch(ex) {
+															// Do nothing
+														}
 													};
 												}, this, _shared.SECRET)
 													.catch(function(err) {
