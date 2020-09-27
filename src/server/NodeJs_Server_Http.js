@@ -1691,10 +1691,10 @@ exports.add = function add(modules) {
 							// TODO: Refactor "watch" without using "options". See CacheHandler.__onGetStream
 							const options = (root.getOptions().debug ? {watch: data.path} : null);
 
-							return request.response.getStream(options)
-								.then(function(outputStream) {
-									return this.createStream(request, {url: data.url})
-										.then(function(inputStream) {
+							return this.createStream(request, {url: data.url})
+								.then(function(inputStream) {
+									return request.response.getStream(options)
+										.then(function(outputStream) {
 											inputStream.pipe(outputStream);
 											return outputStream.onEOF.promise();
 										}, null, this);
@@ -2275,8 +2275,10 @@ exports.add = function add(modules) {
 										tools.forEach(this.options.variables, function forEachVar(value, name) {
 											jsStream.define(name, value);
 										});
-
-										return inputStream.pipe(jsStream);
+										jsStream.onPipe.attachOnce(this, function(ev) {
+											inputStream.listen();
+										});
+										return inputStream.pipe(jsStream, {autoListen: false});
 									}, null, this);
 							}, null, this);
 					}),
