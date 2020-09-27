@@ -2983,36 +2983,36 @@ exports.add = function add(modules) {
 							}, null, this)
 							.then(function afterOpen(stream) {
 								if (stream) {
-									stream.onWrite.attachOnce(this, function(ev) {
-										let headers = '';
-										headers += 'X-Cache-Key: ' + cached.hashedKey + '\n';
-										if (root.getOptions().debug) {
-											headers += 'X-Cache-Key-Debug: ' + cached.key.toString() + '\n';
+									//stream.onWrite.attachOnce(this, function(ev) {
+									let headers = '';
+									headers += 'X-Cache-Key: ' + cached.hashedKey + '\n';
+									if (root.getOptions().debug) {
+										headers += 'X-Cache-Key-Debug: ' + cached.key.toString() + '\n';
+									};
+									if (cached.isSection) {
+										headers += 'X-Cache-Parent: ' + cached.parent.hashedKey + '\n';
+									};
+									if (cached.expiration) {
+										headers += 'X-Cache-Expiration: ' + http.toRFC1123Date(cached.expiration) + '\n'; // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
+									};
+									if (encoding) {
+										headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
+									};
+									if (cached.isMain) {
+										if (!request.response.headersSent) {
+											request.response.sendHeaders();
 										};
-										if (cached.isSection) {
-											headers += 'X-Cache-Parent: ' + cached.parent.hashedKey + '\n';
-										};
-										if (cached.expiration) {
-											headers += 'X-Cache-Expiration: ' + http.toRFC1123Date(cached.expiration) + '\n'; // ex.:   Fri, 10 Jul 2015 03:16:55 GMT
-										};
-										if (encoding) {
-											headers += 'X-Cache-Encoding: ' + encoding + '\n'; // ex.: 'utf-8'
-										};
-										if (cached.isMain) {
-											if (!request.response.headersSent) {
-												request.response.sendHeaders();
-											};
-											// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
-											const status = request.response.status || 200;
-											headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toApiString() + '\n';
-											headers += 'X-Cache-Status: ' + types.toString(status) + ' ' + (request.response.message || nodeHttp.STATUS_CODES[status] || '') + '\n';
-											tools.forEach(request.response.getHeaders(), function(value, name) {
-												headers += (name + ': ' + value + '\n');
-											});
-										};
+										// TODO: Trailers ("X-Cache-Trailer-XXX" ?)
+										const status = request.response.status || 200;
+										headers += 'X-Cache-File: ' + request.verb + ' ' + request.url.toApiString() + '\n';
+										headers += 'X-Cache-Status: ' + types.toString(status) + ' ' + (request.response.message || nodeHttp.STATUS_CODES[status] || '') + '\n';
+										tools.forEach(request.response.getHeaders(), function(value, name) {
+											headers += (name + ': ' + value + '\n');
+										});
+									};
 
-										stream.write(io.TextData.$encode(headers + '\n', 'utf-8')); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
-									});
+									stream.write(io.TextData.$encode(headers + '\n', 'utf-8')); // NOTE: Encodes headers like Node.js (utf-8) even if it should be 'ascii'.
+									//});
 
 									request.waitFor(stream.onEOF.promise());
 
