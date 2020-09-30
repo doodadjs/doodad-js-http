@@ -1691,20 +1691,23 @@ exports.add = function add(modules) {
 							// TODO: Refactor "watch" without using "options". See CacheHandler.__onGetStream
 							const options = (root.getOptions().debug ? {watch: data.path} : null);
 
-							return this.createStream(request, {url: data.url})
-								.then(function(inputStream) {
-									return request.response.getStream(options)
-										.then(function(outputStream) {
-											inputStream.pipe(outputStream);
-											return outputStream.onEOF.promise();
-										}, null, this);
-								}, null, this)
-								.then(function() {
-									if (!request.ended) {
-										return request.end();
-									};
-									return undefined;
-								});
+							return request.response.getStream(options)
+								.then(function(outputStream) {
+									return this.createStream(request, {url: data.url})
+										.then(function(inputStream) {
+											if (inputStream) {
+												inputStream.pipe(outputStream);
+												return outputStream.onEOF.promise();
+											};
+											return undefined;
+										}, null, this)
+										.then(function() {
+											if (!request.ended) {
+												return request.end();
+											};
+											return undefined;
+										});
+								}, null, this);
 						};
 
 						return undefined;
@@ -2251,7 +2254,7 @@ exports.add = function add(modules) {
 									types.DESTROY(jsStream); // stops the stream in case of abort
 								});
 
-								let promise = Promise.resolve();
+								let promise = Promise.resolve(true);
 
 								const varsId = url.getArg('vars', true);
 								if (varsId) {
@@ -2261,24 +2264,26 @@ exports.add = function add(modules) {
 										}, null, this)
 										.then(function(vars) {
 											if (!vars) {
-												return request.response.respondWithStatus(types.HttpStatus.NotFound);
+												return false;
 											};
 											tools.forEach(vars, function forEachVar(value, name) {
 												jsStream.define(name, value);
 											});
-											return undefined;
+											return true;
 										}, null, this);
 								};
 
 								return promise
-									.then(function(dummy) {
-										tools.forEach(this.options.variables, function forEachVar(value, name) {
-											jsStream.define(name, value);
-										});
-										jsStream.onPipe.attachOnce(this, function(ev) {
-											inputStream.listen();
-										});
-										return inputStream.pipe(jsStream, {autoListen: false});
+									.then(function(ok) {
+										if (ok) {
+											tools.forEach(this.options.variables, function forEachVar(value, name) {
+												jsStream.define(name, value);
+											});
+											jsStream.onPipe.attachOnce(this, function(ev) {
+												inputStream.listen();
+											});
+											return inputStream.pipe(jsStream, {autoListen: false});
+										};
 									}, null, this);
 							}, null, this);
 					}),
@@ -2776,7 +2781,8 @@ exports.add = function add(modules) {
 							};
 
 							if (!cached) {
-								cached = type.$__cache.get(key.toHash());
+								const hash = key.toHash();
+								cached = type.$__cache.get(hash);
 							};
 
 						} else if (types.isString(key)) {
@@ -3035,6 +3041,7 @@ exports.add = function add(modules) {
 						if (!types.HttpStatus.isError(request.response.status) && !types.HttpStatus.isRedirect(request.response.status)) {
 							const start = function _start(output) {
 								const cached = this.getCached(request, {create: true});
+								//console.log(request.url.toApiString() + ':' + (cached ? (cached.isValid() ? " Valid" : (cached.isInvalid() ? " Invalid" : (cached.isPending() ? " Pending" : ""))) + " Cached" : ""));
 
 								if (cached && cached.isValid()) {
 									return this.openFile(request, cached)
