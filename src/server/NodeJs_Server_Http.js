@@ -497,24 +497,26 @@ exports.add = function add(modules) {
 						};
 					}),
 
-					respondWithStatus: doodad.OVERRIDE(function respondWithStatus(status, /*optional*/message, /*optional*/headers, /*optional*/data) {
+					respondWithStatus: doodad.OVERRIDE(function respondWithStatus(status, /*optional*/message, /*optional*/data) {
 						// NOTE: Must always throws an error.
 						if (this.ended) {
 							throw new server.EndOfRequest();
 						};
 
 
-						if (this.headersSent) {
-							throw new types.NotAvailable("Can't respond with a new status or new headers because the headers have already been sent to the client.");
+						if (this.nodeJsStream.headersSent) {
+							throw new types.NotAvailable("Can't respond with a new status because the headers have already been sent to the client.");
 						};
-
-						this.addHeaders(headers);
 
 						types.setAttributes(this, {
 							status: status,
 							message: message || nodeHttp.STATUS_CODES[status],
 							statusData: data,
 						});
+
+						const response = this.nodeJsStream;
+						response.statusCode = this.status;
+						response.statusMessage = this.message;
 
 						this.request.setFullfilled(true);
 
@@ -545,7 +547,7 @@ exports.add = function add(modules) {
 									// Too late !
 									return this.request.end();
 								} else {
-									return this.respondWithStatus(types.HttpStatus.InternalError, null, null, ex);
+									return this.respondWithStatus(types.HttpStatus.InternalError, null, ex);
 								};
 							};
 						};
@@ -2254,7 +2256,7 @@ exports.add = function add(modules) {
 									types.DESTROY(jsStream); // stops the stream in case of abort
 								});
 
-								let promise = Promise.resolve(true);
+								let promise = Promise.resolve();
 
 								const varsId = url.getArg('vars', true);
 								if (varsId) {
@@ -2264,26 +2266,24 @@ exports.add = function add(modules) {
 										}, null, this)
 										.then(function(vars) {
 											if (!vars) {
-												return false;
+												return request.response.respondWithStatus(types.HttpStatus.NotFound);
 											};
 											tools.forEach(vars, function forEachVar(value, name) {
 												jsStream.define(name, value);
 											});
-											return true;
+											return undefined;
 										}, null, this);
 								};
 
 								return promise
-									.then(function(ok) {
-										if (ok) {
-											tools.forEach(this.options.variables, function forEachVar(value, name) {
-												jsStream.define(name, value);
-											});
-											jsStream.onPipe.attachOnce(this, function(ev) {
-												inputStream.listen();
-											});
-											return inputStream.pipe(jsStream, {autoListen: false});
-										};
+									.then(function() {
+										tools.forEach(this.options.variables, function forEachVar(value, name) {
+											jsStream.define(name, value);
+										});
+										jsStream.onPipe.attachOnce(this, function(ev) {
+											inputStream.listen();
+										});
+										return inputStream.pipe(jsStream, {autoListen: false});
 									}, null, this);
 							}, null, this);
 					}),
@@ -2958,6 +2958,11 @@ exports.add = function add(modules) {
 								stream.once('open', openCb = doodad.Callback(this, function streamOnOpen(fd) {
 									stream.removeListener('error', errorCb);
 									const ddStream = (encoding ? new nodejsIO.TextOutputStream(stream, {encoding: encoding}) : new nodejsIO.BinaryOutputStream(stream));
+									request.response.onStatus.attachOnce(null, function() {
+										if (types.HttpStatus.isError(request.response.status) || types.HttpStatus.isRedirect(request.response.status)) {
+											cached.abort();
+										};
+									});
 									request.onSanitize.attachOnce(null, function sanitize() {
 										types.DESTROY(stream);
 										types.DESTROY(ddStream);

@@ -792,7 +792,7 @@ exports.add = function add(modules) {
 
 					clear: doodad.PUBLIC(doodad.MUST_OVERRIDE()), // function clear()
 
-					respondWithStatus: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function respondWithStatus(/*optional*/status, /*optional*/message, /*optional*/headers, /*optional*/data)
+					respondWithStatus: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function respondWithStatus(/*optional*/status, /*optional*/message, /*optional*/data)
 					respondWithError: doodad.PUBLIC(doodad.ASYNC(doodad.MUST_OVERRIDE())), // function respondWithError(ex)
 
 					// TODO: Validate
@@ -1426,13 +1426,12 @@ exports.add = function add(modules) {
 							this.__redirectsCount++;
 							url = this.url.combine(url);
 							const status = (isPermanent ? types.HttpStatus.MovedPermanently : types.HttpStatus.TemporaryRedirect);
-							return this.response.respondWithStatus(status, null, {
-								'Location': url.toString({
-									args: {
-										redirects: this.__redirectsCount,
-									},
-								}),
-							});
+							this.response.addHeader('Location', url.toString({
+								args: {
+									redirects: this.__redirectsCount,
+								},
+							}));
+							return this.response.respondWithStatus(status);
 						};
 					})),
 
