@@ -2958,11 +2958,13 @@ exports.add = function add(modules) {
 								stream.once('open', openCb = doodad.Callback(this, function streamOnOpen(fd) {
 									stream.removeListener('error', errorCb);
 									const ddStream = (encoding ? new nodejsIO.TextOutputStream(stream, {encoding: encoding}) : new nodejsIO.BinaryOutputStream(stream));
+									request.response.onStatus.stackSize++;
 									request.response.onStatus.attachOnce(null, function() {
 										if (types.HttpStatus.isError(request.response.status) || types.HttpStatus.isRedirect(request.response.status)) {
 											cached.abort();
 										};
 									});
+									request.onSanitize.stackSize++;
 									request.onSanitize.attachOnce(null, function sanitize() {
 										types.DESTROY(stream);
 										types.DESTROY(ddStream);
